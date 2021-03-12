@@ -1,0 +1,134 @@
+\documentclass[a4paper, 12pt, DIV=15]{scrartcl}
+
+\usepackage{array}
+\usepackage{booktabs}
+\usepackage{enumitem}
+\usepackage[T1]{fontenc}
+\usepackage{graphicx}
+\usepackage[hidelinks]{hyperref}
+\usepackage[utf8]{inputenc}
+\usepackage{pgfgantt}
+\usepackage[rm]{roboto}
+\usepackage{scrlayer-scrpage}
+\usepackage{xcolor}
+
+\RedeclareSectionCommand[
+  beforeskip=-.5\baselineskip,
+  afterskip=.25\baselineskip]{section}
+
+\renewcommand{\familydefault}{\sfdefault}
+\newcommand{\ETHlogo}[1][\textwidth]{\resizebox{#1}{!}{\includegraphics{ETHlogo}}}
+\ganttset{calendar week text={W~\currentweek}}
+\newcommand{\optitem}{\refstepcounter{enumi}\item[$^\star$\theenumi]}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{6pt}
+
+\newcommand{\thesistype}{Bachelor's} % or "Master's"
+\newcommand{\student}{Student Name}
+\newcommand{\advisor}{Advisor Name}
+\newcommand{\thesistitle}{Thesis Title}
+
+\begin{document}
+
+\noindent\includegraphics[width=.32\textwidth]{ETHlogo}
+\hfill
+\begin{minipage}[b]{.5\textwidth}
+  \raggedleft
+  \sffamily\upshape\normalsize\textbf{Network Security group}\\
+  \small
+  Student: \student{}\\
+  Supervisor: Adrian Perrig\\
+  Advisor: \advisor{}
+\end{minipage}
+
+\vspace{2cm}
+
+\begingroup
+  \centering
+  \bfseries\sffamily
+  \LARGE \thesistitle\\[.5em]
+  \large\color{gray} \thesistype{} Thesis Proposal\par
+\endgroup
+
+\section*{Introduction}
+Description of the project~\cite{SCION-Book}.
+
+\section*{Project description}
+To be determined.
+
+\section*{Work packages}
+
+The following tasks have to be completed in this thesis;
+optional tasks are marked by a star symbol.
+
+\begin{enumerate}[itemindent=12pt,label={\sffamily\bfseries WP\arabic*:}]
+\setcounter{enumi}{-1}
+\item Register thesis with study administration and define timeline.
+\item Familiarize yourself with the SCION architecture, \dots, and write the ``Background'' chapter of the thesis.
+\item First ``real'' task.
+\optitem Optional task.
+\end{enumerate}
+
+\section*{Timeline}
+
+The timeline will be defined during the first two weeks of the project.
+
+% Alternative: already define the timeline now.
+% In that case, a Gantt chart may be helpful.
+
+% \begin{ganttchart}[
+% hgrid,
+% % vgrid,
+% x unit=1.5mm,
+% time slot format=isodate,
+% title label font=\footnotesize,
+% ]{2019-09-23}{2019-12-20}
+% \gantttitlecalendar{month=shortname, week} \\
+% \ganttbar{Project setup}{2019-09-23}{2019-09-30} \\
+% \ganttbar{Phase 1}{2019-09-30}{2019-10-14} \\
+% \end{ganttchart}
+
+% Requirements and Contact are only required when publishing a project description
+% on the website.
+
+% \section*{Requirements}
+% \begin{itemize}
+% \item Foundations in networking and security
+% \item Python programming is helpful but not required
+% \item \dots
+% \end{itemize}
+
+% \section*{Contact}
+% \advisor:
+
+\section*{Organization}
+The student and the advisor will hold weekly meetings.
+During each weekly meeting, the student will briefly describe the work completed during the week and outline the work to be completed during the next week.
+The advisor will, if necessary, assist the student in identifying potential future issues and discuss current issues.
+Pressing complications arising between two meetings will be promptly discussed.
+The advisor will assist the student towards completing any agreed-upon milestones.
+
+\section*{Grading Scheme}
+
+\begin{center}
+\begin{tabular}{rm{.7\textwidth}}
+\toprule
+\bfseries Grade & \bfseries Description \\
+\midrule
+6.0 &  Design and implementation, as well as thesis are candidates for submission to
+    an academic conference or workshop. \\ \midrule
+5.5 &  Project quality significantly exceeds expectations. \\ \midrule
+5.0 &  Project meets expectations. \\ \midrule
+4.5 &  Project partially meets expectations and has minor deficits. \\ \midrule
+4.0 &  Project meets minimum quality requirements but has major deficits and
+        is clearly below expectations. \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\bibliographystyle{abbrv}
+\begin{small}
+  \bibliography{ref}
+\end{small}
+
+\end{document}
