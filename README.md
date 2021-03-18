@@ -82,3 +82,7 @@ section Overview
 
 - *Start writing **early**.*
 - *Read [document about academic writing](https://cloud.inf.ethz.ch/s/Yc4gjEceJmpS3yP) and follow the rules described therein.*
+
+## Evaluation
+
+Our evaluation and grading criteria are listed in the [evaluation.csv](evaluation.csv) file.
