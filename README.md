@@ -6,6 +6,7 @@
 - [ ] Give `Owner` permissions to the student for the subgroup (with an expiration date ~1 year in the future)
 - [ ] Fork this repository to that subgroup
 - [ ] Make adjustments as required:
+  - [ ] Change name, description, and path of repository
   - [ ] Add resources
   - [ ] Add (draft of) project description
   - [ ] Fill in information
