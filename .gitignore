@@ -6,4 +6,6 @@
 *.log
 *.out
 *.synctex.gz
+*.toc
 project-description/proposal.pdf
+thesis/thesis.pdf

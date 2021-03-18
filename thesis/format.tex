@@ -1,0 +1,102 @@
+%
+% Mathematics
+\usepackage{amsmath,amsthm,amssymb,amsfonts}
+\usepackage{mathtools}
+%
+% Fonts
+\usepackage{newpxtext,newpxmath} % Palatino font, remove or change according to your taste
+\usepackage{microtype} 	         % Better kerning
+%
+% Layout
+\usepackage{multicol}   % Allows multi-column layout
+\usepackage{float}      % Better interface for defining floating objects
+\usepackage{flafter}    % Always place floats _after_ their definition
+%
+% Nicer-looking tables
+\usepackage{booktabs,tabularx}
+%
+% Correct and consistent units and numbers
+\usepackage[mode=text, math-rm=\text, detect-all, binary-units=true, per-mode=symbol, range-phrase=\,--\,, range-units=single, detect-weight=true, detect-family=true]{siunitx}
+%
+% Drawing and plotting
+\usepackage{tikz}
+\usepackage{pgfplots}
+\pgfplotsset{compat=1.17}
+%
+% Nice and consistent quotation marks
+\usepackage{csquotes}
+%
+% Figures
+\usepackage{graphicx}
+\usepackage{wrapfig}    % Wrap text around figures
+\usepackage{subfig}     % Create subfigures
+\graphicspath{{../resources},{figures}}
+%
+% Miscellaneous
+\usepackage[nice]{nicefrac} % Display ½ nicely
+\usepackage{enumitem}       % Allows customizing enumerate counters
+\usepackage{xcolor}         % Colors!
+\usepackage{pdfpages}       % For including the declaration of originality
+%
+% Bibliography
+\usepackage{natbib}
+%
+% Hyperref package for links in TOC, index, PDF metadata, bookmarks, etc.
+\usepackage[plainpages=false,pdfpagelabels,bookmarks=true,backref=false,pagebackref=false]{hyperref}
+\hypersetup{
+    pdfauthor={\thesisAuthor},
+    pdftitle={\thesisTitle},
+    pdfsubject={\thesisType},
+    hidelinks,
+    breaklinks=true,
+    pdfhighlight=/I,
+    bookmarksopen=false,
+    bookmarksnumbered=true
+}
+%
+% Easy and consistent references
+\usepackage[capitalize]{cleveref}
+\newcommand{\crefrangeconjunction}{--}
+\newcommand{\crefpairconjunction}{ and }
+\newcommand{\crefmiddleconjunction}{, }
+\newcommand{\creflastconjunction}{, and }
+\crefname{section}{\S}{Sections}
+\Crefname{section}{Section}{Sections}
+\crefformat{section}{\S#2#1#3}
+\Crefformat{section}{Section~#2#1#3}
+\crefformat{footnote}{#2\footnotemark[#1]#3}
+%
+% Basic source formatting
+\usepackage{listings}
+\lstloadlanguages{C}
+\lstset{
+    numbers=left,
+    numberstyle=\tiny,
+    numbersep=5pt,
+    language=C,
+    basicstyle=\ttfamily\scriptsize,
+    tabsize=2,
+    breaklines=true
+}
+%
+% ETH Colors
+\definecolor{eth1}{HTML}{1F407A}
+\definecolor{eth2}{HTML}{3C5A0F}
+\definecolor{eth3}{HTML}{0069B4}
+\definecolor{eth4}{HTML}{72791C}
+\definecolor{eth5}{HTML}{91056A}
+\definecolor{eth6}{HTML}{6F6F6E}
+\definecolor{eth7}{HTML}{A8322D}
+\definecolor{eth8}{HTML}{007A92}
+\definecolor{eth9}{HTML}{956013}
+\definecolor{eth10}{HTML}{82BE1E}
+%
+%
+% No single lines at the start of a paragraph ("Schusterjungen")
+\clubpenalty = 10000
+%
+% No single lines at the end of a paragraph ("Hurenkinder")
+\widowpenalty = 10000 \displaywidowpenalty = 10000
+%
+\renewcommand{\topfraction}{1.0}    % Figures can appear at start of page
+\renewcommand{\bottomfraction}{1.0} % Figures can appear at end of page

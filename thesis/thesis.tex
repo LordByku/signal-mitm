@@ -1,0 +1,67 @@
+\documentclass[
+    a4paper,
+    toc=index,
+    12pt,
+    DIV=14,
+    twoside,
+    BCOR=2cm,
+    headsepline,
+    numbers=noenddot,
+    bibliography=totoc,
+]{scrbook}
+
+\usepackage{scrhack}
+\usepackage[utf8]{inputenc}
+\DeclareUnicodeCharacter{00A0}{~}   % replace non-breaking space
+\usepackage[T1]{fontenc}
+\usepackage[american]{babel}    % Use either American or British English consistently
+
+\newcommand{\thesisTitle}{A Thesis Title}
+\newcommand{\thesisType}{Master's Thesis}
+\newcommand{\thesisAuthor}{Alex Muster}
+\newcommand{\thesisStudentID}{XX-XX-XXX}
+\newcommand{\thesisEmail}{amuster@ethz.ch}
+\newcommand{\thesisSupervisors}{Supervisor1\\Supervisor2\\Prof.~Dr.~Adrian Perrig}
+
+\newcommand{\thesisSemester}{Spring 2021}
+\newcommand{\thesisSubmission}{August 1, 2021}
+
+\input{format}
+
+\begin{document}
+
+\frontmatter
+
+\include{title}
+
+\include{sections/0_abstract}
+\include{sections/0_acknowledgements}
+
+\tableofcontents
+
+\mainmatter
+
+% Add/remove sections as required
+\include{sections/1_introduction}
+\include{sections/2_background}
+\include{sections/3_problem}
+\include{sections/4_design}
+\include{sections/5_analysis}
+\include{sections/6_implementation}
+\include{sections/7_evaluation}
+\include{sections/8_discussion}
+\include{sections/9_related-work}
+\include{sections/10_conclusion}
+
+\bibliographystyle{abbrv}
+\bibliography{bibliography}
+
+\appendix
+\include{sections/appendix}
+
+\cleardoublepage
+\phantomsection{}
+\addcontentsline{toc}{chapter}{Declaration of Originality}
+\includepdf[pages={-}]{../resources/declaration-originality.pdf} % replace with scan
+
+\end{document}
