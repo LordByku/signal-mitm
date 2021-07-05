@@ -13,6 +13,8 @@
   - [ ] Remove unused directories
 - [ ] If required, create an additional repository (or multiple repositories) for code in the subgroup
 - [ ] Delete this Checklist
+- [ ] Ensure that the project is entered into the internal `student projects` spreadsheet
+- [ ] After the thesis is finished, remember to add it to the list of `past theses` at [Student Projects](https://netsec.ethz.ch/projects/)
 
 ## Important Information
 
