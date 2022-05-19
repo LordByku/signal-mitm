@@ -83,7 +83,7 @@ section Overview
 ## Thesis
 
 - *Start writing **early**.*
-- *Read [document about academic writing](https://cloud.inf.ethz.ch/s/Yc4gjEceJmpS3yP) and follow the rules described therein.*
+- *Read [document about academic writing](https://cloud.inf.ethz.ch/s/Sdn8DybyAxZbtw3) and follow the rules described therein.*
 
 ## Evaluation
 
