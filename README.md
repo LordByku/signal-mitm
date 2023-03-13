@@ -1,21 +1,3 @@
-# Template for BSc and MSc Theses
-
-## Checklist for Advisor
-
-- [ ] Create a new *subgroup* called `bsc_<student name>` or `msc_<student_name>` in the [theses group](https://gitlab.inf.ethz.ch/OU-PERRIG/theses)
-- [ ] Give `Owner` permissions to the student for the subgroup (with an expiration date ~1 year in the future)
-- [ ] Fork this repository to that subgroup
-- [ ] Make adjustments as required:
-  - [ ] Change name, description, and path of repository
-  - [ ] Add resources
-  - [ ] Add (draft of) project description
-  - [ ] Fill in information
-  - [ ] Remove unused directories
-- [ ] If required, create an additional repository (or multiple repositories) for code in the subgroup
-- [ ] Delete this Checklist
-- [ ] Ensure that the project is entered into the internal `student projects` spreadsheet
-- [ ] After the thesis is finished, remember to add it to the list of `past theses` at [Student Projects](https://netsec.ethz.ch/projects/)
-
 ## Important Information
 
 - **Student**:
