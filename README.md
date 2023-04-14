@@ -1,8 +1,8 @@
 ## Important Information
 
-- **Student**:
-- **Advisors**:
-- **Start date**:
+- **Student**: Andrea Byku
+- **Advisors**: Christelle Gloor
+- **Start date**: 
 - **Submission date**:
 
 ## Timeline
