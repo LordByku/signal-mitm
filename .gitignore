@@ -10,6 +10,7 @@
 project-description/proposal.pdf
 thesis/thesis.pdf
 *.pyc
+*.apk
 
 # Created by https://www.toptal.com/developers/gitignore/api/python,rust,node,linux
 # Edit at https://www.toptal.com/developers/gitignore?templates=python,rust,node,linux
