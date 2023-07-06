@@ -13,9 +13,9 @@ with open(sys.argv[1], "rb") as logfile:
     pp = pprint.PrettyPrinter(indent=4)
     try:
         for f in freader.stream():
-            #print(f)
-            #if isinstance(f, http.HTTPFlow):
-                #print(f.request.host)
+            # print(f)
+            # if isinstance(f, http.HTTPFlow):
+            # print(f.request.host)
             if "cdsi" in f.server_conn.sni:
                 pp.pprint(f.get_state()["websocket"]["messages"])
             else:
