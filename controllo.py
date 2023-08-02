@@ -17,6 +17,8 @@ from cryptography.hazmat.backends import default_backend
 
 from Crypto.Cipher import AES
 
+DISC_BYTES =  b"\xFF"*32
+
 
 def b64(msg):
     # base64 encoding helper function
@@ -26,14 +28,14 @@ def hmac_sha256(key: bytes, msg: bytes):
     result = hmac.new(key, msg, digestmod=hashlib.sha256).hexdigest()
     return result
 
-def hkdf(inp, length):
+def hkdf(inp, length, salt=None, info=None):
     # use HKDF on an input to derive a key
     hkdf = HKDF(
         algorithm=hashes.SHA256(),
         length=length,
-        salt=None,
-        info=None,
-        backend=default_backend(),
+        salt=salt,
+        info=info,
+        #backend=default_backend(),
     )
     return hkdf.derive(inp)
 
@@ -53,13 +55,31 @@ class SymmRatchet(object):
     def __init__(self, key):
         self.state = key
 
-    def next(self, inp=b""):
+    def next(self, inp=b''):
         # turn the ratchet, changing the state and yielding a new key and IV
         output = hkdf(self.state + inp, 80)
-        self.state = output[:32] # cipher_key
+        self.state = output[:32]
         outkey, iv = output[32:64], output[64:]
         return outkey, iv
-
+    
+    def send_ratchet(self, other_pub_DH: bytes):
+        # perform a DH ratchet rotation using Bob's public key
+        if self.DHratchet is not None:
+            # the first time we don't have a DH ratchet yet
+            dh_recv = self.DHratchet.exchange(other_pub_DH)
+            shared_recv = self.root_ratchet.next(dh_recv)[0]
+            # use Bob's public and our old private key
+            # to get a new recv ratchet
+            self.recv_ratchet = SymmRatchet(shared_recv)
+            print(f"[{self.__class__.__name__}]\tRecv ratchet seed:", b64(shared_recv))
+        # generate a new key pair and send ratchet
+        # our new public key will be sent with the next message to Bob
+        self.DHratchet = X25519PrivateKey.generate()
+        dh_send = self.DHratchet.exchange(other_pub_DH)
+        shared_send = self.root_ratchet.next(dh_send)[0]
+        self.send_ratchet = SymmRatchet(shared_send)
+        print(f"[{self.__class__.__name__}]\tSend ratchet seed:", b64(shared_send))
+    
 @dataclass
 class KeyBundle:
     IK: X25519PublicKey
@@ -88,6 +108,7 @@ class Human(object):
 
     def dec(self, ctxt: bytes, pubkey: bytes) -> bytes:
         # receive the new public key and use it to perform a DH
+        #if self.last_person == False:
         self.dh_ratchet(pubkey)
         key, iv = self.recv_ratchet.next()
         # decrypt the message using the new recv ratchet
@@ -108,14 +129,15 @@ class Human(object):
             dh2 = self.EK.exchange(other_bundle.IK)
             dh3 = self.EK.exchange(other_bundle.SPK)
             dh4 = self.EK.exchange(other_bundle.OPK)
-            self.sk = hkdf(dh1 + dh2 + dh3 + dh4, 32)
+            self.sk = hkdf(inp = DISC_BYTES + dh1 + dh2 + dh3 + dh4, length=64, info = b"WhisperText")
+ #TODO change this
         else:
             dh1 = self.SPK.exchange(other_bundle.IK)
             dh2 = self.IK.exchange(other_bundle.EK)
             dh3 = self.SPK.exchange(other_bundle.EK)
             dh4 = self.OPK.exchange(other_bundle.EK)
-            self.sk = hkdf(dh1 + dh2 + dh3 + dh4, 32)
-
+            self.sk = hkdf(inp = DISC_BYTES + dh1 + dh2 + dh3 + dh4, length=64, info = b"WhisperText")
+            
         # the shared key is KDF(DH1||DH2||DH3||DH4)
         print(f"[{self.__class__.__name__}]\tShared key:", b64(self.sk))
 
@@ -123,18 +145,20 @@ class Human(object):
     def recv(self, cipher, bob_public_key):
         msg = self.dec(cipher, bob_public_key)
         print(f"[{self.__class__.__name__}]\tDecrypted message:", msg)
-        self.last_person = False
+        self.last_person = False #####
 
     def send(self, other, msg):
         # TODO dovrebbe usare lo stess ratchet fino a quando il recipient risponde mandando un messaggio con nuova key.
         if self.last_person:
             self.dh_ratchet(other.DHratchet.public_key())
-        
+            #print(f"[{self.__class__.__name__}]\tSending ciphertext to {other.__class__.__name__}:", b64(cipher))
+             ######################
+
         cipher = self.enc(msg)
         print(f"[{self.__class__.__name__}]\tSending ciphertext to {other.__class__.__name__}:", b64(cipher))
         # send ciphertext and current DH public key
         other.recv(cipher, self.DHratchet.public_key())
-        self.last_person = True
+        self.last_person = True #####
 
     def dh_ratchet(self, other_pub_DH):
         # perform a DH ratchet rotation using Bob's public key
@@ -212,9 +236,9 @@ if __name__ == "__main__":
 
     alice.send(bob, b"Let's do crime")
     print(alice.last_person)
-    #bob.send(alice, b"Si!")
+    bob.send(alice, b"Si!")
     #bob.dh_ratchet(alice.DHratchet.public_key())
 
-    #bob.send(alice, b"HELL YEAH!!!")
+    bob.send(alice, b"HELL YEAH!!!")
     print(alice.last_person)
     print(bob.last_person)

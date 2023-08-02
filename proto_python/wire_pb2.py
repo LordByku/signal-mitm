@@ -3,6 +3,7 @@
 # source: wire.proto
 """Generated protocol buffer code."""
 from google.protobuf import descriptor as _descriptor
+from google.protobuf import descriptor_pool as _descriptor_pool
 from google.protobuf import message as _message
 from google.protobuf import reflection as _reflection
 from google.protobuf import symbol_database as _symbol_database
@@ -13,256 +14,14 @@ _sym_db = _symbol_database.Default()
 
 
 
-DESCRIPTOR = _descriptor.FileDescriptor(
-  name='wire.proto',
-  package='signal.proto.wire',
-  syntax='proto2',
-  serialized_options=None,
-  create_key=_descriptor._internal_create_key,
-  serialized_pb=b'\n\nwire.proto\x12\x11signal.proto.wire\"c\n\rSignalMessage\x12\x13\n\x0bratchet_key\x18\x01 \x01(\x0c\x12\x0f\n\x07\x63ounter\x18\x02 \x01(\r\x12\x18\n\x10previous_counter\x18\x03 \x01(\r\x12\x12\n\nciphertext\x18\x04 \x01(\x0c\"\x96\x01\n\x13PreKeySignalMessage\x12\x17\n\x0fregistration_id\x18\x05 \x01(\r\x12\x12\n\npre_key_id\x18\x01 \x01(\r\x12\x19\n\x11signed_pre_key_id\x18\x06 \x01(\r\x12\x10\n\x08\x62\x61se_key\x18\x02 \x01(\x0c\x12\x14\n\x0cidentity_key\x18\x03 \x01(\x0c\x12\x0f\n\x07message\x18\x04 \x01(\x0c\"f\n\x10SenderKeyMessage\x12\x19\n\x11\x64istribution_uuid\x18\x01 \x01(\x0c\x12\x10\n\x08\x63hain_id\x18\x02 \x01(\r\x12\x11\n\titeration\x18\x03 \x01(\r\x12\x12\n\nciphertext\x18\x04 \x01(\x0c\"\x86\x01\n\x1cSenderKeyDistributionMessage\x12\x19\n\x11\x64istribution_uuid\x18\x01 \x01(\x0c\x12\x10\n\x08\x63hain_id\x18\x02 \x01(\r\x12\x11\n\titeration\x18\x03 \x01(\r\x12\x11\n\tchain_key\x18\x04 \x01(\x0c\x12\x13\n\x0bsigning_key\x18\x05 \x01(\x0c'
-)
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\nwire.proto\x12\x11signal.proto.wire\"c\n\rSignalMessage\x12\x13\n\x0bratchet_key\x18\x01 \x01(\x0c\x12\x0f\n\x07\x63ounter\x18\x02 \x01(\r\x12\x18\n\x10previous_counter\x18\x03 \x01(\r\x12\x12\n\nciphertext\x18\x04 \x01(\x0c\"\x96\x01\n\x13PreKeySignalMessage\x12\x17\n\x0fregistration_id\x18\x05 \x01(\r\x12\x12\n\npre_key_id\x18\x01 \x01(\r\x12\x19\n\x11signed_pre_key_id\x18\x06 \x01(\r\x12\x10\n\x08\x62\x61se_key\x18\x02 \x01(\x0c\x12\x14\n\x0cidentity_key\x18\x03 \x01(\x0c\x12\x0f\n\x07message\x18\x04 \x01(\x0c\"f\n\x10SenderKeyMessage\x12\x19\n\x11\x64istribution_uuid\x18\x01 \x01(\x0c\x12\x10\n\x08\x63hain_id\x18\x02 \x01(\r\x12\x11\n\titeration\x18\x03 \x01(\r\x12\x12\n\nciphertext\x18\x04 \x01(\x0c\"\x86\x01\n\x1cSenderKeyDistributionMessage\x12\x19\n\x11\x64istribution_uuid\x18\x01 \x01(\x0c\x12\x10\n\x08\x63hain_id\x18\x02 \x01(\r\x12\x11\n\titeration\x18\x03 \x01(\r\x12\x11\n\tchain_key\x18\x04 \x01(\x0c\x12\x13\n\x0bsigning_key\x18\x05 \x01(\x0c')
 
 
 
-
-_SIGNALMESSAGE = _descriptor.Descriptor(
-  name='SignalMessage',
-  full_name='signal.proto.wire.SignalMessage',
-  filename=None,
-  file=DESCRIPTOR,
-  containing_type=None,
-  create_key=_descriptor._internal_create_key,
-  fields=[
-    _descriptor.FieldDescriptor(
-      name='ratchet_key', full_name='signal.proto.wire.SignalMessage.ratchet_key', index=0,
-      number=1, type=12, cpp_type=9, label=1,
-      has_default_value=False, default_value=b"",
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
-    _descriptor.FieldDescriptor(
-      name='counter', full_name='signal.proto.wire.SignalMessage.counter', index=1,
-      number=2, type=13, cpp_type=3, label=1,
-      has_default_value=False, default_value=0,
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
-    _descriptor.FieldDescriptor(
-      name='previous_counter', full_name='signal.proto.wire.SignalMessage.previous_counter', index=2,
-      number=3, type=13, cpp_type=3, label=1,
-      has_default_value=False, default_value=0,
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
-    _descriptor.FieldDescriptor(
-      name='ciphertext', full_name='signal.proto.wire.SignalMessage.ciphertext', index=3,
-      number=4, type=12, cpp_type=9, label=1,
-      has_default_value=False, default_value=b"",
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
-  ],
-  extensions=[
-  ],
-  nested_types=[],
-  enum_types=[
-  ],
-  serialized_options=None,
-  is_extendable=False,
-  syntax='proto2',
-  extension_ranges=[],
-  oneofs=[
-  ],
-  serialized_start=33,
-  serialized_end=132,
-)
-
-
-_PREKEYSIGNALMESSAGE = _descriptor.Descriptor(
-  name='PreKeySignalMessage',
-  full_name='signal.proto.wire.PreKeySignalMessage',
-  filename=None,
-  file=DESCRIPTOR,
-  containing_type=None,
-  create_key=_descriptor._internal_create_key,
-  fields=[
-    _descriptor.FieldDescriptor(
-      name='registration_id', full_name='signal.proto.wire.PreKeySignalMessage.registration_id', index=0,
-      number=5, type=13, cpp_type=3, label=1,
-      has_default_value=False, default_value=0,
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
-    _descriptor.FieldDescriptor(
-      name='pre_key_id', full_name='signal.proto.wire.PreKeySignalMessage.pre_key_id', index=1,
-      number=1, type=13, cpp_type=3, label=1,
-      has_default_value=False, default_value=0,
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
-    _descriptor.FieldDescriptor(
-      name='signed_pre_key_id', full_name='signal.proto.wire.PreKeySignalMessage.signed_pre_key_id', index=2,
-      number=6, type=13, cpp_type=3, label=1,
-      has_default_value=False, default_value=0,
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
-    _descriptor.FieldDescriptor(
-      name='base_key', full_name='signal.proto.wire.PreKeySignalMessage.base_key', index=3,
-      number=2, type=12, cpp_type=9, label=1,
-      has_default_value=False, default_value=b"",
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
-    _descriptor.FieldDescriptor(
-      name='identity_key', full_name='signal.proto.wire.PreKeySignalMessage.identity_key', index=4,
-      number=3, type=12, cpp_type=9, label=1,
-      has_default_value=False, default_value=b"",
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
-    _descriptor.FieldDescriptor(
-      name='message', full_name='signal.proto.wire.PreKeySignalMessage.message', index=5,
-      number=4, type=12, cpp_type=9, label=1,
-      has_default_value=False, default_value=b"",
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
-  ],
-  extensions=[
-  ],
-  nested_types=[],
-  enum_types=[
-  ],
-  serialized_options=None,
-  is_extendable=False,
-  syntax='proto2',
-  extension_ranges=[],
-  oneofs=[
-  ],
-  serialized_start=135,
-  serialized_end=285,
-)
-
-
-_SENDERKEYMESSAGE = _descriptor.Descriptor(
-  name='SenderKeyMessage',
-  full_name='signal.proto.wire.SenderKeyMessage',
-  filename=None,
-  file=DESCRIPTOR,
-  containing_type=None,
-  create_key=_descriptor._internal_create_key,
-  fields=[
-    _descriptor.FieldDescriptor(
-      name='distribution_uuid', full_name='signal.proto.wire.SenderKeyMessage.distribution_uuid', index=0,
-      number=1, type=12, cpp_type=9, label=1,
-      has_default_value=False, default_value=b"",
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
-    _descriptor.FieldDescriptor(
-      name='chain_id', full_name='signal.proto.wire.SenderKeyMessage.chain_id', index=1,
-      number=2, type=13, cpp_type=3, label=1,
-      has_default_value=False, default_value=0,
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
-    _descriptor.FieldDescriptor(
-      name='iteration', full_name='signal.proto.wire.SenderKeyMessage.iteration', index=2,
-      number=3, type=13, cpp_type=3, label=1,
-      has_default_value=False, default_value=0,
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
-    _descriptor.FieldDescriptor(
-      name='ciphertext', full_name='signal.proto.wire.SenderKeyMessage.ciphertext', index=3,
-      number=4, type=12, cpp_type=9, label=1,
-      has_default_value=False, default_value=b"",
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
-  ],
-  extensions=[
-  ],
-  nested_types=[],
-  enum_types=[
-  ],
-  serialized_options=None,
-  is_extendable=False,
-  syntax='proto2',
-  extension_ranges=[],
-  oneofs=[
-  ],
-  serialized_start=287,
-  serialized_end=389,
-)
-
-
-_SENDERKEYDISTRIBUTIONMESSAGE = _descriptor.Descriptor(
-  name='SenderKeyDistributionMessage',
-  full_name='signal.proto.wire.SenderKeyDistributionMessage',
-  filename=None,
-  file=DESCRIPTOR,
-  containing_type=None,
-  create_key=_descriptor._internal_create_key,
-  fields=[
-    _descriptor.FieldDescriptor(
-      name='distribution_uuid', full_name='signal.proto.wire.SenderKeyDistributionMessage.distribution_uuid', index=0,
-      number=1, type=12, cpp_type=9, label=1,
-      has_default_value=False, default_value=b"",
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
-    _descriptor.FieldDescriptor(
-      name='chain_id', full_name='signal.proto.wire.SenderKeyDistributionMessage.chain_id', index=1,
-      number=2, type=13, cpp_type=3, label=1,
-      has_default_value=False, default_value=0,
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
-    _descriptor.FieldDescriptor(
-      name='iteration', full_name='signal.proto.wire.SenderKeyDistributionMessage.iteration', index=2,
-      number=3, type=13, cpp_type=3, label=1,
-      has_default_value=False, default_value=0,
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
-    _descriptor.FieldDescriptor(
-      name='chain_key', full_name='signal.proto.wire.SenderKeyDistributionMessage.chain_key', index=3,
-      number=4, type=12, cpp_type=9, label=1,
-      has_default_value=False, default_value=b"",
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
-    _descriptor.FieldDescriptor(
-      name='signing_key', full_name='signal.proto.wire.SenderKeyDistributionMessage.signing_key', index=4,
-      number=5, type=12, cpp_type=9, label=1,
-      has_default_value=False, default_value=b"",
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
-  ],
-  extensions=[
-  ],
-  nested_types=[],
-  enum_types=[
-  ],
-  serialized_options=None,
-  is_extendable=False,
-  syntax='proto2',
-  extension_ranges=[],
-  oneofs=[
-  ],
-  serialized_start=392,
-  serialized_end=526,
-)
-
-DESCRIPTOR.message_types_by_name['SignalMessage'] = _SIGNALMESSAGE
-DESCRIPTOR.message_types_by_name['PreKeySignalMessage'] = _PREKEYSIGNALMESSAGE
-DESCRIPTOR.message_types_by_name['SenderKeyMessage'] = _SENDERKEYMESSAGE
-DESCRIPTOR.message_types_by_name['SenderKeyDistributionMessage'] = _SENDERKEYDISTRIBUTIONMESSAGE
-_sym_db.RegisterFileDescriptor(DESCRIPTOR)
-
+_SIGNALMESSAGE = DESCRIPTOR.message_types_by_name['SignalMessage']
+_PREKEYSIGNALMESSAGE = DESCRIPTOR.message_types_by_name['PreKeySignalMessage']
+_SENDERKEYMESSAGE = DESCRIPTOR.message_types_by_name['SenderKeyMessage']
+_SENDERKEYDISTRIBUTIONMESSAGE = DESCRIPTOR.message_types_by_name['SenderKeyDistributionMessage']
 SignalMessage = _reflection.GeneratedProtocolMessageType('SignalMessage', (_message.Message,), {
   'DESCRIPTOR' : _SIGNALMESSAGE,
   '__module__' : 'wire_pb2'
@@ -291,5 +50,15 @@ SenderKeyDistributionMessage = _reflection.GeneratedProtocolMessageType('SenderK
   })
 _sym_db.RegisterMessage(SenderKeyDistributionMessage)
 
+if _descriptor._USE_C_DESCRIPTORS == False:
 
+  DESCRIPTOR._options = None
+  _SIGNALMESSAGE._serialized_start=33
+  _SIGNALMESSAGE._serialized_end=132
+  _PREKEYSIGNALMESSAGE._serialized_start=135
+  _PREKEYSIGNALMESSAGE._serialized_end=285
+  _SENDERKEYMESSAGE._serialized_start=287
+  _SENDERKEYMESSAGE._serialized_end=389
+  _SENDERKEYDISTRIBUTIONMESSAGE._serialized_start=392
+  _SENDERKEYDISTRIBUTIONMESSAGE._serialized_end=526
 # @@protoc_insertion_point(module_scope)
