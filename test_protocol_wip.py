@@ -215,7 +215,7 @@ class PreKeySignalMessageClass(object):
     def ParseFromString(self, msg):
         self.pksm.ParseFromString(msg)
 
-def BuildSignalMessage(self,sender, text_message, profileKey=None, timestamp=None, counter=1, previous_counter=0):
+def BuildSignalMessage(sender, text_message, profileKey=None, timestamp=None, counter=1, previous_counter=0):
     data_message = DataMessage()
     data_message.body = text_message
     ###### Stuff that you can get from the original message (and save the profile_key) or generate it your self 
@@ -228,7 +228,7 @@ def BuildSignalMessage(self,sender, text_message, profileKey=None, timestamp=Non
     serializedContent = (content.SerializeToString())
     
     cipher, mac_key = sender.enc(serializedContent)
-    print(f"[{self.alice.__class__.__name__}]\tSending ciphertext to {bob.__class__.__name__}:", b64(cipher))
+    print(f"[{sender.__class__.__name__}]\tSending ciphertext to {bob.__class__.__name__}:", b64(cipher))
 
     signalMessage = SignalMessage()
     signalMessage.ratchet_key = bytes.fromhex(PubKey2Hex(sender.DHratchet.public_key()))
@@ -236,17 +236,16 @@ def BuildSignalMessage(self,sender, text_message, profileKey=None, timestamp=Non
     signalMessage.previous_counter = previous_counter
     signalMessage.ciphertext = cipher
     
-    return bytes.fromhex("33") + signalMessage.SerializeToString(), mac_key
+    return bytes.fromhex("32") + signalMessage.SerializeToString(), mac_key
 
-def addMacSignalMessage(self, sm, mac_key):        
-    mac = compute_mac(sm, mac_key, self.alice.IK.public_key(), self.bob.IK.public_key() )
-    our_mac = compute_mac(msg[:len(msg)-MAC_LENGTH], mac_key, sender_IK, receiver_IK)
+def addMacSignalMessage(sender, receiver, sm, mac_key):        
+    mac = compute_mac(sm, mac_key, sender.IK.public_key(), receiver.pubIK )
 
     sm = sm + mac 
     
     return sm
     
-def BuildPreKeySignalMessage(self, sender, receiver, sm, pre_key_id, registration_id, signed_pre_key_id):
+def BuildPreKeySignalMessage(sender, receiver, sm, pre_key_id, registration_id, signed_pre_key_id):
         
     preKeySignalMessage = PreKeySignalMessageClass(pre_key_id,
                                                 sender.EK.public_key().public_bytes(Encoding.Raw, PublicFormat.Raw),
@@ -324,7 +323,7 @@ class Human(object):
         cipher = aes_256_cbc_encrypt(paddedContent, key, iv)
         return cipher, mac_key
 
-    def dec(self, ctxt: bytes, pubkey: bytes) -> bytes:
+    def dec(self, ctxt: bytes, pubkey: bytes):
         # receive the new public key and use it to perform a DH
         key, mac_key, iv = self.recv_ratchet.next()
         # decrypt the message using the new recv ratchet
@@ -404,7 +403,7 @@ class Human(object):
             dh_recv = self.DHratchet.exchange(other_pub_DH)
             sk = hkdf(dh_recv, 64, self.root_ratchet.state, b"WhisperRatchet")
             recv_chain_root_key, recv_chain_chain_key = derive_keys(sk)
-            print(f"recvSK {sk.hex()}")
+            #print(f"recvSK {sk.hex()}")
             self.root_ratchet.state = recv_chain_root_key
             # use Bob's public and our old private key
             # to get a new recv ratchet
@@ -418,10 +417,10 @@ class Human(object):
         dh_send = self.DHratchet.exchange(other_pub_DH)
         sk = hkdf(dh_send, 64, self.root_ratchet.state, b"WhisperRatchet")
         sender_chain_root_key, sending_chain_chain_key = derive_keys(sk)
-        print(f"sendSK {sk.hex()}")
+        #print(f"sendSK {sk.hex()}")
 
         self.root_ratchet.state = sender_chain_root_key
-        print(sender_chain_root_key.hex(), sending_chain_chain_key.hex())
+        #print(sender_chain_root_key.hex(), sending_chain_chain_key.hex())
         #shared_send = self.root_ratchet.next(dh_send)[0]
         
         self.send_ratchet = SymmRatchet(sending_chain_chain_key)
@@ -494,10 +493,10 @@ class Protocol:
         signalMessage.previous_counter = previous_counter
         signalMessage.ciphertext = cipher
         
-        return bytes.fromhex("33") + signalMessage.SerializeToString(), mac_key
+        return bytes.fromhex("32") + signalMessage.SerializeToString(), mac_key
 
     def addMacSignalMessage(self, sm, sender, receiver, mac_key):        
-        mac = compute_mac(sm, mac_key, sender.IK.public_key(),receiver.IK.public_key())
+        mac = compute_mac(sm, mac_key, sender.IK.public_key(),receiver.pubIK)
         print(len(mac))
         sm = sm + mac 
         
@@ -562,7 +561,6 @@ class AliceToMitm(Protocol):
     def BobReceive (self, wire_msg):
         
         sm_bytes = base64.b64decode(wire_msg)[1:]
-        print(sm_bytes.hex())
         pksm_flag = base64.b64decode(wire_msg)[0] == int("0x33", base=16)
         if (pksm_flag):
             pksm1 = PreKeySignalMessageClass()
@@ -591,16 +589,15 @@ class AliceToMitm(Protocol):
     def BobSend(self, msg, profileKey = b"Casual",  timestamp = int(time())):
         
         sm, mac_key = self.BuildSignalMessage(self.bob, msg, profileKey, timestamp, counter=2, previous_counter=1)
-        print(f"Before {sm.hex()}")
+        #print(f"Before {sm.hex()}")
         sm = self.addMacSignalMessage(sm, self.bob, self.alice, mac_key)
-        print(f"After {sm.hex()}")
+        #print(f"After {sm.hex()}")
         
         wire_msg = base64.b64encode(sm)
         
         return wire_msg
     
-    
-'''class MitmToBob(Protocol):
+class MitmToBob(Protocol):
     def __init__(self, alice: Alice= None, bob: Bob=None):
         self.alice = alice
         self.bob = bob
@@ -610,18 +607,17 @@ class AliceToMitm(Protocol):
         self.alice.sk = ""
     
     def AliceReceive (self, wire_msg):
-        
-        sm_bytes = base64.b64decode(wire_msg)[1:]
-        print(sm_bytes.hex())
+        sm_bytes = base64.b64decode(wire_msg)
         pksm_flag = base64.b64decode(wire_msg)[0] == int("0x33", base=16)
         if (pksm_flag):
+            sm_bytes = sm_bytes[1:]
             pksm1 = PreKeySignalMessageClass()
             pksm1.ParseFromString(sm_bytes)
-            AliceIK = pksm1.getIdentityKey()
-            AliceEK = pksm1.getBaseKey()
-            self.alice = Alice(pubIK = X25519PublicKey.from_public_bytes(AliceIK), pubEK = X25519PublicKey.from_public_bytes(AliceEK))            
-            alice_bundle = KeyBundle(IK=X25519PublicKey.from_public_bytes(AliceIK), EK=X25519PublicKey.from_public_bytes(AliceEK))
-            self.handshake(alice_bundle)
+            BobIK = pksm1.getIdentityKey()
+            BobEK = pksm1.getBaseKey()
+            self.bob = Bob(pubIK = X25519PublicKey.from_public_bytes(BobIK), pubEK = X25519PublicKey.from_public_bytes(BobEK))            
+            bob_bundle = KeyBundle(IK=X25519PublicKey.from_public_bytes(BobIK), EK=X25519PublicKey.from_public_bytes(BobEK))
+            self.handshake(bob_bundle)
             sm_bytes = pksm1.getMessage()
         else:
             assert(base64.b64decode(wire_msg)[0] == int("0x32", base=16))
@@ -633,27 +629,85 @@ class AliceToMitm(Protocol):
         self.alice.PublicDHratchet = DHratchet
         ctxt = sm.ciphertext
 
-        mac_key = self.bob.recv(ctxt, DHratchet, pksm_flag) ##### non usare recv cosi ma magari modificarlo un minimo
-        print(verify_mac(sm_bytes, mac_key, self.alice.pubIK, self.bob.pubIK))
+        msg, mac_key = self.alice.recv(ctxt, DHratchet, pksm_flag) ##### non usare recv cosi ma magari modificarlo un minimo
+        print(verify_mac(sm_bytes, mac_key, self.bob.pubIK, self.alice.pubIK))
 
-        print("YESSSSSS")
+        return msg
 
-    def BobSend(self, msg, profileKey = b"Casual",  timestamp = int(time())):
+    def AliceSendSignalMessage(self, msg, profileKey = b"Casual",  timestamp = int(time())):
         
-        sm, mac_key = self.BuildSignalMessage(self.bob, msg, profileKey, timestamp, counter=2, previous_counter=1)
-        print(f"Before {sm.hex()}")
-        sm = self.addMacSignalMessage(sm, self.bob, self.alice, mac_key)
-        print(f"After {sm.hex()}")
+        sm, mac_key = self.BuildSignalMessage(self.alice, msg, profileKey, timestamp, counter=2, previous_counter=1)
+        sm = self.addMacSignalMessage(sm, self.alice, self.alice, mac_key)
         
         wire_msg = base64.b64encode(sm)
         
         return wire_msg
-'''
+    
+    def AliceSendPreKeySignalMessage(self, msg, profileKey = b"Casual",  timestamp = int(time())):
+        sm, mac_key = self.BuildSignalMessage(self.alice, msg, profileKey, timestamp, counter=1, previous_counter=0)
         
+        sm = self.addMacSignalMessage(sm, self.alice, self.bob, mac_key)
+        
+        preKeySignalMessage = PreKeySignalMessageClass(4917741,
+                                                  self.alice.EK.public_key().public_bytes(Encoding.Raw, PublicFormat.Raw),
+                                                  self.alice.IK.public_key().public_bytes(Encoding.Raw, PublicFormat.Raw),
+                                                  sm,
+                                                  6027,
+                                                  13819045)
+
+        pksm = bytes.fromhex("33") + preKeySignalMessage.SerializeToString()
+        
+        return pksm
+
 if __name__ == "__main__":
     alice, bob, mitmA, mitmB = Alice(), Bob(), Bob(), Alice()
     alice_bundle, bob_bundle, mitmA_bundle, mitmB_bundle = user2Bundle(alice), user2Bundle(bob), user2Bundle(mitmA), user2Bundle(mitmB)
-
+    
+    ############### Hidden
+    alice.x3dh(mitmA_bundle)
+    sm, mac_key = BuildSignalMessage(alice, b"hey bob, how you doin'?", b"alice profileKey", int(time()))
+    sm = addMacSignalMessage(alice, mitmA, sm, mac_key)
+    pksm = BuildPreKeySignalMessage(alice, mitmA, sm, 1, 2, 3)
+    ###############
+    
+    #### Alice to Mitm 
+    wire_msg = b64(pksm)
+    atm = AliceToMitm(bob = mitmA)
+    dec_msg = atm.BobReceive(wire_msg)
+    print(dec_msg)
+    
+    ############# COMPLETE HERE Mitm send to Bob
+    mitmB.x3dh(bob_bundle)
+    bob.x3dh(mitmB_bundle)
+    mitmToBob = MitmToBob(alice = mitmB, bob = bob)
+    msg_to_bob = mitmToBob.AliceSendSignalMessage(b"hey bob, you are dumb")
+    
+    
+    #############
+    msg_to_bob = base64.b64decode(msg_to_bob)
+    
+    bob_sm = SignalMessage()
+    bob_sm.ParseFromString(msg_to_bob[1:-8])
+    
+    msg, mac_key = bob.recv(bob_sm.ciphertext, X25519PublicKey.from_public_bytes(bob_sm.ratchet_key[1:]))
+    sm, mac_key = BuildSignalMessage(bob, b"fuck you alice", b"bob profileKey", int(time()))
+    #print(sm)
+    sm = addMacSignalMessage(bob, mitmB, sm, mac_key)
+    wire_msg2 = b64(sm)
+    ################
+    mitmToBob.AliceReceive(wire_msg2)
+    
+    msg = atm.BobSend(b"fuck you alice", b'bob profile key')
+    msg = base64.b64decode(msg)  
+    
+    ################ hidden
+    alice_sm = SignalMessage()
+    alice_sm.ParseFromString(msg[1:-8])
+    
+    msg, mac_key = alice.recv(alice_sm.ciphertext, X25519PublicKey.from_public_bytes(alice_sm.ratchet_key[1:]))
+    ###############
+    
+'''
     # Alice performs an X3DH while Bob is offline, using his uploaded keys
     #alice.x3dh(bob_bundle)
     alice.x3dh(mitmA_bundle)
@@ -668,12 +722,6 @@ if __name__ == "__main__":
     #bob.init_ratchets()
 
     # Print out the matching pairs (debug)
-    '''   
-    print("[Alice]\tsend ratchet:", list(map(b64, alice.send_ratchet.next())))
-    print("[Bob]\trecv ratchet:", list(map(b64, bob.recv_ratchet.next())))
-    print("[Alice]\trecv ratchet:", list(map(b64, alice.recv_ratchet.next())))
-    print("[Bob]\tsend ratchet:", list(map(b64, bob.send_ratchet.next())))
-    '''
     # Initialise Alice's sending ratchet with Bob's public key
     #alice.dh_ratchet(bob.DHratchet.public_key())
 
@@ -707,7 +755,25 @@ if __name__ == "__main__":
     
     aliceToMitm = AliceToMitm(bob=mitmA)
     
-    dec_msg =aliceToMitm.BobReceive(wire_msg)
+    dec_msg = aliceToMitm.BobReceive(wire_msg)
+    
+    mitmB.x3dh(bob_bundle)
+    bob.x3dh(mitmB_bundle)
+    wire2 = prot.AliceSendToBob(mitmB, bob, b'fuck bob', b'Not so casual', int(time()))
+    MitmToBob = AliceToMitm(bob = mitmB, alice = bob)
+    MitmToBob.BobSend(wire_msg)
+    
+    relayed = Content()
+    relayed.ParseFromString(dec_msg)
+    print(type(relayed.dataMessage.profileKey))
+    mess_to_bob = base64.b64decode(MitmToBob.BobSend(msg=b"fuck bob", profileKey=relayed.dataMessage.profileKey, timestamp=int(time())))
+    
+    bob_sm = SignalMessage()
+    print(f"MAcarena {mess_to_bob.hex()}")
+    bob_sm.ParseFromString(mess_to_bob[1:-8])
+    print(f"ELla madonna {mess_to_bob.hex()}")
+    
+    msg, mac_key = bob.recv(bob_sm.ciphertext, X25519PublicKey.from_public_bytes(bob_sm.ratchet_key[1:]))
 
     message_to_alice = base64.b64decode(aliceToMitm.BobSend("bob received"))
 
@@ -719,5 +785,5 @@ if __name__ == "__main__":
 
     #verify_mac(message_to_alice, mac_key, bob.pubIK, alice.pubIK)
     
-    MitmToBob =  AliceToMitm()
+    MitmToBob =  AliceToMitm()'''
     
