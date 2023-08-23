@@ -707,7 +707,7 @@ if __name__ == "__main__":
     
     aliceToMitm = AliceToMitm(bob=mitmA)
     
-    dec_msg =aliceToMitm.BobReceive(wire_msg)
+    dec_msg = aliceToMitm.BobReceive(wire_msg)
 
     message_to_alice = base64.b64decode(aliceToMitm.BobSend("bob received"))
 
