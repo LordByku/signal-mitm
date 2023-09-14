@@ -44,6 +44,13 @@ PublIK =  "059722606d0db4ec6a1c361fda3d980f690eaf83c77f412dd1bd21fdb5a8915410"
 PrivOTK = "08a47709d311f94e8137066057eb328d9dd9b8c58563997780849b6c056cf2a4"
 PublOTK = "05ed1148675457930f87e4beaf9ea41001a512ec826a15c9b52e291150d318280a"
 
+a = test_protocol.hex2PrivKey("9b301145d87ad4a2530ed25a3ec72373e61be3f56cf1693268bc59b1da69130d")
+
+pub_a = a.public_key()
+
+print(hex2PubKey(pub_a.public_bytes(Encoding.Raw, PublicFormat.Raw).hex()))
+
+input()
     
 def generateBob():
     BobSPK = Ed25519PrivateKey.generate()

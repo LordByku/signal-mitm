@@ -31,6 +31,25 @@ from proto_python.storage_pb2 import *
      
 #ctxt = b64decode("SERDgrF7I0TolKExiiMH67IsQ8Vir6WDr7DUDWc/O74blhiVlJKOA68K9b/1IlMlx1eibdWpX2DV+MkF/sNe9YCPy9qgZmULTiXPcdXt/NDm6maNLn2jbYWTZo5aXMNExc3sfQukcmTtiTfoVuyFL3aQ7Df0ADM6JWVBIm+a3/8VV0B+bNkAFxAEy3fF5PxJ0jbpnVKugWltlU/kXdGD8A==")
 
+def next(state, inp=b""):
+    # turn the ratchet, changing the state and yielding a new key and IV
+    msg_kdf = hmac_sha256((state), b'\x01')
+    msg_key = hkdf(bytes.fromhex(msg_kdf), 80, None, b"WhisperMessageKeys")
+    
+    cipher_key = msg_key[0:32]
+    mac_key =  msg_key[32:64]
+    iv = msg_key[64:]
+
+    state = bytes.fromhex(hmac_sha256(state, b'\x02'))
+    
+    return cipher_key, mac_key, iv
+
+send_key = "fc4b04c3a98967c3b7216f0fb263175094e11876cf42dbc3f883aa220f239807"
+#send_key = "6390ba37ef56abb140655d0093bb165745bd731ace00c402590302ec8bef1d30"
+a,b,c, = next(bytes.fromhex(send_key))
+print(a.hex(),b.hex(),c.hex())
+input()
+
 ctxt = bytes.fromhex("4052e1c87e68ec8bfa64b4f0d74ed59bf43878e36245350e52f6e363577d09f9122ffe3d042fc5570b5bfc60c24aad73fff78a7583b547342481ca07a300abc8ce00695212e8a896bee11ffa40d53a0acd1f0af74b05842ca99c0544af0b59d7008cb1fdda2973b32365dad1472ced957daf9faa3d7f024737b273f4e41222b1a864505326beb53575eda44b47feaf1b2fadb2eca4e356c734d0a6e5bcfec632")
 
 def hex2PubKey(hexStr) -> X25519PublicKey:
