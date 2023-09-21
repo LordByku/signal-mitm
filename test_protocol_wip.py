@@ -417,10 +417,11 @@ class Human(object):
             dh4 = self.OPK.exchange(other_bundle.EK)
             self.sk = hkdf(inp = DISC_BYTES + dh1 + dh2 + dh3 + dh4, length=64, info = b"WhisperText")
             self.init_ratchets()
-            
+            #self.dh_ratchet(self.SPK.public_key())
+            self.send_ratchet = self.DHratchet
+
         # the shared key is KDF(DH1||DH2||DH3||DH4)
         print(f"[{self.__class__.__name__}]\tShared key:", (bytes.hex(self.sk)))
-
 
     def recv(self, cipher, bob_public_key, pksm_flag = 0):
         if PubKey2Hex(bob_public_key) != PubKey2Hex(self.last_DH_key) or pksm_flag == 1:
@@ -434,7 +435,7 @@ class Human(object):
         ctx.log.warn(f"proto_msg_ptxt {msg.hex()}")
         decrypted_message = Content()
         decrypted_message.ParseFromString(msg)
-        dm_dataMessage = decrypted_message.dataMessage
+        dm_dataMessage = decrypted_message
         #msg = (dm_dataMessage.body, dm_dataMessage.profileKey, dm_dataMessage.timestamp)
         print(f"[{self.__class__.__name__}]\tDecrypted message:", dm_dataMessage)
         #DO IT HEREverify_mac(bytes.fromhex(mess), mac_key, hex2PubKey(ourIK),their_IK)
@@ -660,7 +661,7 @@ class AliceToMitm(Protocol):
 
     def BobSend(self, msg, profileKey = b"Casual",  timestamp = current_milli_time()):
         
-        sm, mac_key = self.BuildSignalMessage(self.bob, msg, profileKey, timestamp, counter=1, previous_counter=0)
+        sm, mac_key = self.BuildSignalMessage(self.bob, msg, profileKey, timestamp, counter=0, previous_counter=0)
         print(f"Before {sm.hex()}")
         sm = self.addMacSignalMessage(sm, self.bob, self.alice, mac_key)
         print(f"After {sm.hex()}")

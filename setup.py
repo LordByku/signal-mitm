@@ -73,7 +73,6 @@ def setup():
     mitm = 'mitmproxy --mode transparent --showhost --ssl-insecure --ignore-hosts ".*google\w*\.com" -s intercept.py'
     os.system(f"gnome-terminal -- {mitm} &")
 
-
 def teardown():
     # Kill me with a smile, bby
     remove_forward = [

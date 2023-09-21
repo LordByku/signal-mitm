@@ -99,3 +99,11 @@ WebSocketMessage = WebSocketMessage()
 
 WebSocketMessage.ParseFromString(bytes.fromhex(proto_buf))
 print(WebSocketMessage)
+
+chain = SymmRatchet(bytes.fromhex("46ef1cdff997732c678c8fc11734ff3ce9299f75b0908fb0ebd11b57aa8eeb16"))
+
+a,b,c = (chain.next())
+a,b,c = (chain.next())
+
+
+print(a.hex(),b.hex(),c.hex())
