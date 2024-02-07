@@ -1,6 +1,6 @@
 # Requirements:
 # apt install python3 python3-pip
-# pip3 install cryptography==2.8 pycrypto
+# pip3 install cryptography==2.x8 pycrypto
 
 import base64
 from dataclasses import dataclass
@@ -743,6 +743,7 @@ class MitmToBob(Protocol):
         pksm = bytes.fromhex("33") + preKeySignalMessage.SerializeToString()
         
         return pksm
+
 
 if __name__ == "__main__":
     alice, bob, mitmA, mitmB = Alice(), Bob(), Bob(), Alice()
