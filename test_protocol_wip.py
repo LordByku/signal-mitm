@@ -405,6 +405,7 @@ class Human(object):
             dh2 = self.EK.exchange(other_bundle.IK)
             dh3 = self.EK.exchange(other_bundle.SPK)
             dh4 = self.EK.exchange(other_bundle.OPK)
+            #ss  = self
             self.sk = hkdf(inp = DISC_BYTES + dh1 + dh2 + dh3 + dh4, length=64, info = b"WhisperText")
             self.init_ratchets()
             ctx.log.warn(f"sk {self.sk.hex()}")
@@ -415,6 +416,7 @@ class Human(object):
             dh2 = self.IK.exchange(other_bundle.EK)
             dh3 = self.SPK.exchange(other_bundle.EK)
             dh4 = self.OPK.exchange(other_bundle.EK)
+            #ss  = self.
             self.sk = hkdf(inp = DISC_BYTES + dh1 + dh2 + dh3 + dh4, length=64, info = b"WhisperText")
             self.init_ratchets()
             #self.dh_ratchet(self.SPK.public_key())

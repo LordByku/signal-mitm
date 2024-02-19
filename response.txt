@@ -1,1 +1,0 @@
-{"uuid": "e7d71aea-c41a-4d88-856b-02e97998863a", "number": "+41782699673", "pni": "2e58e405-4050-48d7-b94e-4b57181d873d", "usernameHash": null, "storageCapable": true}
