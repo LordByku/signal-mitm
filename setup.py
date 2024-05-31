@@ -59,7 +59,7 @@ def setup():
     [try_run_sudo(cmd) for cmd in allow_forward]
 
     try_run_sudo(
-        "create_ap --freq-band 2.4 --daemon wlp0s20f3 wlx482254431544 DummyHotspot 1234567890"
+        "create_ap --freq-band 2.4 --daemon wlp0s20f3 wlp0s20f0u5u1 DummyHotspot 1234567890"
     )
 
     [
@@ -70,7 +70,9 @@ def setup():
     ]
 
     setup_db()
-    mitm = r'mitmproxy --mode transparent --showhost --ssl-insecure --ignore-hosts ".*google\w*\.com" -s intercept.py'
+    mitm = r'mitmproxy --mode transparent --showhost --ssl-insecure --ignore-hosts "(.*google\w*\.com)|(.*hcaptcha\.com)|(.*signalcaptchas\.org)"'# -s intercept.py'
+    #mitm = r'mitmproxy --mode wireguard --showhost --ssl-insecure --ignore-hosts ".*google\w*\.com"'# -s intercept.py'
+
     os.system(f"gnome-terminal -- {mitm} &")
 
 def teardown():

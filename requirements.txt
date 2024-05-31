@@ -1,0 +1,6 @@
+pycryptodome
+protobuf
+itertools
+mitmproxy
+peewee
+xepor

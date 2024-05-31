@@ -3,7 +3,7 @@ import os
 import json
 import requests
 import random
-from mitmproxy import flow, http, ctx
+from mitmproxy import http, ctx
 import sqlite3
 from setup import setup_db
 import base64
@@ -382,7 +382,7 @@ def response(flow: http.HTTPFlow):
     #     except Exception:
     #         pass
 
-    matches = re.match("\/v2\/keys\/([\w+-]+)\/(\*|\d)", flow.request.path)
+    matches = re.match(r"\/v2\/keys\/([\w+-]+)\/(\*|\d)", flow.request.path)
     if matches and flow.request.method == "GET":
         ctx.log.warn("Before GET request")
         groups = matches.groups()
@@ -530,7 +530,7 @@ def websocket_message(flow: http.HTTPFlow):
         #             False)
  
 
-        match = re.match("\/v1\/messages\/([\w+-]+)\?story=([\w+-]+)", proto_msg.request.path)
+        match = re.match(r"\/v1\/messages\/([\w+-]+)\?story=([\w+-]+)", proto_msg.request.path)
         
         
         #if match and proto_msg.request.verb == "PUT":   
