@@ -1,6 +1,12 @@
 pycryptodome
 protobuf
-itertools
 mitmproxy
 peewee
 xepor
+black
+astor
+setuptools
+setuptools-rust
+wheel
+pytest
+git+https://github.com/TheTechZone/signal-protocol.py.git@feat-kyber
