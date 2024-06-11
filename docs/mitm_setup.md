@@ -91,10 +91,6 @@ Flag explanation:
 An ACI is an "Account Identity". They're just UUIDs, but given multiple different things could be UUIDs, this wrapper exists to give us type safety around
  * this *specific type* of UUID.
 
-## PNI
-
-
-
 ## key generation
 
 -ECC 25519-darlek modified without cofactor. Tricky, use the one from the signal implementation (Rust Library, usable nodejs, javascript)
