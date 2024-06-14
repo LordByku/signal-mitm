@@ -6,6 +6,8 @@ from itertools import product
 from database import *
 from pathlib import Path
 
+DB_NAME = "mitm.db"
+
 
 def try_run(cmd: str):
     try:
@@ -18,7 +20,9 @@ def try_run_sudo(cmd: str):
     try_run(f"sudo {cmd}")
 
 def setup_db():
-    database.create_tables([User, Device, LegitBundle, MitMBundle, Session, Messages])
+    database = SqliteDatabase(DB_NAME)
+    database.connect()
+    create_tables()
 
 
 def teardown():
@@ -70,3 +74,9 @@ def setup():
     #mitm = r'mitmproxy --mode wireguard --showhost --ssl-insecure --ignore-hosts ".*google\w*\.com"'# -s intercept.py'
 
     os.system(f"gnome-terminal -- {mitm} &")
+
+    if __name__ == "__main__":
+        signal.signal(signal.SIGINT, signal_handler)
+        print("started")
+        setup()
+        signal.pause()

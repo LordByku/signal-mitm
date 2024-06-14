@@ -2,7 +2,7 @@ pycryptodome
 protobuf
 mitmproxy
 peewee
-xepor
+git+https://github.com/TheTechZone/xepor
 black
 astor
 setuptools
