@@ -26,7 +26,6 @@ class User(BaseSqliteModel):
 class Device(BaseSqliteModel):
     aci = ForeignKeyField(User, backref='devices')
     deviceId = IntegerField()
-    #pni = ForeignKeyField(User, backref='devices')
     pni = CharField(null=True)
     unidentifiedAccessKey = CharField()
     aciIdenKey = CharField()
