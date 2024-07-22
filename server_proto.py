@@ -2307,7 +2307,6 @@ def v1_registration(flow: HTTPFlow):
     """
     # Implement the function body here
 
-    ctx.log.info(flow.request.content)
     pass
 
 

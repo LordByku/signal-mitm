@@ -70,7 +70,7 @@ def setup():
     ]
 
     setup_db()
-    mitm = r'mitmproxy --mode transparent --showhost --ssl-insecure --ignore-hosts "(.*google\w*\.com)|(.*hcaptcha\.com)|(.*signalcaptchas\.org)"'# -s intercept.py'
+    mitm = r'mitmproxy --mode transparent --showhost --ssl-insecure --ignore-hosts "(.*google\w*\.com)|(.*hcaptcha\.com)|(.*signalcaptchas\.org)"' #-s implementation.py'
     #mitm = r'mitmproxy --mode wireguard --showhost --ssl-insecure --ignore-hosts ".*google\w*\.com"'# -s intercept.py'
 
     os.system(f"gnome-terminal -- {mitm} &")
