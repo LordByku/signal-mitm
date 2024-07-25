@@ -14,12 +14,19 @@ from signal_protocol.ratchet import (
 
 import json, base64
 
+import logging
+
+FORMAT = '%(levelname)s %(name)s %(asctime)-15s %(filename)s:%(lineno)d %(message)s'
+logging.basicConfig(format=FORMAT)
+logging.getLogger().setLevel(logging.INFO)
+
+
 class MitmUser(object):
     def __init__(self, *args, **kwargs):
-        
+
         ############ FAKE USER ############
         self.address = kwargs.get("address", address.ProtocolAddress("1", 1))
-        
+
         self.identity_key_pair = identity_key.IdentityKeyPair.generate()
         self.registration_id = kwargs.get("RID", 1)
 
@@ -29,7 +36,6 @@ class MitmUser(object):
         self.signed_pre_key_pair = curve.KeyPair.generate()
 
         self.signed_pre_key_public = self.signed_pre_key_pair.public_key().serialize()
-
 
         self.signed_pre_key_signature = (
             self.store.get_identity_key_pair()
@@ -50,22 +56,26 @@ class MitmUser(object):
             self.store.get_identity_key_pair().identity_key(),
         )
 
-    def check_session(self, address:address.ProtocolAddress):
+    def check_session(self, address: address.ProtocolAddress):
         return self.store.load_session(address)
-    
-    #TODO : Check if this makes sense here or in the MitmVictim class
-    def process_pre_key_bundle(self, address:address.ProtocolAddress, pre_key_bundle:state.PreKeyBundle):
+
+    def is_session_kyber_enabled(self, peer_address: address.ProtocolAddress):
+        return self.store.load_session(peer_address).session_version() == 4
+
+    # TODO : Check if this makes sense here or in the MitmVictim class
+    def process_pre_key_bundle(self, address: address.ProtocolAddress, pre_key_bundle: state.PreKeyBundle):
         session.process_prekey_bundle(address, self.store, pre_key_bundle)
-        #return self.store.load_session(address) and self.store.load_session(address).session_version() == 3
-    
-    def save_bundle(self, address:address.ProtocolAddress):
+
+        # return self.store.load_session(address) and self.store.load_session(address).session_version() == 3
+
+    def save_bundle(self, address: address.ProtocolAddress):
         return self.store.store_pre_key_bundle(address, self.pre_key_bundle)
 
-    def encrypt(self, address:address.ProtocolAddress, plaintext:bytes):
+    def encrypt(self, address: address.ProtocolAddress, plaintext: bytes):
         return session_cipher.message_encrypt(self.store, address, plaintext)
 
-    def decrypt(self, address:address.ProtocolAddress, ciphertext):
-        
+    def decrypt(self, address: address.ProtocolAddress, ciphertext):
+
         try:
             ciphertext = protocol.PreKeySignalMessage.try_from(ciphertext)
         except Exception:
@@ -90,11 +100,12 @@ class MitmUser(object):
 
         return session_cipher.message_decrypt(self.store, address, ciphertext)
 
+
 PRE_KYBER_MESSAGE_VERSION = 3
 KYBER_AWARE_MESSAGE_VERSION = 4
 KYBER_1024_KEY_TYPE = KeyType(0)
 
-#fetch the prekeybundle extract and put it in a prekeybundle object
+# fetch the prekeybundle extract and put it in a prekeybundle object
 
 with open('docs/bundle.json') as f:
     example_bundle = json.load(f)
@@ -106,20 +117,23 @@ bob_pre_key_public = base64.b64decode(example_bundle["devices"][0]["preKey"]["pu
 print(base64.b64decode(example_bundle["devices"][0]["signedPreKey"]["signature"] + "==").hex())
 
 bob_bundle = state.PreKeyBundle(
-        1,
-        address.DeviceId(1),
-        (state.PreKeyId(example_bundle["devices"][0]["preKey"]["keyId"]), PublicKey.deserialize(bob_pre_key_public)),
-        state.SignedPreKeyId(1),
-        PublicKey.deserialize(bob_signed_pre_key_public),
-        base64.b64decode(example_bundle["devices"][0]["signedPreKey"]["signature"] + "=="),
-        identity_key.IdentityKey(bob_identity_key_public),
+    1,
+    address.DeviceId(1),
+    (state.PreKeyId(example_bundle["devices"][0]["preKey"]["keyId"]), PublicKey.deserialize(bob_pre_key_public)),
+    state.SignedPreKeyId(1),
+    PublicKey.deserialize(bob_signed_pre_key_public),
+    base64.b64decode(example_bundle["devices"][0]["signedPreKey"]["signature"] + "=="),
+    identity_key.IdentityKey(bob_identity_key_public),
 )
+bob_addr = address.ProtocolAddress("1", 1)
 
 bob_kyber_pre_key_public = base64.b64decode(example_bundle["devices"][0]["pqPreKey"]["publicKey"])
 bob_kyber_pre_key_signature = base64.b64decode(example_bundle["devices"][0]["pqPreKey"]["signature"] + "==")
 bob_kyber_pre_key_id = example_bundle["devices"][0]["pqPreKey"]["keyId"]
 
-bob_bundle = bob_bundle.with_kyber_pre_key(state.KyberPreKeyId(bob_kyber_pre_key_id), kem.PublicKey.deserialize(bob_kyber_pre_key_public), bob_kyber_pre_key_signature)
+bob_bundle = bob_bundle.with_kyber_pre_key(state.KyberPreKeyId(bob_kyber_pre_key_id),
+                                           kem.PublicKey.deserialize(bob_kyber_pre_key_public),
+                                           bob_kyber_pre_key_signature)
 
 print((bob_bundle.signed_pre_key_public().serialize().hex(), bob_bundle.signed_pre_key_signature().hex()))
 
@@ -127,12 +141,13 @@ print(bob_bundle.has_kyber_pre_key())
 
 alice = MitmUser()
 
-alice.process_pre_key_bundle(address.ProtocolAddress("1", 1), bob_bundle)
+alice.process_pre_key_bundle(bob_addr, bob_bundle)
 
 original_message = b"Hobgoblins hold themselves to high standards of military honor"
 
-
-print(alice.encrypt(address.ProtocolAddress("1", 1), original_message).message_type())
+enc = alice.encrypt(bob_addr, original_message)
+assert enc.message_type() == 3  # PreKey Signal message https://github.com/signalapp/libsignal/blob/f2ae8436b365f5e4e1371102f4702f51ac34e02c/rust/protocol/src/protocol.rs#L33C1-L38
+assert alice.is_session_kyber_enabled(bob_addr), "not a kyber session :( "
 
 alice_identity_key_pair = IdentityKeyPair.generate()
 alice_base_key_pair = KeyPair.generate()
@@ -143,7 +158,4 @@ bob_signed_pre_key_pair = KeyPair.generate()
 
 bob_kyber_pre_key_pair = KyberKeyPair.generate(KYBER_1024_KEY_TYPE)
 
-
 # protocol.PreKeySignalMessage()
-
-
