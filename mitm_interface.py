@@ -56,6 +56,19 @@ class MitmUser(object):
             self.store.get_identity_key_pair().identity_key(),
         )
 
+        self.kyber_pre_key_id = state.KyberPreKeyId(24)
+        self.kyber_pre_key_pair = kem.KeyPair.generate(kem.KeyType(0))
+        self.kyber_pre_key_signature = self.identity_key_pair.private_key().calculate_signature(
+                                            self.kyber_pre_key_pair.get_public().serialize()
+                                        )
+
+
+        self.pre_key_bundle = self.pre_key_bundle.with_kyber_pre_key(
+            self.kyber_pre_key_id,
+            self.kyber_pre_key_pair.get_public(),
+            self.kyber_pre_key_signature
+        )
+
     def check_session(self, address: address.ProtocolAddress):
         return self.store.load_session(address)
 
@@ -101,61 +114,55 @@ class MitmUser(object):
         return session_cipher.message_decrypt(self.store, address, ciphertext)
 
 
-PRE_KYBER_MESSAGE_VERSION = 3
-KYBER_AWARE_MESSAGE_VERSION = 4
-KYBER_1024_KEY_TYPE = KeyType(0)
+if __name__ == "__main__":
+    PRE_KYBER_MESSAGE_VERSION = 3
+    KYBER_AWARE_MESSAGE_VERSION = 4
+    KYBER_1024_KEY_TYPE = KeyType(0)
 
-# fetch the prekeybundle extract and put it in a prekeybundle object
+    # fetch the prekeybundle extract and put it in a prekeybundle object
 
-with open('docs/bundle.json') as f:
-    example_bundle = json.load(f)
+    with open('docs/bundle.json') as f:
+        example_bundle = json.load(f)
 
-bob_identity_key_public = base64.b64decode(example_bundle["identityKey"])
-bob_signed_pre_key_public = base64.b64decode(example_bundle["devices"][0]["signedPreKey"]["publicKey"])
-bob_pre_key_public = base64.b64decode(example_bundle["devices"][0]["preKey"]["publicKey"])
+    bob_identity_key_public = base64.b64decode(example_bundle["identityKey"])
+    bob_signed_pre_key_public = base64.b64decode(example_bundle["devices"][0]["signedPreKey"]["publicKey"])
+    bob_pre_key_public = base64.b64decode(example_bundle["devices"][0]["preKey"]["publicKey"])
 
-print(base64.b64decode(example_bundle["devices"][0]["signedPreKey"]["signature"] + "==").hex())
+    print(base64.b64decode(example_bundle["devices"][0]["signedPreKey"]["signature"] + "==").hex())
 
-bob_bundle = state.PreKeyBundle(
-    1,
-    address.DeviceId(1),
-    (state.PreKeyId(example_bundle["devices"][0]["preKey"]["keyId"]), PublicKey.deserialize(bob_pre_key_public)),
-    state.SignedPreKeyId(1),
-    PublicKey.deserialize(bob_signed_pre_key_public),
-    base64.b64decode(example_bundle["devices"][0]["signedPreKey"]["signature"] + "=="),
-    identity_key.IdentityKey(bob_identity_key_public),
-)
-bob_addr = address.ProtocolAddress("1", 1)
+    bob_bundle = state.PreKeyBundle(
+        1,
+        address.DeviceId(1),
+        (state.PreKeyId(example_bundle["devices"][0]["preKey"]["keyId"]), PublicKey.deserialize(bob_pre_key_public)),
+        state.SignedPreKeyId(1),
+        PublicKey.deserialize(bob_signed_pre_key_public),
+        base64.b64decode(example_bundle["devices"][0]["signedPreKey"]["signature"] + "=="),
+        identity_key.IdentityKey(bob_identity_key_public),
+    )
+    bob_addr = address.ProtocolAddress("1", 1)
 
-bob_kyber_pre_key_public = base64.b64decode(example_bundle["devices"][0]["pqPreKey"]["publicKey"])
-bob_kyber_pre_key_signature = base64.b64decode(example_bundle["devices"][0]["pqPreKey"]["signature"] + "==")
-bob_kyber_pre_key_id = example_bundle["devices"][0]["pqPreKey"]["keyId"]
+    bob_kyber_pre_key_public = base64.b64decode(example_bundle["devices"][0]["pqPreKey"]["publicKey"])
+    bob_kyber_pre_key_signature = base64.b64decode(example_bundle["devices"][0]["pqPreKey"]["signature"] + "==")
+    bob_kyber_pre_key_id = example_bundle["devices"][0]["pqPreKey"]["keyId"]
 
-bob_bundle = bob_bundle.with_kyber_pre_key(state.KyberPreKeyId(bob_kyber_pre_key_id),
-                                           kem.PublicKey.deserialize(bob_kyber_pre_key_public),
-                                           bob_kyber_pre_key_signature)
+    bob_bundle = bob_bundle.with_kyber_pre_key(state.KyberPreKeyId(bob_kyber_pre_key_id),
+                                               kem.PublicKey.deserialize(bob_kyber_pre_key_public),
+                                               bob_kyber_pre_key_signature)
 
-print((bob_bundle.signed_pre_key_public().serialize().hex(), bob_bundle.signed_pre_key_signature().hex()))
+    print((bob_bundle.signed_pre_key_public().serialize().hex(), bob_bundle.signed_pre_key_signature().hex()))
 
-print(bob_bundle.has_kyber_pre_key())
+    print(bob_bundle.has_kyber_pre_key())
 
-alice = MitmUser()
+    alice = MitmUser()
 
-alice.process_pre_key_bundle(bob_addr, bob_bundle)
+    alice.process_pre_key_bundle(bob_addr, bob_bundle)
 
-original_message = b"Hobgoblins hold themselves to high standards of military honor"
+    original_message = b"Hobgoblins hold themselves to high standards of military honor"
 
-enc = alice.encrypt(bob_addr, original_message)
-assert enc.message_type() == 3  # PreKey Signal message https://github.com/signalapp/libsignal/blob/f2ae8436b365f5e4e1371102f4702f51ac34e02c/rust/protocol/src/protocol.rs#L33C1-L38
-assert alice.is_session_kyber_enabled(bob_addr), "not a kyber session :( "
+    enc = alice.encrypt(bob_addr, original_message)
+    assert enc.message_type() == 3  # PreKey Signal message https://github.com/signalapp/libsignal/blob/f2ae8436b365f5e4e1371102f4702f51ac34e02c/rust/protocol/src/protocol.rs#L33C1-L38
+    assert alice.is_session_kyber_enabled(bob_addr), "not a kyber session :( "
 
-alice_identity_key_pair = IdentityKeyPair.generate()
-alice_base_key_pair = KeyPair.generate()
-
-bob_ephemeral_key_pair = KeyPair.generate()
-bob_identity_key_pair = IdentityKeyPair.generate()
-bob_signed_pre_key_pair = KeyPair.generate()
-
-bob_kyber_pre_key_pair = KyberKeyPair.generate(KYBER_1024_KEY_TYPE)
+    print(f"Encrypted message: {enc.serialize().hex()}")
 
 # protocol.PreKeySignalMessage()

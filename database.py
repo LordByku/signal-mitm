@@ -38,26 +38,26 @@ class LegitBundle(BaseSqliteModel):
     type = CharField()
     aci = ForeignKeyField(Device, field="aci", backref='legitbundles')
     deviceId = ForeignKeyField(Device, field="deviceId", backref='legitbundles')
-    aciSignedPreKey = CharField()
-    aciPreKeys = CharField()
+    SignedPreKey = CharField()
+    PreKeys = CharField()
     kyberKeys = CharField()
     lastResortKyber = CharField()
 
     class Meta:
-        primary_key = CompositeKey('aci', 'deviceId')
+        primary_key = CompositeKey('type', 'aci', 'deviceId')
 
 class MitMBundle(BaseSqliteModel):
     type = CharField()
     aci = ForeignKeyField(Device, field="aci", backref='mitmbundles')
     deviceId = ForeignKeyField(Device, field="deviceId", backref='mitmbundles')
-    aciFakeIdenKey = CharField()
-    aciFakeSignedPreKey = CharField()
-    aciFakePrekeys = CharField()
+    FakeIdenKey = CharField()
+    FakeSignedPreKey = CharField()
+    FakePrekeys = CharField()
     fakeKyberKeys = CharField()
-    lastResortKyber = CharField()
+    fakeLastResortKyber = CharField()
 
     class Meta:
-        primary_key = CompositeKey('aci', 'deviceId')
+        primary_key = CompositeKey('type', 'aci', 'deviceId')
 
 class Session(BaseSqliteModel):
     aci1 = ForeignKeyField(Device, field="aci", backref='sessions')

@@ -11,7 +11,7 @@ import config
 from utils import *
 
 class NetworkHandler:
-    def __init__():
+    def __init__(self):
         pass
 
     def setup(self):
