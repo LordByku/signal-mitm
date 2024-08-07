@@ -27,7 +27,7 @@ class MitmUser(object):
         ############ FAKE USER ############
         self.address = kwargs.get("address", address.ProtocolAddress("1", 1))
 
-        self.identity_key_pair = identity_key.IdentityKeyPair.generate()
+        self.identity_key_pair = kwargs.get("identity_key",identity_key.IdentityKeyPair.generate())
         self.registration_id = kwargs.get("RID", 1)
 
         self.store = storage.InMemSignalProtocolStore(self.identity_key_pair, self.registration_id)
@@ -68,6 +68,9 @@ class MitmUser(object):
             self.kyber_pre_key_pair.get_public(),
             self.kyber_pre_key_signature
         )
+
+    def set_pre_key_bundle(self, pre_key_bundle: state.PreKeyBundle):
+        self.pre_key_bundle = pre_key_bundle
 
     def check_session(self, address: address.ProtocolAddress):
         return self.store.load_session(address)
