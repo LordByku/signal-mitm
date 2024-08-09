@@ -103,6 +103,12 @@ class RegistrationInfo():
     # pni_fake_secret_lastResortKey: Optional[dict] = None
 
 
+@dataclass
+class BobIdenKey():
+    uuid: str
+    identityKey: Optional[identity_key.IdentityKeyPair] = None
+    fake_identityKey: Optional[identity_key.IdentityKey] = None
+
 api = addons[0]
 
 @api.route("/v1/registration", rtype = RouteType.REQUEST)
@@ -533,6 +539,11 @@ def _v1_ws_profile(flow, identifier):
     logging.warning(f"id: {identifier, uuid_type, uuid}")
 
     bundle = MitMBundle.select().where(MitMBundle.type == uuid_type, MitMBundle.aci == uuid).first()
+
+    if bundle:
+        content["identityKey"] = bundle.FakeIdenKey.public_key.serialize()
+    else:
+        fake_IdenKey = identity_key.IdentityKeyPair.generate()
 
     logging.info(f"BUNDLE: {bundle}")
 
