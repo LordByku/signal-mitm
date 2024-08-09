@@ -35,3 +35,7 @@ yyKZi0DtRzNBpoHeGULOoybYmQb/E3ds5YTwd0QxAVUoBlURlWvcBArhU2Vppayzj3V/w7yknJhwU6NF
 Xc/AxWnZB4uZe8aEVl2mA4/oWmHFueH8qXzEWJ9mPbwgjmyGvF+AoVPIFQuUuwYnH7LwMm5ceMSsMZpbqmIQrlZ4hBfGx/7CgS8iNF8zcC6rDfOmbrlIGYyGHd32NEB1rNrpqF6XaegpB/3bSIwkBa+YCtQQbbZlTompNV/FT04mx2izN81Da3g8L7R8KAh6kGgIt7cokzYWEdo4SNcWcyt6x4H0PUWlr47JnK7Ti/iySKgrMIEhLTJxdw8nwdrmhoGJEs3yJSA1yj3ZxtIxH0/wEXbXyQnyfyrWefMSYqdlACiANSxpOxPFz/sEsL
 trN29aXV8LS+NxYNLRCvFijO+cH1JHim34ZBBGKsgDGzsmTgpYQuN6IAOWlVmTRXD0BJRiU8UMcCVwhsTpBZkQliu4rekZLkGCg6uitLqobZJGUPqheYGhrlzWMsA6Wq9oDU97Q1mSmB9YQWRiPTWEMOdiULe8hpSQTBorjGrIgHwmnFrKFbEMxG+nys9ppoDUINi2OiNCU7r0XtRlbFehoX6ZRjO0P6zirvA5YvDCWPuiVeXxqGg8xQ/cU0JTtcYhn2FwhJ0Dz9gwdlYMHpLCDWXGbZMBpwzIaOTJNTRBGiqbHI+oNX04cJjnCPTU
 iKRXLl1bnW5ktphsjRFnXxWBqSTDfAklaDkwYMWCrJComCw8Um2ThMD0caBIeBxnwslgaO8xWMAEsTeMT6PsGE9oEliXuffgvE4gKlBnTi7wGbHH/3rbp5blX8V+8HZKH+d4n49SyS0P+tFfT5rZ+2yL', 'signature': 'BTHXYfWmHTyq/qJhkyIoml+ZMuwHs2g90KyhBS/87LaQHz53wkTHG2R/wVJKJ0YUJA95aNH32iFqZwh4IGgrgg=='}, 'skipDeviceTransfer': True, 'requireAtomic': True}
+
+dc = MitMBundle.select().where(MitMBundle.type == "aci",
+                                                    MitMBundle.aci == "e7d71aea-c41a-4d88-856b-02e97998863b",
+                                                    MitMBundle.deviceId == 1).first()

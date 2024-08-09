@@ -38,6 +38,7 @@ class LegitBundle(BaseSqliteModel):
     type = CharField()
     aci = ForeignKeyField(Device, field="aci", backref='legitbundles')
     deviceId = ForeignKeyField(Device, field="deviceId", backref='legitbundles')
+    IdenKey = ForeignKeyField(Device, field="aciIdenKey", backref='legitbundles')
     SignedPreKey = CharField()
     PreKeys = CharField()
     kyberKeys = CharField()

