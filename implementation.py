@@ -8,8 +8,10 @@ import json
 from signal_protocol import identity_key, curve, session_cipher, address, storage, state, helpers, address
 from base64 import b64decode, b64encode
 from database import *
+from enum import Enum
 from utils import *
 import re
+from parse import Parser
 
 from proto_python.wire_pb2 import *
 from proto_python.SignalService_pb2 import *
@@ -29,6 +31,12 @@ registration_info = dict()
 conversation_session = dict()
 bobs_bundle = dict()
 
+class CiphertextMessageType(Enum):
+    WHISPER = 2
+    PREKEY_BUNDLE = 3
+    SENDERKEY_DISTRIBUTION = 7
+    PLAINTEXT = 8
+    
 
 @dataclass 
 class PendingWebSocket():
@@ -72,7 +80,7 @@ class RegistrationInfo():
 class BobIdenKey():
     uuid: str
     identityKey: Optional[identity_key.IdentityKeyPair] = None
-    fake_identityKey: Optional[identity_key.IdentityKey] = None
+    fake_identityKey: Optional[identity_key.IdentityKeyPair] = None
 
 api = addons[0]
 
@@ -303,7 +311,8 @@ def v2_keys_identifier_device_id(flow, identifier: str, device_id: str):
         if not identity_key:
             # todo create row
             fakeUser = MitmUser(address = address.ProtocolAddress(uuid, id))
-            identity_key = fakeUser.pre_key_bundle.identity_key()
+            # identity_key = fakeUser.pre_key_bundle.identity_key()
+            identity_key = fakeUser.identity_key_pair
 
         else:
             fakeUser = MitmUser(address = address.ProtocolAddress(uuid, id), identity_key = identity_key.fake_identityKey)
@@ -428,6 +437,43 @@ def _v1_ws_profile(flow, identifier):
     flow.response.content = json.dumps(content).encode()
     return flow.response.content
 
+def _v2_ws_message(flow, identifier):
+    logging.info(f"message: {identifier}")
+    logging.info(f"message: {flow.request.content}")
+
+    resp = json.loads(flow.request.content)
+    ip_address = flow.client_conn.address[0]
+
+    logging.info(f"ws message content: {resp}")
+
+    destintion_user = resp["destination"]
+    for msg in resp["messages"]:
+        if msg["destinationDeviceId"] != 1:
+            logging.error(f"Secondary devices are not supported as the developer was not paid enough. C.f. my Twint ;)")
+        
+        msg_type = CiphertextMessageType(int(msg["type"]))
+        logging.warning(f"MESSAGE TYPE: {msg_type}")
+
+        if msg_type != CiphertextMessageType.PREKEY_BUNDLE:
+            logging.error(f"Only PREKEY_BUNDLE is supported at the moment. C.f. my Twint ;)")
+            continue
+
+        content = base64.b64decode(msg["content"])[1:]
+          
+        ctxt = PreKeySignalMessage()
+        ctxt.ParseFromString(content)
+        logging.warning(f"ctxt from IK: {base64.b64encode(ctxt.identity_key)}")
+        # TODO: unproduf / decrypt / alter / encrypt / prodobuf 
+
+
+
+    # msg_type = CiphertextMessageType(int(resp["type"]))
+    # logging.warning(f"MESSAGE TYPE: {msg_type}")
+
+
+    # logging.warning(f"{registration_info[ip_address].aciData.IdenKey}")
+
+
 from mitmproxy.http import Request, Response, HTTPFlow
 
 def decap_ws_msg(orig_flow: HTTPFlow, msg, rtype=RouteType.REQUEST):
@@ -440,7 +486,13 @@ def decap_ws_msg(orig_flow: HTTPFlow, msg, rtype=RouteType.REQUEST):
 
     if rtype == RouteType.REQUEST:
         # todo: handle headers
-        f.request = Request(host=orig_flow.request.host, port=orig_flow.request.port, scheme=ws_msg.scheme, path=ws_msg.path, headers=Headers(), content=ws_msg.body)
+        f.request = Request(host=orig_flow.request.host, port=orig_flow.request.port, 
+                            scheme=orig_flow.request.scheme,
+                            method=ws_msg.verb.upper(),
+                            authority=orig_flow.request.authority,
+                            http_version=orig_flow.request.http_version,
+                            trailers=None, timestamp_start=orig_flow.request.timestamp_start, timestamp_end=orig_flow.request.timestamp_end,
+                            path=ws_msg.path, headers=Headers(), content=ws_msg.body)
     else:
         # todo: handle headeers + reason
         rp = Response(http_version=orig_flow.response.http_version, status_code=ws_msg.status, reason=b"id: ", headers=Headers(), content=ws_msg.body, trailers=None, timestamp_start=orig_flow.response.timestamp_start, timestamp_end=orig_flow.response.timestamp_end)
@@ -449,14 +501,44 @@ def decap_ws_msg(orig_flow: HTTPFlow, msg, rtype=RouteType.REQUEST):
 
 
 ws_resp = Router()
-from parse import Parser
 
 ws_resp.add_route(HOST_HTTPBIN, Parser("/v1/profile/{identifier}/{version}/{credentialRequest}"), HTTPVerb.ANY, _v1_ws_my_profile, None)
 ws_resp.add_route(HOST_HTTPBIN, Parser("/v1/profile/{identifier}/{version}"), HTTPVerb.ANY, _v1_ws_profile_futut, None)
 ws_resp.add_route(HOST_HTTPBIN, Parser("/v1/profile/{identifier}"), HTTPVerb.ANY, _v1_ws_profile, None)
 
-logging.warning(f"ROUTES: {ws_resp.routes}")
+ws_req = Router()
+ws_req.add_route(HOST_HTTPBIN, Parser("/v1/messages/{identifier}"), HTTPVerb.ANY, _v2_ws_message, None)
 
+logging.warning(f"ROUTES (REQ): {ws_req.routes}")
+logging.warning(f"ROUTES (RESP): {ws_resp.routes}")
+
+@api.ws_route("/v1/websocket/", rtype=RouteType.REQUEST)
+def _v1_websocket_req(flow, msg):
+    ws_msg = WebSocketMessage()
+    ws_msg.ParseFromString(msg.content)
+    ws_msg = ws_msg.request
+    logging.info(f"WEBSOCKET: {ws_msg}")
+
+    id = ws_msg.id
+    if websocket_open_state.get(id):
+        logging.warning(f"Message request already exists for id {id}")
+        # return
+    websocket_open_state[id] = PendingWebSocket()
+    websocket_open_state[ws_msg.id].request = ws_msg
+    path = websocket_open_state[id].request.path
+
+    
+    f = decap_ws_msg(flow, msg)
+    handler, params, _ = ws_req.find_handler(HOST_HTTPBIN, path) # todo: HARDCODING IS BAD, onii-chan
+    logging.warning(f"HANDLER: {handler}, PARAMS: {params} -- {HOST_HTTPBIN} / {path}")
+    if handler:
+        req = handler(f,  *params.fixed, **params.named)
+        if req:
+            # msg. = resp
+            new_ws = WebSocketMessage()
+            new_ws.ParseFromString(msg.content)
+            new_ws.request.body = req
+            msg.content = new_ws.SerializeToString()
 
 @api.ws_route("/v1/websocket/", rtype=RouteType.RESPONSE)
 def _v1_websocket_resp(flow, msg):
