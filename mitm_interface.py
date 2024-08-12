@@ -69,6 +69,8 @@ class MitmUser(object):
             self.kyber_pre_key_signature
         )
 
+        self.last_resort_kyber = kem.KeyPair.generate(kem.KeyType(0))
+
     def set_pre_key_bundle(self, pre_key_bundle: state.PreKeyBundle):
         self.pre_key_bundle = pre_key_bundle
 
