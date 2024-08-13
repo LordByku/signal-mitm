@@ -5,7 +5,7 @@
 # from itertools import product
 # import sqlite3
 # from pathlib import Path
-from  peewee import *
+from peewee import *
 
 #TODO: Remove relationship of pni Device and pni User
 
@@ -14,14 +14,18 @@ DB_NAME = "mitm.db"
 database = SqliteDatabase(DB_NAME)
 database.connect()
 
+
 class BaseSqliteModel(Model):
     class Meta:
         database = database
+
+
 class User(BaseSqliteModel):
-    pNumber=CharField(null=True)
+    pNumber = CharField(null=True)
     aci = CharField(null=True, primary_key=True)
     pni = CharField(null=True)
     isVictim = BooleanField()
+
 
 class Device(BaseSqliteModel):
     aci = ForeignKeyField(User, backref='devices')
@@ -33,6 +37,7 @@ class Device(BaseSqliteModel):
 
     class Meta:
         primary_key = CompositeKey('aci', 'deviceId')
+
 
 class LegitBundle(BaseSqliteModel):
     type = CharField()
@@ -47,6 +52,7 @@ class LegitBundle(BaseSqliteModel):
     class Meta:
         primary_key = CompositeKey('type', 'aci', 'deviceId')
 
+
 class MitMBundle(BaseSqliteModel):
     type = CharField()
     aci = ForeignKeyField(Device, field="aci", backref='mitmbundles')
@@ -60,6 +66,7 @@ class MitMBundle(BaseSqliteModel):
     class Meta:
         primary_key = CompositeKey('type', 'aci', 'deviceId')
 
+
 class Session(BaseSqliteModel):
     aci1 = ForeignKeyField(Device, field="aci", backref='sessions')
     devId1 = ForeignKeyField(Device, field="deviceId", backref='sessions')
@@ -70,6 +77,7 @@ class Session(BaseSqliteModel):
 
     class Meta:
         primary_key = CompositeKey('aci1', 'devId1', 'aci2', 'devId2')
+
 
 class Messages(BaseSqliteModel):
     aci1 = ForeignKeyField(Device, field="aci", backref='messages')
@@ -82,6 +90,7 @@ class Messages(BaseSqliteModel):
 
     class Meta:
         primary_key = CompositeKey('aci1', 'devId1', 'aci2', 'devId2', 'counter')
+
 
 def create_tables():
     with database:
