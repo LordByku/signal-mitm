@@ -13,10 +13,10 @@ from cryptography.hazmat.primitives import hashes, padding
 from test_protocol import *
 import time
 
-from  proto_python.wire_pb2 import *
-from proto_python.SignalService_pb2 import *
-from proto_python.storage_pb2 import *
-from proto_python import *
+from protos.gen.wire_pb2 import *
+from protos.gen.SignalService_pb2 import *
+from protos.gen.storage_pb2 import *
+from protos.gen import *
 import test_protocol
 
 padder = padding.PKCS7(256).padder()

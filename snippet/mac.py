@@ -2,11 +2,11 @@ import hmac, hashlib, base64
 from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey,X25519PublicKey
 from binascii import hexlify,unhexlify
 from cryptography.hazmat.primitives._serialization import Encoding, PublicFormat, PrivateFormat, NoEncryption
-from proto_python.wire_pb2 import *
-from proto_python.SignalService_pb2 import *
-from proto_python.storage_pb2 import *
-from proto_python.WebSocketResources_pb2 import *
-from proto_python.SignalService_pb2 import *
+from protos.gen.wire_pb2 import *
+from protos.gen.SignalService_pb2 import *
+from protos.gen.storage_pb2 import *
+from protos.gen.WebSocketResources_pb2 import *
+from protos.gen.SignalService_pb2 import *
 from test_protocol_wip import *
 
 def hex2PubKey(hexStr) -> X25519PublicKey:

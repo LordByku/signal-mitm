@@ -1,7 +1,7 @@
-from proto_python.wire_pb2 import *
-from proto_python.SignalService_pb2 import *
-from proto_python.storage_pb2 import *
-from proto_python.sealed_sender_pb2 import *
+from protos.gen.wire_pb2 import *
+from protos.gen.SignalService_pb2 import *
+from protos.gen.storage_pb2 import *
+from protos.gen.sealed_sender_pb2 import *
 from base64 import b64decode
 
 def remove_pad(padded_msg: str):

@@ -13,13 +13,13 @@ from utils import *
 import re
 from parse import Parser
 
-from proto_python.wire_pb2 import *
-from proto_python.SignalService_pb2 import *
-from proto_python.storage_pb2 import *
-from proto_python.WebSocketResources_pb2 import *
-from proto_python.SignalService_pb2 import *
-from proto_python.sealed_sender_pb2 import *
-from proto_python import *
+from protos.gen.wire_pb2 import *
+from protos.gen.SignalService_pb2 import *
+from protos.gen.storage_pb2 import *
+from protos.gen.WebSocketResources_pb2 import *
+from protos.gen.SignalService_pb2 import *
+from protos.gen.sealed_sender_pb2 import *
+from protos.gen import *
 
 # from server_proto import *
 from server_proto import addons, HOST_HTTPBIN
