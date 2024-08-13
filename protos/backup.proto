@@ -63,7 +63,7 @@ message AccountData {
     bool linkPreviews = 4;
     bool notDiscoverableByPhoneNumber = 5;
     bool preferContactAvatars = 6;
-    uint32 universalExpireTimer = 7; // 0 means no universal expire timer.
+    uint32 universalExpireTimerSeconds = 7; // 0 means no universal expire timer.
     repeated string preferredReactionEmoji = 8;
     bool displayBadgesOnProfile = 9;
     bool keepMutedChatsArchived = 10;
@@ -75,6 +75,13 @@ message AccountData {
     bool hasCompletedUsernameOnboarding = 16;
     PhoneNumberSharingMode phoneNumberSharingMode = 17;
     ChatStyle defaultChatStyle = 18;
+    repeated ChatStyle.CustomChatColor customChatColors = 19;
+  }
+
+  message SubscriberData {
+    bytes subscriberId = 1;
+    string currencyCode = 2;
+    bool manuallyCancelled = 3;
   }
 
   bytes profileKey = 1;
@@ -83,10 +90,9 @@ message AccountData {
   string givenName = 4;
   string familyName = 5;
   string avatarUrlPath = 6;
-  bytes subscriberId = 7;
-  string subscriberCurrencyCode = 8;
-  bool subscriptionManuallyCancelled = 9;
-  AccountSettings accountSettings = 10;
+  SubscriberData donationSubscriberData = 7;
+  SubscriberData backupsSubscriberData = 8;
+  AccountSettings accountSettings = 9;
 }
 
 message Recipient {
@@ -94,7 +100,7 @@ message Recipient {
   oneof destination {
     Contact contact = 2;
     Group group = 3;
-    DistributionList distributionList = 4;
+    DistributionListItem distributionList = 4;
     Self self = 5;
     ReleaseNotes releaseNotes = 6;
     CallLink callLink = 7;
@@ -102,10 +108,15 @@ message Recipient {
 }
 
 message Contact {
-  enum Registered {
-    UNKNOWN = 0;
-    REGISTERED = 1;
-    NOT_REGISTERED = 2;
+  message Registered { }
+  message NotRegistered {
+    uint64 unregisteredTimestamp = 1;
+  }
+
+  enum Visibility {
+    VISIBLE = 0;
+    HIDDEN = 1;
+    HIDDEN_MESSAGE_REQUEST = 2;
   }
 
   optional bytes aci = 1; // should be 16 bytes
@@ -113,9 +124,13 @@ message Contact {
   optional string username = 3;
   optional uint64 e164 = 4;
   bool blocked = 5;
-  bool hidden = 6;
-  Registered registered = 7;
-  uint64 unregisteredTimestamp = 8;
+  Visibility visibility = 6;
+
+  oneof registration {
+    Registered registered = 7;
+    NotRegistered notRegistered = 8;
+  }
+
   optional bytes profileKey = 9;
   bool profileSharing = 10;
   optional string profileGivenName = 11;
@@ -264,6 +279,15 @@ message AdHocCall {
   uint64 callTimestamp = 4;
 }
 
+message DistributionListItem {
+  bytes distributionId = 1; // distribution list ids are uuids
+
+  oneof item {
+    uint64 deletionTimestamp = 2;
+    DistributionList distributionList = 3;
+  }
+}
+
 message DistributionList {
   enum PrivacyMode {
     UNKNOWN = 0;
@@ -273,20 +297,9 @@ message DistributionList {
   }
 
   string name = 1;
-  bytes distributionId = 2; // distribution list ids are uuids
-  bool allowReplies = 3;
-  uint64 deletionTimestamp = 4;
-  PrivacyMode privacyMode = 5;
-  repeated uint64 memberRecipientIds = 6; // generated recipient id
-}
-
-message Identity {
-  bytes serviceId = 1;
-  bytes identityKey = 2;
-  uint64 timestamp = 3;
-  bool firstUse = 4;
-  bool verified = 5;
-  bool nonblockingApproval = 6;
+  bool allowReplies = 2;
+  PrivacyMode privacyMode = 3;
+  repeated uint64 memberRecipientIds = 4; // generated recipient id
 }
 
 message ChatItem {
@@ -325,6 +338,7 @@ message ChatItem {
     RemoteDeletedMessage remoteDeletedMessage = 14;
     ChatUpdateMessage updateMessage = 15;
     PaymentNotification paymentNotification = 16;
+    GiftBadge giftBadge = 17;
   }
 }
 
@@ -415,6 +429,18 @@ message PaymentNotification {
   
 }
 
+message GiftBadge {
+  enum State {
+    UNOPENED = 0;
+    OPENED = 1;
+    REDEEMED = 2;
+    FAILED = 3;
+  }
+
+  bytes receiptCredentialPresentation = 1;
+  State state = 2;
+}
+
 message ContactAttachment {
   message Name {
     optional string givenName = 1;
@@ -476,14 +502,8 @@ message ContactAttachment {
   repeated Phone number = 3;
   repeated Email email = 4;
   repeated PostalAddress address = 5;
-  optional string avatarUrlPath = 6;
+  optional FilePointer avatar = 6;
   optional string organization = 7;
-}
-
-message DocumentMessage {
-  Text text = 1;
-  FilePointer document = 2;
-  repeated Reaction reactions = 3;
 }
 
 message StickerMessage {
@@ -530,6 +550,9 @@ message MessageAttachment {
   FilePointer pointer = 1;
   Flag flag = 2;
   bool wasDownloaded = 3;
+  // Cross-client identifier for this attachment among all attachments on the
+  // owning message. See: SignalService.AttachmentPointer.clientUuid.
+  optional bytes clientUuid = 4;
 }
 
 message FilePointer {
@@ -542,7 +565,7 @@ message FilePointer {
     optional uint32 cdnNumber = 2;
     bytes key = 3;
     bytes digest = 4;
-    uint32 size = 5;
+    uint64 size = 5;
     // Fallback in case backup tier upload failed.
     optional string transitCdnKey = 6;
     optional uint32 transitCdnNumber = 7;
@@ -643,6 +666,7 @@ message ChatUpdateMessage {
     SessionSwitchoverChatUpdate sessionSwitchover = 6;
     IndividualCall individualCall = 7;
     GroupCall groupCall = 8;
+    LearnedProfileChatUpdate learnedProfileChange = 9;
   }
 }
 
@@ -717,13 +741,14 @@ message SimpleChatUpdate {
     IDENTITY_VERIFIED = 3;
     IDENTITY_DEFAULT = 4; // marking as unverified
     CHANGE_NUMBER = 5;
-    BOOST_REQUEST = 6;
+    RELEASE_CHANNEL_DONATION_REQUEST = 6;
     END_SESSION = 7;
     CHAT_SESSION_REFRESH = 8;
     BAD_DECRYPT = 9;
     PAYMENTS_ACTIVATED = 10;
     PAYMENT_ACTIVATION_REQUEST = 11;
     UNSUPPORTED_PROTOCOL_MESSAGE = 12;
+    REPORTED_SPAM = 13;
   }
 
   Type type = 1;
@@ -732,12 +757,19 @@ message SimpleChatUpdate {
 // For 1:1 chat updates only.
 // For group thread updates use GroupExpirationTimerUpdate.
 message ExpirationTimerChatUpdate {
-  uint32 expiresInMs = 1; // 0 means the expiration timer was disabled
+  uint64 expiresInMs = 1; // 0 means the expiration timer was disabled
 }
 
 message ProfileChangeChatUpdate {
   string previousName = 1;
   string newName = 2;
+}
+
+message LearnedProfileChatUpdate {
+  oneof previousName {
+    uint64 e164 = 1;
+    string username = 2;
+  }
 }
 
 message ThreadMergeChatUpdate {
@@ -991,29 +1023,29 @@ message GroupV2MigrationDroppedMembersUpdate {
 
 // For 1:1 timer updates, use ExpirationTimerChatUpdate.
 message GroupExpirationTimerUpdate {
-  uint32 expiresInMs = 1; // 0 means the expiration timer was disabled
+  uint64 expiresInMs = 1; // 0 means the expiration timer was disabled
   optional bytes updaterAci = 2;
 }
 
 message StickerPack {
   bytes packId = 1;
   bytes packKey = 2;
-  string title = 3;
-  string author = 4;
-  repeated StickerPackSticker stickers = 5; // First one should be cover sticker.
 }
-
-message StickerPackSticker {
-  string emoji = 1;
-  uint32 id = 2;
-}
-
 
 message ChatStyle {
   message Gradient {
     uint32 angle = 1; // degrees
-    repeated uint32 colors = 2;
+    repeated fixed32 colors = 2;
     repeated float positions = 3; // percent from 0 to 1
+  }
+
+  message CustomChatColor {
+    uint32 id = 1;
+
+    oneof color {
+      fixed32 solid = 2;
+      Gradient gradient = 3;
+    }
   }
 
   message AutomaticBubbleColor {
@@ -1076,10 +1108,14 @@ message ChatStyle {
   }
 
   oneof bubbleColor {
-    BubbleColorPreset bubbleColorPreset = 3;
-    Gradient bubbleGradient = 4;
-    uint32 bubbleSolidColor = 5;
-    // Bubble setting is automatically determined based on the wallpaper setting.
-    AutomaticBubbleColor autoBubbleColor = 6;
+    // Bubble setting is automatically determined based on the wallpaper setting,
+    // or `SOLID_ULTRAMARINE` for `noWallpaper`
+    AutomaticBubbleColor autoBubbleColor = 3;
+    BubbleColorPreset bubbleColorPreset = 4;
+
+    // See AccountSettings.customChatColors
+    uint32 customColorId = 5;
   }
+
+  bool dimWallpaperInDarkMode = 7;
 }
