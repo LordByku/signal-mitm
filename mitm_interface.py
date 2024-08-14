@@ -27,13 +27,13 @@ class MitmUser(object):
         ############ FAKE USER ############
         self.address = kwargs.get("address", address.ProtocolAddress("1", 1))
 
-        self.identity_key_pair = kwargs.get("identity_key",identity_key.IdentityKeyPair.generate())
+        self.identity_key_pair: IdentityKeyPair = kwargs.get("identity_key", identity_key.IdentityKeyPair.generate())
         self.registration_id = kwargs.get("RID", 1)
 
         self.store = storage.InMemSignalProtocolStore(self.identity_key_pair, self.registration_id)
 
-        self.pre_key_pair = curve.KeyPair.generate()
-        self.signed_pre_key_pair = curve.KeyPair.generate()
+        self.pre_key_pair: KeyPair = curve.KeyPair.generate()
+        self.signed_pre_key_pair: KeyPair = curve.KeyPair.generate()
 
         self.signed_pre_key_public = self.signed_pre_key_pair.public_key().serialize()
 

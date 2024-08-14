@@ -1,5 +1,3 @@
-
-
 DB_NAME = "mitm.db"
 
 INTERNET_IFACE = "wlp0s20f3"
@@ -12,6 +10,6 @@ MITMPROXY_LISTEN_PORT = 8080
 IGNORE_HOSTS_LIST = [
     r"(.*google\w*\.com)",
     r"(.*hcaptcha\.com)",
-    r"(.*signalcaptchas\.org)"
+    r"(.*signalcaptchas\.org)",
 ]
 IGNORE_HOSTS = f'"{r"|".join(IGNORE_HOSTS_LIST)}"'

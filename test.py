@@ -75,8 +75,11 @@ class MitmUser(object):
         # self.kyber_pre_key_id = state.KyberPreKeyId(13915770)
         # self.kyber_pre_key_pair = kem.KeyPair.generate(kem.KeyType(0))
 
-        self.kyber_record = state.KyberPreKeyRecord.generate(kem.KeyType(0), state.KyberPreKeyId(13915770),
-                                                             self.identity_key_pair.private_key())
+        self.kyber_record = state.KyberPreKeyRecord.generate(
+            kem.KeyType(0),
+            state.KyberPreKeyId(13915770),
+            self.identity_key_pair.private_key(),
+        )
         # print(kyber_pre_key_pair.get_public().serialize().hex())
 
         self.kyber_pre_key_signature = (
@@ -92,7 +95,7 @@ class MitmUser(object):
         )
 
         self.store.save_kyber_pre_key(state.KyberPreKeyId(13915770), self.kyber_record)
-        #todo a : not expsoed in the annotations 
+        # todo a : not expsoed in the annotations
 
         ############ LEGIT USER ############
         # These info are retrieved from the intercept event hooks
@@ -105,7 +108,7 @@ class MitmUser(object):
 
     # TODO : Check if this makes sense here or in the MitmVictim class
     def process_pre_key_bundle(
-            self, address: address.ProtocolAddress, pre_key_bundle: state.PreKeyBundle
+        self, address: address.ProtocolAddress, pre_key_bundle: state.PreKeyBundle
     ):
         session.process_prekey_bundle(address, self.store, pre_key_bundle)
         # return self.store.load_session(address) and self.store.load_session(address).session_version() == 3
@@ -116,7 +119,9 @@ class MitmUser(object):
     def encrypt(self, address: address.ProtocolAddress, plaintext: bytes):
         return session_cipher.message_encrypt(self.store, address, plaintext)
 
-    def decrypt(self, address: address.ProtocolAddress, ciphertext: protocol.CiphertextMessage):
+    def decrypt(
+        self, address: address.ProtocolAddress, ciphertext: protocol.CiphertextMessage
+    ):
 
         ciphertext = ciphertext.serialize()
 
@@ -148,7 +153,7 @@ class MitmUser(object):
 # Create MitmUser instances
 Alice = MitmUser(address=address.ProtocolAddress("alice", 1), RID=1)
 Bob = MitmUser(address=address.ProtocolAddress("bob", 1), RID=2)
-#print(Alice.pre_key_bundle.kyber_pre_key_id())
+# print(Alice.pre_key_bundle.kyber_pre_key_id())
 
 assert Alice.store.load_session(Bob.address) is None
 
@@ -161,9 +166,9 @@ assert Alice.store.load_session(Bob.address).session_version() == 4
 
 original_message = b"Hobgoblins hold themselves to high standards of military honor"
 
-#enc = Alice.encrypt(Bob.address, original_message).serialize()
+# enc = Alice.encrypt(Bob.address, original_message).serialize()
 
-#BuildSignalMessage
+# BuildSignalMessage
 
 # DataMessage
 # Content
@@ -172,15 +177,15 @@ original_message = b"Hobgoblins hold themselves to high standards of military ho
 
 data_message = DataMessage()
 data_message.body = b"Hello, World!"
-###### Stuff that you can get from the original message (and save the profile_key) or generate it your self 
+###### Stuff that you can get from the original message (and save the profile_key) or generate it your self
 data_message.profileKey = b"adrianoooo"
 data_message.timestamp = current_milli_time()
 
 content = Content()
 content.dataMessage.CopyFrom(data_message)
-serializedContent = (content.SerializeToString())
+serializedContent = content.SerializeToString()
 
-#print(f"serializedContent: {serializedContent}")
+# print(f"serializedContent: {serializedContent}")
 
 cipher = Alice.encrypt(Bob.address, serializedContent)
 cipher_2 = Alice.encrypt(Bob.address, serializedContent)
@@ -194,7 +199,7 @@ Bob.store.save_identity(
 
 dec = Bob.decrypt(Alice.address, cipher)
 
-#print(f"Bob decrypts {dec}")
+# print(f"Bob decrypts {dec}")
 
 bobs_response = b"Who watches the watchers?"
 

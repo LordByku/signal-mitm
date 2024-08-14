@@ -8,12 +8,20 @@ import logging
 from typing import Optional
 import hmac, hashlib
 from cryptography.hazmat.primitives import hashes, serialization
-from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey,X25519PublicKey
+from cryptography.hazmat.primitives.asymmetric.x25519 import (
+    X25519PrivateKey,
+    X25519PublicKey,
+)
 from cryptography.hazmat.primitives.asymmetric.ed25519 import (
     Ed25519PublicKey,
     Ed25519PrivateKey,
 )
-from cryptography.hazmat.primitives._serialization import Encoding, PublicFormat, PrivateFormat, NoEncryption
+from cryptography.hazmat.primitives._serialization import (
+    Encoding,
+    PublicFormat,
+    PrivateFormat,
+    NoEncryption,
+)
 
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 from cryptography.hazmat.backends import default_backend
@@ -28,37 +36,55 @@ from time import time
 
 from Crypto.Cipher import AES
 
-DISC_BYTES =  b"\xFF"*32
+DISC_BYTES = b"\xFF" * 32
 MAC_LENGTH = 8
 
 
 def hex2PubKey(hexStr) -> X25519PublicKey:
     key = X25519PublicKey.from_public_bytes(unhexlify(hexStr[2:]))
-    sanity = hexlify(key.public_bytes(encoding=Encoding.Raw,format=PublicFormat.Raw)).decode()
+    sanity = hexlify(
+        key.public_bytes(encoding=Encoding.Raw, format=PublicFormat.Raw)
+    ).decode()
 
     if hexStr[2:].lower() != sanity:
         print("we got a missmatch :( ")
     return key
 
+
 def hex2PrivKey(hexStr) -> X25519PrivateKey:
     key = X25519PrivateKey.from_private_bytes(unhexlify(hexStr))
-    sanity = hexlify(key.private_bytes(encoding=Encoding.Raw,format=PrivateFormat.Raw, encryption_algorithm=NoEncryption())).decode()
+    sanity = hexlify(
+        key.private_bytes(
+            encoding=Encoding.Raw,
+            format=PrivateFormat.Raw,
+            encryption_algorithm=NoEncryption(),
+        )
+    ).decode()
 
     if hexStr.lower() != sanity:
         print("we got a missmatch :( ")
     return key
 
+
 def PubKey2Hex(pubKey: X25519PublicKey) -> str:
     if pubKey is None:
         return ""
-    hexStr = "05" + pubKey.public_bytes(encoding=Encoding.Raw,format=PublicFormat.Raw).hex()
+    hexStr = (
+        "05" + pubKey.public_bytes(encoding=Encoding.Raw, format=PublicFormat.Raw).hex()
+    )
 
     return hexStr
+
 
 def PrivKey2Hex(privKey: X25519PrivateKey) -> str:
-    hexStr = privKey.private_bytes(encoding=Encoding.Raw,format=PrivateFormat.Raw, encryption_algorithm= NoEncryption()).hex()
-    
+    hexStr = privKey.private_bytes(
+        encoding=Encoding.Raw,
+        format=PrivateFormat.Raw,
+        encryption_algorithm=NoEncryption(),
+    ).hex()
+
     return hexStr
+
 
 def pad(msg):
     # pkcs7 padding
@@ -70,13 +96,16 @@ def unpad(msg):
     # remove pkcs7 padding
     return msg[: -msg[-1]]
 
+
 def b64(msg):
     # base64 encoding helper function
     return base64.encodebytes(msg).decode("utf-8").strip()
 
+
 def hmac_sha256(key: bytes, msg: bytes):
     result = hmac.new(key, msg, digestmod=hashlib.sha256).hexdigest()
     return result
+
 
 def hkdf(inp, length, salt=None, info=None):
     # use HKDF on an input to derive a key
@@ -85,17 +114,18 @@ def hkdf(inp, length, salt=None, info=None):
         length=length,
         salt=salt,
         info=info,
-        #backend=default_backend(),
+        # backend=default_backend(),
     )
     return hkdf.derive(inp)
 
-def aes_256_cbc_encrypt(ptxt, key, iv):
-    #padder = padding.PKCS7(256).padder()
 
-    #ptxt = padder.update(ptxt) + padder.finalize()
-    
+def aes_256_cbc_encrypt(ptxt, key, iv):
+    # padder = padding.PKCS7(256).padder()
+
+    # ptxt = padder.update(ptxt) + padder.finalize()
+
     ptxt = pad(ptxt)
-    #print(ptxt, len(ptxt))
+    # print(ptxt, len(ptxt))
 
     return AES.new((key), AES.MODE_CBC, iv).encrypt(ptxt)
 
@@ -109,14 +139,15 @@ def get_padded_message_length(message_length):
 
     return message_part_count * 160
 
-def get_padded_message_body(message_body):
 
+def get_padded_message_body(message_body):
     padded_length = get_padded_message_length(len(message_body) + 1) - 1
     padded_message = bytearray(padded_length)
-    padded_message[:len(message_body)] = message_body
+    padded_message[: len(message_body)] = message_body
     padded_message[len(message_body)] = 0x80
 
-    return bytes(padded_message) ## PCKS7
+    return bytes(padded_message)  ## PCKS7
+
 
 def get_stripped_padding_message_body(message_with_padding):
     padding_start = 0
@@ -134,6 +165,7 @@ def get_stripped_padding_message_body(message_with_padding):
 
     return stripped_message
 
+
 def pad(msg):
     # pkcs7 padding
     num = 16 - (len(msg) % 16)
@@ -144,136 +176,177 @@ def unpad(msg):
     # remove pkcs7 padding
     return msg[: -msg[-1]]
 
+
 def derive_keys(sk):
     return sk[:32], sk[32:64]
 
-def verify_mac(msg:bytes, mac_key: bytes, sender_IK: X25519PublicKey, receiver_IK: X25519PublicKey):
-    
-    our_mac = compute_mac(msg[:len(msg)-MAC_LENGTH], mac_key, sender_IK, receiver_IK)
-    their_mac = msg[len(msg) - MAC_LENGTH : ]
-    
-    
+
+def verify_mac(
+    msg: bytes, mac_key: bytes, sender_IK: X25519PublicKey, receiver_IK: X25519PublicKey
+):
+    our_mac = compute_mac(msg[: len(msg) - MAC_LENGTH], mac_key, sender_IK, receiver_IK)
+    their_mac = msg[len(msg) - MAC_LENGTH :]
+
     result = our_mac == their_mac
     if not result:
         # A warning instead of an error because we try multiple sessions.
         logging.warning(
-            "Bad Mac! Their Mac: {} Our Mac: {}".format(
-                their_mac.hex(),
-                our_mac.hex()
-            )
+            "Bad Mac! Their Mac: {} Our Mac: {}".format(their_mac.hex(), our_mac.hex())
         )
     return result
-    
-def compute_mac(msg:bytes, mac_key: bytes, sender_IK: X25519PublicKey, receiver_IK: X25519PublicKey) -> bytes:
+
+
+def compute_mac(
+    msg: bytes, mac_key: bytes, sender_IK: X25519PublicKey, receiver_IK: X25519PublicKey
+) -> bytes:
     if len(mac_key) != 32:
         raise ValueError("InvalidMacKeyLength: {}".format(len(mac_key)))
 
-    mac = hmac.new(key=mac_key,msg=None,digestmod=hashlib.sha256)
+    mac = hmac.new(key=mac_key, msg=None, digestmod=hashlib.sha256)
     mac.update(bytes.fromhex(PubKey2Hex(sender_IK)))
     mac.update(bytes.fromhex(PubKey2Hex(receiver_IK)))
     mac.update(msg)
     return mac.digest()[:8]
 
+
 class PreKeySignalMessageClass(object):
-    def __init__(self, pre_key_id = 0, base_key = b'', identity_key = b'', message = b'', registration_id  = 0, signed_pre_key_id = 0):
+    def __init__(
+        self,
+        pre_key_id=0,
+        base_key=b"",
+        identity_key=b"",
+        message=b"",
+        registration_id=0,
+        signed_pre_key_id=0,
+    ):
         self.pksm = PreKeySignalMessage()
         self.pksm.pre_key_id = pre_key_id
         self.pksm.base_key = base_key
         self.pksm.identity_key = identity_key
-        self.pksm.message = message # SignalMessage
+        self.pksm.message = message  # SignalMessage
         self.pksm.registration_id = registration_id
         self.pksm.signed_pre_key_id = signed_pre_key_id
-    
+
     def getPrekeyID(self):
         return self.pksm.pre_key_id
+
     def getBaseKey(self):
         return self.pksm.base_key
+
     def getRegistrationID(self):
         return self.pksm.registration_id
+
     def getIdentityKey(self):
         return self.pksm.identity_key
+
     def getMessage(self):
         return self.pksm.message
+
     def getSignedPrekeyID(self):
         return self.pksm.signed_pre_key
-    
-    def setPrekeyID(self,id):
+
+    def setPrekeyID(self, id):
         self.pksm.pre_key_id = id
-    def setBaseKeyID(self,id):
+
+    def setBaseKeyID(self, id):
         self.pksm.base_key_id = id
-    def setRegistrationID(self,id):
+
+    def setRegistrationID(self, id):
         self.pksm.registration_id = id
-    def setIdentityKey(self,key):
+
+    def setIdentityKey(self, key):
         self.pksm.identity_key = key
-    def setMessage(self,message):
+
+    def setMessage(self, message):
         self.pksm.message = message
-    def setSignedPreKeyID(self,signedPreKeyID):
+
+    def setSignedPreKeyID(self, signedPreKeyID):
         self.pksm.signed_pre_key_id = signedPreKeyID
-    
+
     def SerializeToString(self):
-        return self.pksm.SerializeToString()   
+        return self.pksm.SerializeToString()
+
     def ParseFromString(self, msg):
         self.pksm.ParseFromString(msg)
 
-def BuildSignalMessage(self,sender, text_message, profileKey=None, timestamp=None, counter=1, previous_counter=0):
+
+def BuildSignalMessage(
+    self,
+    sender,
+    text_message,
+    profileKey=None,
+    timestamp=None,
+    counter=1,
+    previous_counter=0,
+):
     data_message = DataMessage()
     data_message.body = text_message
-    ###### Stuff that you can get from the original message (and save the profile_key) or generate it your self 
+    ###### Stuff that you can get from the original message (and save the profile_key) or generate it your self
     data_message.profileKey = profileKey
     data_message.timestamp = timestamp
     ######
     content = Content()
     content.dataMessage.CopyFrom(data_message)
-    
-    serializedContent = (content.SerializeToString())
-    
+
+    serializedContent = content.SerializeToString()
+
     cipher, mac_key = sender.enc(serializedContent)
-    print(f"[{self.alice.__class__.__name__}]\tSending ciphertext to {bob.__class__.__name__}:", b64(cipher))
+    print(
+        f"[{self.alice.__class__.__name__}]\tSending ciphertext to {bob.__class__.__name__}:",
+        b64(cipher),
+    )
 
     signalMessage = SignalMessage()
     signalMessage.ratchet_key = bytes.fromhex(PubKey2Hex(sender.DHratchet.public_key()))
     signalMessage.counter = counter
     signalMessage.previous_counter = previous_counter
     signalMessage.ciphertext = cipher
-    
+
     return bytes.fromhex("33") + signalMessage.SerializeToString(), mac_key
 
-def addMacSignalMessage(self, sm, mac_key):        
-    mac = compute_mac(sm, mac_key, self.alice.IK.public_key(), self.bob.IK.public_key() )
-    our_mac = compute_mac(msg[:len(msg)-MAC_LENGTH], mac_key, sender_IK, receiver_IK)
 
-    sm = sm + mac 
-    
+def addMacSignalMessage(self, sm, mac_key):
+    mac = compute_mac(sm, mac_key, self.alice.IK.public_key(), self.bob.IK.public_key())
+    our_mac = compute_mac(msg[: len(msg) - MAC_LENGTH], mac_key, sender_IK, receiver_IK)
+
+    sm = sm + mac
+
     return sm
-    
-def BuildPreKeySignalMessage(self, sender, receiver, sm, pre_key_id, registration_id, signed_pre_key_id):
-        
-    preKeySignalMessage = PreKeySignalMessageClass(pre_key_id,
-                                                sender.EK.public_key().public_bytes(Encoding.Raw, PublicFormat.Raw),
-                                                sender.IK.public_key().public_bytes(Encoding.Raw, PublicFormat.Raw),
-                                                sm,
-                                                registration_id,
-                                                signed_pre_key_id)
+
+
+def BuildPreKeySignalMessage(
+    self, sender, receiver, sm, pre_key_id, registration_id, signed_pre_key_id
+):
+    preKeySignalMessage = PreKeySignalMessageClass(
+        pre_key_id,
+        sender.EK.public_key().public_bytes(Encoding.Raw, PublicFormat.Raw),
+        sender.IK.public_key().public_bytes(Encoding.Raw, PublicFormat.Raw),
+        sm,
+        registration_id,
+        signed_pre_key_id,
+    )
 
     pksm = bytes.fromhex("33") + preKeySignalMessage.SerializeToString()
     return pksm
-    
+
+
 class SymmRatchet(object):
     def __init__(self, key):
         self.state = key
 
     def next(self, inp=b""):
         # turn the ratchet, changing the state and yielding a new key and IV
-        msg_kdf = hmac_sha256((self.state), b'\x01')
+        msg_kdf = hmac_sha256((self.state), b"\x01")
         msg_key = hkdf(bytes.fromhex(msg_kdf), 80, None, b"WhisperMessageKeys")
-        
+
         cipher_key = msg_key[0:32]
-        mac_key =  msg_key[32:64]
+        mac_key = msg_key[32:64]
         iv = msg_key[64:]
 
-        self.state = bytes.fromhex(hmac_sha256(self.state, b'\x02'))
-        
+        self.state = bytes.fromhex(hmac_sha256(self.state, b"\x02"))
+
         return cipher_key, mac_key, iv
+
 
 @dataclass
 class KeyBundle:
@@ -282,33 +355,36 @@ class KeyBundle:
     OPK: Optional[X25519PublicKey] = None
     EK: Optional[X25519PublicKey] = None
     DHratchet: Optional[X25519PublicKey] = None
-    
+
+
 def user2AliceBundle(usr):
     # utility method so you don't pass a whole user to x3dh
     pkeys = {
-        'IK': usr.IK.public_key(),
-        'SPK': usr.SPK.public_key() if hasattr(usr, 'SPK') else None,
-        'OPK': usr.OPK.public_key() if hasattr(usr, 'OPK') else None,
-        'EK': usr.EK.public_key() if hasattr(usr, 'EK') else None
+        "IK": usr.IK.public_key(),
+        "SPK": usr.SPK.public_key() if hasattr(usr, "SPK") else None,
+        "OPK": usr.OPK.public_key() if hasattr(usr, "OPK") else None,
+        "EK": usr.EK.public_key() if hasattr(usr, "EK") else None,
     }
     return KeyBundle(**pkeys)
 
+
 def user2BobBundle(usr):
     pkeys = {
-        'IK': usr.IK,
-        'SPK': usr.SPK if hasattr(usr, 'SPK') else None,
-        'OPK': usr.OPK if hasattr(usr, 'OPK') else None,
-        'EK': usr.EK if hasattr(usr, 'EK') else None
+        "IK": usr.IK,
+        "SPK": usr.SPK if hasattr(usr, "SPK") else None,
+        "OPK": usr.OPK if hasattr(usr, "OPK") else None,
+        "EK": usr.EK if hasattr(usr, "EK") else None,
     }
     return KeyBundle(**pkeys)
+
 
 def user2Bundle(usr):
     # utility method so you don't pass a whole user to x3dh
     pkeys = {
-        'IK': usr.IK.public_key(),
-        'SPK': usr.SPK.public_key() if hasattr(usr, 'SPK') else None,
-        'OPK': usr.OPK.public_key() if hasattr(usr, 'OPK') else None,
-        'EK': usr.EK.public_key() if hasattr(usr, 'EK') else None
+        "IK": usr.IK.public_key(),
+        "SPK": usr.SPK.public_key() if hasattr(usr, "SPK") else None,
+        "OPK": usr.OPK.public_key() if hasattr(usr, "OPK") else None,
+        "EK": usr.EK.public_key() if hasattr(usr, "EK") else None,
     }
     return KeyBundle(**pkeys)
 
@@ -317,7 +393,7 @@ class Human(object):
     uuid = ""
     new_DH_key = False
     last_DH_key = None
-    
+
     def enc(self, msg: bytes) -> bytes:
         key, mac_key, iv = self.send_ratchet.next()
         paddedContent = get_padded_message_body(msg)
@@ -328,7 +404,9 @@ class Human(object):
         # receive the new public key and use it to perform a DH
         key, mac_key, iv = self.recv_ratchet.next()
         # decrypt the message using the new recv ratchet
-        msg = get_stripped_padding_message_body(unpad(AES.new(key, AES.MODE_CBC, iv).decrypt(ctxt)))
+        msg = get_stripped_padding_message_body(
+            unpad(AES.new(key, AES.MODE_CBC, iv).decrypt(ctxt))
+        )
         return msg, mac_key
 
     def init_ratchets(self):
@@ -338,47 +416,50 @@ class Human(object):
         # initialise the sending and recving chains
         self.send_ratchet = SymmRatchet(self.chainValue)
         self.recv_ratchet = SymmRatchet(self.chainValue)
-    
+
     def x3dh(self, other_bundle: KeyBundle):
         # perform the 4 Diffie Hellman exchanges (X3DH)
-        if other_bundle.SPK is not None: 
+        if other_bundle.SPK is not None:
             dh1 = self.IK.exchange(other_bundle.SPK)
             dh2 = self.EK.exchange(other_bundle.IK)
             dh3 = self.EK.exchange(other_bundle.SPK)
             dh4 = self.EK.exchange(other_bundle.OPK)
-            self.sk = hkdf(inp = DISC_BYTES + dh1 + dh2 + dh3 + dh4, length=64, info = b"WhisperText")
+            self.sk = hkdf(
+                inp=DISC_BYTES + dh1 + dh2 + dh3 + dh4, length=64, info=b"WhisperText"
+            )
             self.init_ratchets()
             self.dh_ratchet(other_bundle.SPK)
-        #TODO change this
+        # TODO change this
         else:
             dh1 = self.SPK.exchange(other_bundle.IK)
             dh2 = self.IK.exchange(other_bundle.EK)
             dh3 = self.SPK.exchange(other_bundle.EK)
             dh4 = self.OPK.exchange(other_bundle.EK)
-            self.sk = hkdf(inp = DISC_BYTES + dh1 + dh2 + dh3 + dh4, length=64, info = b"WhisperText")
+            self.sk = hkdf(
+                inp=DISC_BYTES + dh1 + dh2 + dh3 + dh4, length=64, info=b"WhisperText"
+            )
             self.init_ratchets()
         # the shared key is KDF(DH1||DH2||DH3||DH4)
         print(f"[{self.__class__.__name__}]\tShared key:", (bytes.hex(self.sk)))
 
-
-    def recv(self, cipher, bob_public_key, pksm_flag = 0):
+    def recv(self, cipher, bob_public_key, pksm_flag=0):
         if PubKey2Hex(bob_public_key) != PubKey2Hex(self.last_DH_key) or pksm_flag == 1:
             self.new_DH_key = True
             self.last_DH_key = bob_public_key
             self.dh_ratchet(bob_public_key)
         msg, mac_key = self.dec(cipher, bob_public_key)
         print(f"[{self.__class__.__name__}]\tDecrypted message:", msg)
-        #DO IT HEREverify_mac(bytes.fromhex(mess), mac_key, hex2PubKey(ourIK),their_IK)
+        # DO IT HEREverify_mac(bytes.fromhex(mess), mac_key, hex2PubKey(ourIK),their_IK)
 
-        self.last_person = False ##### TODO: ATtenzione nel caso in  cui si generi la stessa chiave due volte in DH_ratchet
+        self.last_person = False  ##### TODO: ATtenzione nel caso in  cui si generi la stessa chiave due volte in DH_ratchet
         return msg, mac_key
-        
+
     def send(self, other, msg):
-        '''        
+        """
         sm, mac_key = self.BuildSignalMessage(self, msg, b"casual", int(time()), counter=1, previous_counter=0)
-        
+
         sm = self.addMacSignalMessage(sm, mac_key)
-        
+
         preKeySignalMessage = PreKeySignalMessageClass(4917741,
                                                   self.EK.public_key().public_bytes(Encoding.Raw, PublicFormat.Raw),
                                                   self.IK.public_key().public_bytes(Encoding.Raw, PublicFormat.Raw),
@@ -389,13 +470,16 @@ class Human(object):
         pksm = bytes.fromhex("33") + preKeySignalMessage.SerializeToString()
         print(preKeySignalMessage.pksm)
         pksm1 = BuildPreKeySignalMessage(self, other, sm, 4917741, 6027, 13819045)
-        
-        wire_msg = base64.b64encode(pksm)'''
+
+        wire_msg = base64.b64encode(pksm)"""
         cipher, _ = self.enc(msg)
-        print(f"[{self.__class__.__name__}]\tSending ciphertext to {other.__class__.__name__}:", b64(cipher))
+        print(
+            f"[{self.__class__.__name__}]\tSending ciphertext to {other.__class__.__name__}:",
+            b64(cipher),
+        )
         # send ciphertext and current DH public key
         other.recv(cipher, self.DHratchet.public_key())
-        self.last_person = True #####
+        self.last_person = True  #####
 
     def dh_ratchet(self, other_pub_DH):
         # perform a DH ratchet rotation using Bob's public key
@@ -409,12 +493,12 @@ class Human(object):
             # use Bob's public and our old private key
             # to get a new recv ratchet
             self.recv_ratchet = SymmRatchet(recv_chain_chain_key)
-            #print(f"[{self.__class__.__name__}]\tRecv ratchet seed:", b64(shared_recv))
+            # print(f"[{self.__class__.__name__}]\tRecv ratchet seed:", b64(shared_recv))
         # generate a new key pair and send ratchet
         # our new public key will be sent with the next message to Bob
         self.DHratchet = X25519PrivateKey.generate()
         ## TODO do a stronger check on casual key repeating
-        #self.DHratchet= hex2PrivKey("187d54327d675dfc283b28d34fffbb09158cda316df079cd2d84f5928a94de7e")
+        # self.DHratchet= hex2PrivKey("187d54327d675dfc283b28d34fffbb09158cda316df079cd2d84f5928a94de7e")
         dh_send = self.DHratchet.exchange(other_pub_DH)
         sk = hkdf(dh_send, 64, self.root_ratchet.state, b"WhisperRatchet")
         sender_chain_root_key, sending_chain_chain_key = derive_keys(sk)
@@ -422,121 +506,150 @@ class Human(object):
 
         self.root_ratchet.state = sender_chain_root_key
         print(sender_chain_root_key.hex(), sending_chain_chain_key.hex())
-        #shared_send = self.root_ratchet.next(dh_send)[0]
-        
+        # shared_send = self.root_ratchet.next(dh_send)[0]
+
         self.send_ratchet = SymmRatchet(sending_chain_chain_key)
-        #print(f"[{self.__class__.__name__}]\tSend ratchet seed:", b64(shared_send))
+        # print(f"[{self.__class__.__name__}]\tSend ratchet seed:", b64(shared_send))
 
 
 class Alice(Human):
     def __init__(self, *args, **kwargs):
         # generate Alice's keys
         self.IK = kwargs.get("IK", X25519PrivateKey.generate())
-        self.pubIK = kwargs.get("pubIK", self.IK.public_key() if self.IK is not None else None)
+        self.pubIK = kwargs.get(
+            "pubIK", self.IK.public_key() if self.IK is not None else None
+        )
 
         self.EK = kwargs.get("EK", X25519PrivateKey.generate())
-        self.pubEK = kwargs.get("pubEK", self.EK.public_key() if self.EK is not None else None)
+        self.pubEK = kwargs.get(
+            "pubEK", self.EK.public_key() if self.EK is not None else None
+        )
 
         # Alice's DH ratchet starts out uninitialised
         self.DHratchet = None
         self.PublicDHratchet = None
 
+
 class Bob(Human):
     def __init__(self, *args, **kwargs):
         # generate Bob's keys
         self.IK = kwargs.get("privIK", X25519PrivateKey.generate())
-        self.pubIK = kwargs.get("pubIK", self.IK.public_key() if self.IK is not None else None)
+        self.pubIK = kwargs.get(
+            "pubIK", self.IK.public_key() if self.IK is not None else None
+        )
 
-        #self.IK = kwargs.get("IK", X25519PrivateKey.generate().public_key())
-        
+        # self.IK = kwargs.get("IK", X25519PrivateKey.generate().public_key())
+
         self.SPK = kwargs.get("privSPK", X25519PrivateKey.generate())
-        self.pubSPK = kwargs.get("pubSPK", self.SPK.public_key() if self.SPK is not None else None)
-        
+        self.pubSPK = kwargs.get(
+            "pubSPK", self.SPK.public_key() if self.SPK is not None else None
+        )
+
         self.OPK = kwargs.get("privOPK", X25519PrivateKey.generate())
         self.pubOPK = kwargs.get("pubOPK", self.OPK.public_key() if self.OPK else None)
 
-        #self.OPK = kwargs.get("OPK",  X25519PrivateKey.generate().public_key())
-        
-        
-        #self.DHratchet = kwargs.get("DH", X25519PrivateKey.generate())
+        # self.OPK = kwargs.get("OPK",  X25519PrivateKey.generate().public_key())
+
+        # self.DHratchet = kwargs.get("DH", X25519PrivateKey.generate())
         self.DHratchet = self.SPK
         self.PubDHratchet = self.pubSPK
         self.last_DH_key = self.DHratchet.public_key() if self.DHratchet else None
 
+
 class Protocol:
-    def __init__(self, alice: Alice= None, bob: Bob=None):
+    def __init__(self, alice: Alice = None, bob: Bob = None):
         self.alice = alice
         self.bob = bob
-    
-    def handshake(self):
 
+    def handshake(self):
         self.alice.x3dh(user2BobBundle(bob))
         self.bob.x3dh(user2BobBundle(alice))
-        
-    def BuildSignalMessage(self,sender, text_message, profileKey=None, timestamp=None, counter=1, previous_counter=0):
+
+    def BuildSignalMessage(
+        self,
+        sender,
+        text_message,
+        profileKey=None,
+        timestamp=None,
+        counter=1,
+        previous_counter=0,
+    ):
         data_message = DataMessage()
         data_message.body = text_message
-        ###### Stuff that you can get from the original message (and save the profile_key) or generate it your self 
+        ###### Stuff that you can get from the original message (and save the profile_key) or generate it your self
         data_message.profileKey = profileKey
         data_message.timestamp = timestamp
         ######
         content = Content()
         content.dataMessage.CopyFrom(data_message)
-        
-        serializedContent = (content.SerializeToString())
-        
+
+        serializedContent = content.SerializeToString()
+
         cipher, mac_key = sender.enc(serializedContent)
-        print(f"[{self.alice.__class__.__name__}]\tSending ciphertext to {bob.__class__.__name__}:", b64(cipher))
+        print(
+            f"[{self.alice.__class__.__name__}]\tSending ciphertext to {bob.__class__.__name__}:",
+            b64(cipher),
+        )
 
         signalMessage = SignalMessage()
-        signalMessage.ratchet_key = bytes.fromhex(PubKey2Hex(sender.DHratchet.public_key()))
+        signalMessage.ratchet_key = bytes.fromhex(
+            PubKey2Hex(sender.DHratchet.public_key())
+        )
         signalMessage.counter = counter
         signalMessage.previous_counter = previous_counter
         signalMessage.ciphertext = cipher
-        
+
         return bytes.fromhex("33") + signalMessage.SerializeToString(), mac_key
 
-    def addMacSignalMessage(self, sm, sender, receiver, mac_key):        
-        mac = compute_mac(sm, mac_key, sender.IK.public_key(),receiver.IK.public_key())
+    def addMacSignalMessage(self, sm, sender, receiver, mac_key):
+        mac = compute_mac(sm, mac_key, sender.IK.public_key(), receiver.IK.public_key())
         print(len(mac))
-        sm = sm + mac 
-        
+        sm = sm + mac
+
         return sm
-        
-    def BuildPreKeySignalMessage(self, sender, receiver, sm, pre_key_id, registration_id, signed_pre_key_id):
-            
-        preKeySignalMessage = PreKeySignalMessageClass(pre_key_id,
-                                                  sender.EK.public_key().public_bytes(Encoding.Raw, PublicFormat.Raw),
-                                                  sender.IK.public_key().public_bytes(Encoding.Raw, PublicFormat.Raw),
-                                                  sm,
-                                                  registration_id,
-                                                  signed_pre_key_id)
+
+    def BuildPreKeySignalMessage(
+        self, sender, receiver, sm, pre_key_id, registration_id, signed_pre_key_id
+    ):
+        preKeySignalMessage = PreKeySignalMessageClass(
+            pre_key_id,
+            sender.EK.public_key().public_bytes(Encoding.Raw, PublicFormat.Raw),
+            sender.IK.public_key().public_bytes(Encoding.Raw, PublicFormat.Raw),
+            sm,
+            registration_id,
+            signed_pre_key_id,
+        )
 
         pksm = bytes.fromhex("33") + preKeySignalMessage.SerializeToString()
         return pksm
 
-    def AliceSendToBob (self, sender, receiver, msg, profileKey, timestamp):
-        
-        sm, mac_key = self.BuildSignalMessage(sender, msg, profileKey, timestamp, counter=1, previous_counter=0)
-        
+    def AliceSendToBob(self, sender, receiver, msg, profileKey, timestamp):
+        sm, mac_key = self.BuildSignalMessage(
+            sender, msg, profileKey, timestamp, counter=1, previous_counter=0
+        )
+
         sm = self.addMacSignalMessage(sm, sender, receiver, mac_key)
-        
-        preKeySignalMessage = PreKeySignalMessageClass(4917741,
-                                                  sender.EK.public_key().public_bytes(Encoding.Raw, PublicFormat.Raw),
-                                                  sender.IK.public_key().public_bytes(Encoding.Raw, PublicFormat.Raw),
-                                                  sm,
-                                                  6027,
-                                                  13819045)
+
+        preKeySignalMessage = PreKeySignalMessageClass(
+            4917741,
+            sender.EK.public_key().public_bytes(Encoding.Raw, PublicFormat.Raw),
+            sender.IK.public_key().public_bytes(Encoding.Raw, PublicFormat.Raw),
+            sm,
+            6027,
+            13819045,
+        )
 
         pksm = bytes.fromhex("33") + preKeySignalMessage.SerializeToString()
         print(preKeySignalMessage.pksm)
-        pksm1 = self.BuildPreKeySignalMessage(sender, receiver, sm, 4917741, 6027, 13819045)
-        
-        assert(pksm1==pksm)
+        pksm1 = self.BuildPreKeySignalMessage(
+            sender, receiver, sm, 4917741, 6027, 13819045
+        )
+
+        assert pksm1 == pksm
         wire_msg = b64(pksm)
         print(wire_msg)
-################################################################
-        '''       
+        ################################################################
+        """       
         pksm_bytes = base64.b64decode(wire_msg)[1:]
         print(pksm_bytes.hex())
         pksm1 = PreKeySignalMessage()
@@ -546,61 +659,72 @@ class Protocol:
         sm.ParseFromString(pksm1.message[1:-8])
         
         receiver.recv(sm.ciphertext, sender.DHratchet.public_key())
-        self.last_person = True'''
+        self.last_person = True"""
 
         return wire_msg
-    
+
+
 class AliceToMitm(Protocol):
-    def __init__(self, alice: Alice= None, bob: Bob=None):
+    def __init__(self, alice: Alice = None, bob: Bob = None):
         self.alice = alice
         self.bob = bob
-    
+
     def handshake(self, alice_bundle):
         self.bob.x3dh(alice_bundle)
         self.bob.sk = ""
-    
-    def BobReceive (self, wire_msg):
-        
+
+    def BobReceive(self, wire_msg):
+
         sm_bytes = base64.b64decode(wire_msg)[1:]
         print(sm_bytes.hex())
         pksm_flag = base64.b64decode(wire_msg)[0] == int("0x33", base=16)
-        if (pksm_flag):
+        if pksm_flag:
             pksm1 = PreKeySignalMessageClass()
             pksm1.ParseFromString(sm_bytes)
             AliceIK = pksm1.getIdentityKey()
             AliceEK = pksm1.getBaseKey()
-            self.alice = Alice(pubIK = X25519PublicKey.from_public_bytes(AliceIK), pubEK = X25519PublicKey.from_public_bytes(AliceEK))            
-            alice_bundle = KeyBundle(IK=X25519PublicKey.from_public_bytes(AliceIK), EK=X25519PublicKey.from_public_bytes(AliceEK))
+            self.alice = Alice(
+                pubIK=X25519PublicKey.from_public_bytes(AliceIK),
+                pubEK=X25519PublicKey.from_public_bytes(AliceEK),
+            )
+            alice_bundle = KeyBundle(
+                IK=X25519PublicKey.from_public_bytes(AliceIK),
+                EK=X25519PublicKey.from_public_bytes(AliceEK),
+            )
             self.handshake(alice_bundle)
             sm_bytes = pksm1.getMessage()
         else:
-            assert(base64.b64decode(wire_msg)[0] == int("0x32", base=16))
-        
+            assert base64.b64decode(wire_msg)[0] == int("0x32", base=16)
+
         sm = SignalMessage()
         sm.ParseFromString(sm_bytes[1:-8])
-        
+
         DHratchet = hex2PubKey(sm.ratchet_key.hex())
         self.alice.PublicDHratchet = DHratchet
         ctxt = sm.ciphertext
 
-        msg, mac_key = self.bob.recv(ctxt, DHratchet, pksm_flag) ##### non usare recv cosi ma magari modificarlo un minimo
+        msg, mac_key = self.bob.recv(
+            ctxt, DHratchet, pksm_flag
+        )  ##### non usare recv cosi ma magari modificarlo un minimo
         print(verify_mac(sm_bytes, mac_key, self.alice.pubIK, self.bob.pubIK))
 
         return msg
 
-    def BobSend(self, msg, profileKey = b"Casual",  timestamp = int(time())):
-        
-        sm, mac_key = self.BuildSignalMessage(self.bob, msg, profileKey, timestamp, counter=2, previous_counter=1)
+    def BobSend(self, msg, profileKey=b"Casual", timestamp=int(time())):
+
+        sm, mac_key = self.BuildSignalMessage(
+            self.bob, msg, profileKey, timestamp, counter=2, previous_counter=1
+        )
         print(f"Before {sm.hex()}")
         sm = self.addMacSignalMessage(sm, self.bob, self.alice, mac_key)
         print(f"After {sm.hex()}")
-        
+
         wire_msg = base64.b64encode(sm)
-        
+
         return wire_msg
-    
-    
-'''class MitmToBob(Protocol):
+
+
+"""class MitmToBob(Protocol):
     def __init__(self, alice: Alice= None, bob: Bob=None):
         self.alice = alice
         self.bob = bob
@@ -648,65 +772,69 @@ class AliceToMitm(Protocol):
         wire_msg = base64.b64encode(sm)
         
         return wire_msg
-'''
-        
+"""
+
 if __name__ == "__main__":
     alice, bob, mitmA, mitmB = Alice(), Bob(), Bob(), Alice()
-    alice_bundle, bob_bundle, mitmA_bundle, mitmB_bundle = user2Bundle(alice), user2Bundle(bob), user2Bundle(mitmA), user2Bundle(mitmB)
+    alice_bundle, bob_bundle, mitmA_bundle, mitmB_bundle = (
+        user2Bundle(alice),
+        user2Bundle(bob),
+        user2Bundle(mitmA),
+        user2Bundle(mitmB),
+    )
 
     # Alice performs an X3DH while Bob is offline, using his uploaded keys
-    #alice.x3dh(bob_bundle)
+    # alice.x3dh(bob_bundle)
     alice.x3dh(mitmA_bundle)
 
     # Bob comes online and performs an X3DH using Alice's public keys (IK, EK)
-    #bob.x3dh(alice_bundle)
-    
-    #assert(alice.sk==bob.sk)
+    # bob.x3dh(alice_bundle)
+
+    # assert(alice.sk==bob.sk)
 
     # Initialize their symmetric ratchets
-    #alice.init_ratchets()
-    #bob.init_ratchets()
+    # alice.init_ratchets()
+    # bob.init_ratchets()
 
     # Print out the matching pairs (debug)
-    '''   
+    """   
     print("[Alice]\tsend ratchet:", list(map(b64, alice.send_ratchet.next())))
     print("[Bob]\trecv ratchet:", list(map(b64, bob.recv_ratchet.next())))
     print("[Alice]\trecv ratchet:", list(map(b64, alice.recv_ratchet.next())))
     print("[Bob]\tsend ratchet:", list(map(b64, bob.send_ratchet.next())))
-    '''
+    """
     # Initialise Alice's sending ratchet with Bob's public key
-    #alice.dh_ratchet(bob.DHratchet.public_key())
+    # alice.dh_ratchet(bob.DHratchet.public_key())
 
     # Alice sends Bob a message and her new DH ratchet public key
-    #alice.send(bob, b"Hello Bob!")
+    # alice.send(bob, b"Hello Bob!")
 
     # Bob uses that information to sync with Alice and send her a message
-    #bob.send(alice, b"Hello to you too, Alice!")
+    # bob.send(alice, b"Hello to you too, Alice!")
 
-    #alice.send(bob, b"Do you like Pizza?")
+    # alice.send(bob, b"Do you like Pizza?")
 
     ## From this point forward the code fucks up.
     ## TODO @andrea - figure it out
     ## Figure it out with multiple messages from one party
 
-    #alice.dh_ratchet(bob.DHratchet.public_key())
-    #bob.send(alice, b"Hic sunt leones")
-    #alice.send(bob, b"Let's do crime")
-    #print(alice.last_person)
-    #bob.send(alice, b"Si!")
-    #bob.dh_ratchet(alice.DHratchet.public_key())
+    # alice.dh_ratchet(bob.DHratchet.public_key())
+    # bob.send(alice, b"Hic sunt leones")
+    # alice.send(bob, b"Let's do crime")
+    # print(alice.last_person)
+    # bob.send(alice, b"Si!")
+    # bob.dh_ratchet(alice.DHratchet.public_key())
 
-    #bob.send(alice, b"HELL YEAH!!!")
-    #print(alice.last_person)
-    #print(bob.last_person)
-    
-    #alice.send(bob, b"Cosa succede?")
-    prot = Protocol(alice,bob)
-    wire_msg = (prot.AliceSendToBob(alice, mitmA, b"heyyyyy", b'casual', int(time())))
+    # bob.send(alice, b"HELL YEAH!!!")
+    # print(alice.last_person)
+    # print(bob.last_person)
 
-    
+    # alice.send(bob, b"Cosa succede?")
+    prot = Protocol(alice, bob)
+    wire_msg = prot.AliceSendToBob(alice, mitmA, b"heyyyyy", b"casual", int(time()))
+
     aliceToMitm = AliceToMitm(bob=mitmA)
-    
+
     dec_msg = aliceToMitm.BobReceive(wire_msg)
 
     message_to_alice = base64.b64decode(aliceToMitm.BobSend("bob received"))
@@ -714,10 +842,11 @@ if __name__ == "__main__":
     alice_sm = SignalMessage()
     alice_sm.ParseFromString(message_to_alice[1:-8])
     print(f"ELla madonna {message_to_alice.hex()}")
-    
-    msg, mac_key = alice.recv(alice_sm.ciphertext, X25519PublicKey.from_public_bytes(alice_sm.ratchet_key[1:]))
 
-    #verify_mac(message_to_alice, mac_key, bob.pubIK, alice.pubIK)
-    
-    MitmToBob =  AliceToMitm()
-    
+    msg, mac_key = alice.recv(
+        alice_sm.ciphertext, X25519PublicKey.from_public_bytes(alice_sm.ratchet_key[1:])
+    )
+
+    # verify_mac(message_to_alice, mac_key, bob.pubIK, alice.pubIK)
+
+    MitmToBob = AliceToMitm()
