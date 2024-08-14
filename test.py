@@ -24,8 +24,10 @@ reset = "\x1b[0m"
 
 logging.getLogger().setLevel(logging.INFO)
 
+
 def current_milli_time():
     return round(time.time() * 1000)
+
 
 def notifu(msg: str) -> None:
     print(f"{bold_red}{msg}{reset}")
@@ -73,9 +75,9 @@ class MitmUser(object):
         # self.kyber_pre_key_id = state.KyberPreKeyId(13915770)
         # self.kyber_pre_key_pair = kem.KeyPair.generate(kem.KeyType(0))
 
-        self.kyber_record = state.KyberPreKeyRecord.generate(kem.KeyType(0), state.KyberPreKeyId(13915770), self.identity_key_pair.private_key())
+        self.kyber_record = state.KyberPreKeyRecord.generate(kem.KeyType(0), state.KyberPreKeyId(13915770),
+                                                             self.identity_key_pair.private_key())
         # print(kyber_pre_key_pair.get_public().serialize().hex())
-        
 
         self.kyber_pre_key_signature = (
             self.identity_key_pair.private_key().calculate_signature(
@@ -92,7 +94,6 @@ class MitmUser(object):
         self.store.save_kyber_pre_key(state.KyberPreKeyId(13915770), self.kyber_record)
         #todo a : not expsoed in the annotations 
 
-
         ############ LEGIT USER ############
         # These info are retrieved from the intercept event hooks
 
@@ -104,7 +105,7 @@ class MitmUser(object):
 
     # TODO : Check if this makes sense here or in the MitmVictim class
     def process_pre_key_bundle(
-        self, address: address.ProtocolAddress, pre_key_bundle: state.PreKeyBundle
+            self, address: address.ProtocolAddress, pre_key_bundle: state.PreKeyBundle
     ):
         session.process_prekey_bundle(address, self.store, pre_key_bundle)
         # return self.store.load_session(address) and self.store.load_session(address).session_version() == 3
@@ -155,7 +156,6 @@ print(f"Bob's pre_key_bundle: {Bob.pre_key_bundle.to_dict()}")
 
 Alice.process_pre_key_bundle(Bob.address, Bob.pre_key_bundle)
 
-
 print(f"Session version {Alice.store.load_session(Bob.address).session_version()}")
 assert Alice.store.load_session(Bob.address).session_version() == 4
 
@@ -187,9 +187,6 @@ cipher_2 = Alice.encrypt(Bob.address, serializedContent)
 
 print(f"cipher: {cipher.serialize().hex()}")
 print(f"cipher_2: {cipher_2.serialize().hex()}")
-
-
-print(cipher.serialize() == cipher_2.serialize())
 
 Bob.store.save_identity(
     Alice.address, Alice.store.get_identity_key_pair().identity_key()
