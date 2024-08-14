@@ -221,7 +221,7 @@ def _v2_keys(flow: HTTPFlow):
 
     # TODO: instead of naming each key for both variables, just use the identifier as a key and the bundle(dict) as the value
     if not registration_info.get(ip_addr):
-        logging.error(f"Address {ip_addr} not found in registration_info. {registration_info}")
+        logging.warning(f"Address {ip_addr} not found in registration_info. {registration_info}")
         return
 
     # try:

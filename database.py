@@ -89,7 +89,6 @@ class LegitBundle(BaseSqliteModel):
 
     class Meta:
         primary_key = CompositeKey("type", "aci", "device_id")
-        primary_key = CompositeKey("type", "aci", "deviceId")
 
     @classmethod
     def get_pre_key(

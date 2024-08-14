@@ -30,6 +30,7 @@ def hmac_sha256(key: bytes, msg: bytes):
 ####
 
 
+
 def try_run(cmd: str):
     try:
         res = subprocess.run(cmd, shell=True, check=True, stdout=open(os.devnull, "wb"))
