@@ -253,7 +253,7 @@ def v2_keys_identifier_device_id(flow, identifier: str, device_id: str):
     ip_address = flow.client_conn.address[0]
 
     logging.info(f"RESPONSE: {json.dumps(resp, indent=4)}")
-    identity, uuid = identifier.split(":")
+    identity, uuid = strip_uuid_and_id(identifier)
 
     bob_identity_key_public = b64decode(resp["identityKey"])
 
@@ -406,7 +406,10 @@ def _v1_ws_profile_futut(flow, identifier, version):
     resp = json.loads(flow.response.content)
     ip_address = flow.client_conn.address[0]
 
-    logging.warning(f"{registration_info[ip_address].aciData.IdenKey}")
+    try:
+        logging.warning(f"{registration_info[ip_address].aciData.IdenKey}")
+    except KeyError:
+        logging.exception(f"{registration_info}")
 
     resp["identityKey"] = registration_info[ip_address].aciData.IdenKey
     flow.response.content = json.dumps(resp).encode()
@@ -417,7 +420,7 @@ def _v1_ws_profile(flow, identifier):
     # message = flow.websocket.messages[-1]
     logging.info(f"{identifier}")
     try:
-        uuid_type, uuid = re.search(r"(PNI|ACI):([a-f0-9-]+)", identifier).groups()
+        uuid_type, uuid = strip_uuid_and_id(identifier)
     except:
         logging.exception(f"Invalid identifier {identifier}")
         return
@@ -447,7 +450,7 @@ def _v1_ws_profile(flow, identifier):
     return flow.response.content
 
 
-def _v2_ws_message(flow, identifier):
+def _v1_ws_message(flow, identifier):
     logging.info(f"message: {identifier}")
     logging.info(f"message: {flow.request.content}")
 
@@ -456,7 +459,10 @@ def _v2_ws_message(flow, identifier):
 
     logging.info(f"ws message content: {resp}")
 
-    destintion_user = resp["destination"]
+    destination_user = resp["destination"]
+
+    identifier, destination = strip_uuid_and_id(destination_user)
+
     for msg in resp["messages"]:
         if msg["destinationDeviceId"] != 1:
             logging.error(f"Secondary devices are not supported as the developer was not paid enough. C.f. my Twint ;)")
@@ -522,7 +528,7 @@ ws_resp.add_route(HOST_HTTPBIN, Parser("/v1/profile/{identifier}/{version}"), HT
 ws_resp.add_route(HOST_HTTPBIN, Parser("/v1/profile/{identifier}"), HTTPVerb.ANY, _v1_ws_profile, None)
 
 ws_req = Router()
-ws_req.add_route(HOST_HTTPBIN, Parser("/v1/messages/{identifier}"), HTTPVerb.ANY, _v2_ws_message, None)
+ws_req.add_route(HOST_HTTPBIN, Parser("/v1/messages/{identifier}"), HTTPVerb.ANY, _v1_ws_message, None)
 
 logging.warning(f"ROUTES (REQ): {ws_req.routes}")
 logging.warning(f"ROUTES (RESP): {ws_resp.routes}")

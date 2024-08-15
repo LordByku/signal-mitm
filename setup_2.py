@@ -69,7 +69,7 @@ def signal_handler(sig, frame):
 def setup():
     NetworkHandler().setup()
     setup_db()
-    mitm = rf"mitmproxy --mode transparent --showhost --ssl-insecure --ignore-hosts {config.IGNORE_HOSTS} -s implementation.py"
+    mitm = rf"mitmproxy --mode transparent --showhost --ssl-insecure --ignore-hosts {config.IGNORE_HOSTS}"# -s implementation.py"
     # mitm = r'mitmproxy --mode wireguard --showhost --ssl-insecure --ignore-hosts ".*google\w*\.com"'# -s intercept.py'
     os.system(f"gnome-terminal -- {mitm} &")
 
