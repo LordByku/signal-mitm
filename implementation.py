@@ -316,7 +316,7 @@ def v2_keys_identifier_device_id(flow: HTTPFlow, identifier: str, device_id: str
         # data should be uuid of Alice and the device id (in this case 1 is ok)
         fake_victim = MitmUser(ProtocolAddress("fake_alice", 1))
         fake_victims[_id] = fake_victim
-        bob_registartion_id = bundle["registrationId"]
+        bob_registration_id = bundle["registrationId"]
 
         bob_kyber_pre_key = bundle["pqPreKey"]
         bob_kyber_pre_key_public = b64decode(bob_kyber_pre_key["publicKey"])
@@ -331,7 +331,7 @@ def v2_keys_identifier_device_id(flow: HTTPFlow, identifier: str, device_id: str
         device_id = bundle["deviceId"]
 
         bob_bundle = state.PreKeyBundle(
-            bob_registartion_id,
+            bob_registration_id,
             DeviceId(_id),
             (state.PreKeyId(bundle["preKey"]["keyId"]), PublicKey.deserialize(bob_pre_key_public)),
             state.SignedPreKeyId(1),
@@ -570,8 +570,8 @@ def _v1_ws_message(flow: HTTPFlow, identifier):
             ctxt = PreKeySignalMessage()
             ctxt.ParseFromString(content)
 
-        logging.warning(f"ctxt from IK: {b64encode(ctxt.identity_key).decode()}")
-        logging.info(f"ctxt from IK: {ctxt}")
+            logging.warning(f"IK from ctxt: {b64encode(ctxt.identity_key).decode()}")
+            logging.info(f"ctxt: {ctxt}")
         # TODO: unproduf / decrypt / alter / encrypt / prodobuf 
 
 
