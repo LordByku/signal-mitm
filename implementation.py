@@ -17,8 +17,8 @@ import utils
 from utils import b64enc
 from database import User, Device, LegitBundle, MitMBundle
 from enum import Enum
-import re
 import parse
+from schemas import SetKeysRequest, RegistrationRequest
 
 from protos.gen.wire_pb2 import PreKeySignalMessage
 # from protos.gen.SignalService_pb2 import *
@@ -53,7 +53,7 @@ websocket_open_state = defaultdict(PendingWebSocket)
 
 @dataclass
 class KeyData:
-    iden_key: Optional[IdentityKeyPair] = None
+    iden_key: Optional[IdentityKey] = None
     signed_pre_key: Optional[dict] = None
     pq_last_resort_key: Optional[dict] = None
     pre_keys: Optional[dict] = None
@@ -102,26 +102,26 @@ api = addons[0]
 def _v1_registration_req(flow: HTTPFlow):
     # logging.info(f"ADDRESS {flow.client_conn.address[0]}")
 
-    req = json.loads(flow.request.content)
-    # logging.info(json.dumps(req, indent=4))
+    req = utils.json_to_dataclass(RegistrationRequest, flow.request.content)
 
-    unidentified_access_key = req['accountAttributes']['unidentifiedAccessKey']
+    unidentified_access_key = req.accountAttributes.unidentifiedAccessKey
 
-    aci_iden_key = req['aciIdentityKey']
-    pni_iden_key = req['pniIdentityKey']
+    aci_iden_key = req.aciIdentityKey
+    pni_iden_key = req.pniIdentityKey
 
-    aci_signed_pre_key = req['aciSignedPreKey']
-    pni_signed_pre_key = req['pniSignedPreKey']
+    aci_signed_pre_key = req.aciSignedPreKey
+    pni_signed_pre_key = req.pniSignedPreKey
 
-    aci_pq_last_resort_key = req['aciPqLastResortPreKey']
-    pni_pq_last_resort_key = req['pniPqLastResortPreKey']
+    aci_pq_last_resort_key = req.aciPqLastResortPreKey
+    pni_pq_last_resort_key = req.pniPqLastResortPreKey
 
     aci_fake_iden_key = IdentityKeyPair.generate()
     pni_fake_iden_key = IdentityKeyPair.generate()
 
     fake_signed_pre_keys, fake_secret_signed_pre_keys = helpers.create_registration(aci_fake_iden_key, pni_fake_iden_key)
 
-    req.update(fake_signed_pre_keys)
+    # req.update(fake_signed_pre_keys)
+    utils.update_dataclass(req, fake_signed_pre_keys)
 
     registration_info[flow.client_conn.peername[0]] = RegistrationInfo(
         unidentified_access_key=unidentified_access_key,
@@ -156,7 +156,7 @@ def _v1_registration_req(flow: HTTPFlow):
 
     )
 
-    flow.request.content = json.dumps(req).encode()
+    flow.request.content = utils.dataclass_to_json(req).encode()
 
 
 @api.route("/v1/registration", rtype=RouteType.RESPONSE)
@@ -192,7 +192,6 @@ def _v1_registration_resp(flow: HTTPFlow):
 def _v2_keys(flow: HTTPFlow):
     identity = flow.request.query["identity"]
 
-    from schemas import SetKeysRequest
     req = utils.json_to_dataclass(SetKeysRequest, flow.request.content)
     # req = json.loads(flow.request.content)
     # logging.error(req2)

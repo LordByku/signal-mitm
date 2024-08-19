@@ -13,10 +13,10 @@ from signal_protocol.address import ProtocolAddress, DeviceId
 import os
 
 import logging
-from protos.gen import *
-from protos.gen.SignalService_pb2 import *
-from protos.gen.wire_pb2 import *
-from protos.gen.storage_pb2 import *
+# from protos.gen.SignalService_pb2 import *
+from protos.gen.SignalService_pb2 import Content, DataMessage
+# from protos.gen.wire_pb2 import *
+# from protos.gen.storage_pb2 import *
 import time
 
 bold_red = "\x1b[31;1m"
@@ -95,7 +95,6 @@ class MitmUser(object):
         )
 
         self.store.save_kyber_pre_key(state.KyberPreKeyId(13915770), self.kyber_record)
-        # todo a : not expsoed in the annotations
 
         ############ LEGIT USER ############
         # These info are retrieved from the intercept event hooks
