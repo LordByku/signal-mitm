@@ -4,6 +4,10 @@ import hmac
 import subprocess
 import sys
 import os
+from dataclasses import dataclass, fields, is_dataclass, asdict
+import json
+from typing import TypeVar, Type, Any
+
 
 
 ### TODO: probably remove later
@@ -14,6 +18,7 @@ def b64encbytes(msg):
 
 def b64enc(msg: bytes) -> str:
     return base64.b64encode(msg).decode("ascii")
+
 
 def hmac_sha256(key: bytes, msg: bytes):
     result = hmac.new(key, msg, digestmod=hashlib.sha256).hexdigest()
@@ -81,3 +86,67 @@ class PushTransportDetails:
 
 def open_terminal(command: str):
     os.system(f"gnome-terminal -- {command} &")
+
+
+
+T = TypeVar('T')
+
+
+def json_to_dataclass(dc_cls: Type[T], json_str) -> T:
+    """
+    Convert a JSON string to an instance of a specified dataclass.
+
+    :param dc_cls: The dataclass type to instantiate.
+    :param json_str: The JSON string to parse.
+    :return: An instance of dc_cls populated with data from json_str.
+    """
+    # Ensure dc_cls is indeed a dataclass
+    if not is_dataclass(dc_cls):
+        raise ValueError(f"{dc_cls} must be a dataclass")
+
+    parsed_json = json.loads(json_str)
+
+    # Prepare constructor arguments, respecting default values if not present in JSON
+    ctor_args = {}
+    for field in fields(dc_cls):
+        if field.name in parsed_json:
+            ctor_args[field.name] = parsed_json[field.name]
+        elif hasattr(field, 'default'):
+            ctor_args[field.name] = field.default
+        elif hasattr(field, 'default_factory'):
+            ctor_args[field.name] = field.default_factory()
+
+    return dc_cls(**ctor_args)
+
+
+def dataclass_to_json(instance: T) -> str:
+    # Convert the dataclass instance to a dictionary
+    instance_dict = asdict(instance)
+    # Serialize the dictionary to a JSON string
+    return json.dumps(instance_dict)
+
+
+def update_dataclass(instance, updates: dict):
+    """
+    Update the attributes of a dataclass instance based on a dictionary *in-place*.
+
+    :param instance: The dataclass instance to update.
+    :param updates: A dictionary containing the updates.
+    """
+    for key, value in updates.items():
+        if hasattr(instance, key):
+            setattr(instance, key, value)
+
+# # Use case
+# @dataclass
+# class ThirdPartyClass:
+#     name: str
+#     age: int
+#     is_active: bool = False  # with a default value
+#
+#
+# json_string = '{"name": "John Doe", "age": 30}'
+# instance = json_to_dataclass(ThirdPartyClass, json_string)
+# print(instance)
+# # json_string = dataclass_to_json(instance)
+# print(json_string)

