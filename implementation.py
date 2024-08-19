@@ -410,7 +410,7 @@ def v2_keys_identifier_device_id(flow: HTTPFlow, identifier: str, device_id: str
             ]
         }
 
-        lastResortPq = {
+        last_resort_pq = {
             "keyId": 42069,
             "publicKey": b64encode(fake_user.last_resort_kyber.get_public().serialize()).decode(),
             "privateKey": fake_user.last_resort_kyber.get_private().to_base64(),
@@ -427,8 +427,7 @@ def v2_keys_identifier_device_id(flow: HTTPFlow, identifier: str, device_id: str
                 "privateKey": fake_user.pre_key_pair.private_key().to_base64()
         }]
         fake_kyber = fake_bundle_wire["devices"][0]["pqPreKey"]
-        fake_kyber["privateKey"] = fake_user.kyber_pre_key_pair.get_private().to_base64()[0],
-        # logging.error()
+        fake_kyber["privateKey"] = fake_user.kyber_pre_key_pair.get_private().to_base64()
         mitm_bundle = MitMBundle.insert(
             type=identity.lower(),
             aci=uuid,
@@ -437,7 +436,7 @@ def v2_keys_identifier_device_id(flow: HTTPFlow, identifier: str, device_id: str
             fake_signed_pre_key=fake_spk,
             fake_pre_keys=fake_pre_keys,
             fake_kyber_keys=[fake_kyber],
-            fake_last_resort_kyber=lastResortPq
+            fake_last_resort_kyber=last_resort_pq
         )
         mitm_bundle.on_conflict_replace().execute()
         mitm_bundles[_id] = mitm_bundle, fake_bundle_wire, fake_user, fake_victims[_id]
@@ -682,3 +681,16 @@ def _v1_websocket_resp(flow: HTTPFlow, msg):
 
 
 addons = [api]
+
+# from mitmproxy.tools.main import mitmproxy, mitmdump
+#
+# if __name__ == "__main__":
+#     mitmdump(
+#         [
+#             "-q",      # quiet flag, only script's output
+#             "-s",      # script flag
+#             __file__,  # use the same file as the hook
+#             "-r",
+#             "mitmproxy_flows/new/23_04_kyber_messages"
+#         ]
+#     )

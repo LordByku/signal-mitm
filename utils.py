@@ -75,7 +75,7 @@ class PushTransportDetails:
                 PushTransportDetails.get_padded_message_length(len(message_body) + 1) - 1
         )
         padded_message = bytearray(padded_message_length)
-        padded_message[: len(message_body)] = message_body
+        padded_message[:len(message_body)] = message_body
         padded_message[len(message_body)] = 0x80
         return bytes(padded_message)
 
