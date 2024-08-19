@@ -15,7 +15,7 @@ from typing import TypeVar, Type, Any
 ### TODO: probably remove later
 def b64encbytes(msg):
     # base64 encoding helper function
-    return base64.encodebytes(msg).decode("utf-8").strip()
+    return base64.encodebytes(msg).decode("ascii").strip()
 
 
 def b64enc(msg: bytes) -> str:
