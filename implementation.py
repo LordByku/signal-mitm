@@ -214,10 +214,12 @@ def _v1_registration_resp(flow: HTTPFlow):
 def _v2_keys(flow: HTTPFlow):
     identity = flow.request.query["identity"]
 
+    from schemas import SetKeysRequest
     req = utils.json_to_dataclass(SetKeysRequest, flow.request.content)
     # req = json.loads(flow.request.content)
     # logging.error(req2)
     ip_addr = flow.client_conn.peername[0]
+
 
     # TODO: instead of naming each key for both variables, just use the identifier as a key and the bundle(dict) as the value
     if not registration_info.get(ip_addr):
@@ -277,9 +279,9 @@ def _v2_keys(flow: HTTPFlow):
     prekeys = utils.json_join_public(key_data.fake_pre_keys, key_data.fake_secret_pre_keys)
     fake_kyber = utils.json_join_public(key_data.fake_pq_pre_keys, key_data.fake_secret_pq_pre_keys)
     fake_last_resort = {
-            "keyId": key_data.fake_last_resort_key["keyId"],
-            "publicKey": key_data.fake_last_resort_key["publicKey"],
-            "privateKey": key_data.fake_secret_last_resort_key
+        "keyId": key_data.fake_last_resort_key["keyId"],
+        "publicKey": key_data.fake_last_resort_key["publicKey"],
+        "privateKey": key_data.fake_secret_last_resort_key,
     }
     mitm_bundle = MitMBundle.insert(
         type=identity,
@@ -422,9 +424,9 @@ def v2_keys_identifier_device_id(flow: HTTPFlow, identifier: str, device_id: str
         fake_spk = fake_bundle_wire["devices"][0]["signedPreKey"]
         fake_spk["privateKey"] = b64encode(fake_user.signed_pre_key_pair.private_key().serialize()).decode("utf-8")
         fake_pre_keys = [{
-                "keyId": fake_bundle_wire["devices"][0]["preKey"]["keyId"],
-                "publicKey": fake_bundle_wire["devices"][0]["preKey"]["publicKey"],
-                "privateKey": fake_user.pre_key_pair.private_key().to_base64()
+            "keyId": fake_bundle_wire["devices"][0]["preKey"]["keyId"],
+            "publicKey": fake_bundle_wire["devices"][0]["preKey"]["publicKey"],
+            "privateKey": fake_user.pre_key_pair.private_key().to_base64()
         }]
         fake_kyber = fake_bundle_wire["devices"][0]["pqPreKey"]
         fake_kyber["privateKey"] = fake_user.kyber_pre_key_pair.get_private().to_base64()
