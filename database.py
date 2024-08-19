@@ -23,19 +23,19 @@ class BaseSqliteModel(Model):
 
 
 class User(BaseSqliteModel):
-    pNumber = CharField(null=True)
+    p_number = CharField(null=True)
     aci = CharField(null=True, primary_key=True)
     pni = CharField(null=True)
-    isVictim = BooleanField()
+    is_victim = BooleanField()
 
 
 class Device(BaseSqliteModel):
     aci = ForeignKeyField(User, backref="devices")
-    deviceId = IntegerField()
+    device_id = IntegerField()
     pni = CharField(null=True)
-    unidentifiedAccessKey = CharField()
-    aciIdenKey = CharField()
-    pniIdenKey = CharField()
+    unidentified_access_key = CharField()
+    aci_iden_key = CharField()
+    pni_iden_key = CharField()
 
     class Meta:
         primary_key = CompositeKey("aci", "deviceId")
@@ -44,12 +44,12 @@ class Device(BaseSqliteModel):
 class LegitBundle(BaseSqliteModel):
     type = CharField()
     aci = ForeignKeyField(Device, field="aci", backref="legitbundles")
-    deviceId = ForeignKeyField(Device, field="deviceId", backref="legitbundles")
-    IdenKey = ForeignKeyField(Device, field="aciIdenKey", backref="legitbundles")
-    SignedPreKey = CharField()
-    PreKeys = CharField()
-    kyberKeys = CharField()
-    lastResortKyber = CharField()
+    device_id = ForeignKeyField(Device, field="deviceId", backref="legitbundles")
+    iden_key = ForeignKeyField(Device, field="aciIdenKey", backref="legitbundles")
+    signed_pre_key = CharField()
+    pre_keys = CharField()
+    kyber_keys = CharField()
+    last_resort_kyber = CharField()
 
     class Meta:
         primary_key = CompositeKey("type", "aci", "deviceId")
@@ -59,11 +59,11 @@ class MitMBundle(BaseSqliteModel):
     type = CharField()
     aci = ForeignKeyField(Device, field="aci", backref="mitmbundles")
     deviceId = ForeignKeyField(Device, field="deviceId", backref="mitmbundles")
-    FakeIdenKey = CharField()
-    FakeSignedPreKey = CharField()
-    FakePrekeys = CharField()
-    fakeKyberKeys = CharField()
-    fakeLastResortKyber = CharField()
+    fake_iden_key = CharField()
+    fake_signed_pre_key = CharField()
+    fake_pre_keys = CharField()
+    fake_kyber_keys = CharField()
+    fake_last_resort_kyber = CharField()
 
     class Meta:
         primary_key = CompositeKey("type", "aci", "deviceId")
@@ -71,11 +71,11 @@ class MitMBundle(BaseSqliteModel):
 
 class Session(BaseSqliteModel):
     aci1 = ForeignKeyField(Device, field="aci", backref="sessions")
-    devId1 = ForeignKeyField(Device, field="deviceId", backref="sessions")
+    dev_id1 = ForeignKeyField(Device, field="deviceId", backref="sessions")
     aci2 = ForeignKeyField(Device, field="aci", backref="sessions")
-    devId2 = ForeignKeyField(Device, field="deviceId", backref="sessions")
-    sessionId = IntegerField()
-    isVictimStarter = BooleanField()
+    dev_id2 = ForeignKeyField(Device, field="deviceId", backref="sessions")
+    session_id = IntegerField()
+    is_victim_starter = BooleanField()
 
     class Meta:
         primary_key = CompositeKey("aci1", "devId1", "aci2", "devId2")
@@ -83,9 +83,9 @@ class Session(BaseSqliteModel):
 
 class Messages(BaseSqliteModel):
     aci1 = ForeignKeyField(Device, field="aci", backref="messages")
-    devId1 = ForeignKeyField(Device, field="deviceId", backref="messages")
+    dev_id1 = ForeignKeyField(Device, field="deviceId", backref="messages")
     aci2 = ForeignKeyField(Device, field="aci", backref="messages")
-    devId2 = ForeignKeyField(Device, field="deviceId", backref="messages")
+    dev_id2 = ForeignKeyField(Device, field="deviceId", backref="messages")
     message = CharField()
     timestamp = TimestampField()
     counter = IntegerField()

