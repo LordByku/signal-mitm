@@ -1,14 +1,14 @@
-import subprocess
 import os
 import sys
 import signal
 from itertools import product
-from database import *
-from pathlib import Path
+from peewee import SqliteDatabase
+from database import create_tables
 
 import config
 
-from utils import *
+from utils import try_run_sudo
+
 
 class NetworkHandler:
     def __init__(self):

@@ -17,10 +17,10 @@ from enum import Enum
 import re
 import parse
 
-from protos.gen.wire_pb2 import *
+from protos.gen.wire_pb2 import PreKeySignalMessage
 # from protos.gen.SignalService_pb2 import *
 # from protos.gen.storage_pb2 import *
-from protos.gen.WebSocketResources_pb2 import *
+from protos.gen.WebSocketResources_pb2 import WebSocketMessage, WebSocketRequestMessage, WebSocketResponseMessage
 # from protos.gen.SignalService_pb2 import *
 # from protos.gen.sealed_sender_pb2 import *
 # from protos.gen import *
@@ -95,7 +95,7 @@ api = addons[0]
 
 
 @api.route("/v1/registration", rtype=RouteType.REQUEST)
-def _v1_registration(flow: HTTPFlow):
+def _v1_registration_req(flow: HTTPFlow):
     # logging.info(f"ADDRESS {flow.client_conn.address[0]}")
 
     req = json.loads(flow.request.content)
@@ -156,7 +156,7 @@ def _v1_registration(flow: HTTPFlow):
 
 
 @api.route("/v1/registration", rtype=RouteType.RESPONSE)
-def _v1_registration(flow: HTTPFlow):
+def _v1_registration_resp(flow: HTTPFlow):
     resp = json.loads(flow.response.content)
     # logging.info(f"RESPONSE: {resp}")
     ip_address = flow.client_conn.peername[0]
