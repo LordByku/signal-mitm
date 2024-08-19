@@ -7,10 +7,13 @@ import os
 
 
 ### TODO: probably remove later
-def b64enc(msg):
+def b64encbytes(msg):
     # base64 encoding helper function
     return base64.encodebytes(msg).decode("utf-8").strip()
 
+
+def b64enc(msg: bytes) -> str:
+    return base64.b64decode(msg).decode("ascii")
 
 def hmac_sha256(key: bytes, msg: bytes):
     result = hmac.new(key, msg, digestmod=hashlib.sha256).hexdigest()

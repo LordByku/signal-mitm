@@ -12,6 +12,7 @@ from signal_protocol.identity_key import IdentityKey, IdentityKeyPair
 from signal_protocol.curve import PublicKey
 from signal_protocol import helpers, state, kem
 from base64 import b64decode, b64encode
+from utils import b64enc
 from database import User, Device, LegitBundle, MitMBundle
 from enum import Enum
 import re
@@ -30,10 +31,6 @@ from server_proto import addons, HOST_HTTPBIN
 # from mitm_interface import *
 from mitm_interface import MitmUser
 from collections import defaultdict
-
-registration_info = dict()
-conversation_session = dict()
-bobs_bundle = dict()
 
 
 class CiphertextMessageType(Enum):
@@ -89,6 +86,11 @@ class BobIdenKey:
     uuid: str
     identity_key: Optional[IdentityKeyPair] = None
     fake_identity_key: Optional[IdentityKeyPair] = None
+
+
+registration_info: dict[str, RegistrationInfo] = dict()
+conversation_session: dict[(str, str), (MitmUser, MitmUser)] = dict()
+bobs_bundle: dict[str, BobIdenKey] = dict()
 
 
 api = addons[0]
@@ -233,8 +235,8 @@ def _v2_keys(flow: HTTPFlow):
         type=identity,
         aci=registration_info[ip_addr].aci,
         device_id=1,  # todo: shouldn't be static
-        fake_iden_key=(b64encode(key_data.fake_iden_key.public_key().serialize()).decode("utf-8"),
-                       b64encode(key_data.fake_iden_key.private_key().serialize()).decode("utf-8")),
+        fake_iden_key=(key_data.fake_iden_key.public_key().to_base64(),
+                       key_data.fake_iden_key.private_key().to_base64()),
         fake_signed_pre_key=(key_data.fake_signed_pre_keys, key_data.fake_secret_signed_pre_keys),
         fake_pre_keys=(key_data.fake_pre_keys, key_data.fake_secret_pre_keys),
         fake_kyber_keys=(key_data.fake_pq_pre_keys, key_data.fake_secret_pq_pre_keys),
@@ -292,11 +294,11 @@ def v2_keys_identifier_device_id(flow, identifier: str, device_id: str):
             type=identity.lower(),
             aci=uuid,
             device_id=device_id,
-            iden_key=b64encode(bob_identity_key_public).decode("ascii"),
-            signed_pre_key=b64encode(bob_signed_pre_key_public).decode("ascii"),
-            pre_keys=b64encode(bob_pre_key_public).decode("ascii"),
-            kyber_keys=b64encode(bob_kyber_pre_key_public).decode("ascii"),
-            last_resort_kyber=b64encode(bob_kyber_pre_key_public).decode("ascii")
+            iden_key=b64enc(bob_identity_key_public),
+            signed_pre_key=b64enc(bob_signed_pre_key_public),
+            pre_keys=b64enc(bob_pre_key_public),
+            kyber_keys=b64enc(bob_kyber_pre_key_public),
+            last_resort_kyber=b64enc(bob_kyber_pre_key_public)
         )
         legit_bundle.on_conflict_replace().execute()
         fake_victim.process_pre_key_bundle(ProtocolAddress(uuid, _id), bob_bundle)
@@ -439,7 +441,7 @@ def _v1_ws_profile(flow, identifier):
     else:
         fake_iden_key = IdentityKeyPair.generate()
         bobs_bundle[uuid] = BobIdenKey(uuid, iden_key, fake_iden_key)
-        public_fake_iden_key = b64encode(bobs_bundle[uuid].fake_identity_key.public_key().serialize()).decode("utf-8")
+        public_fake_iden_key = bobs_bundle[uuid].fake_identity_key.public_key().to_base64()
 
     logging.info(f"BUNDLE: {bundle}")
     content["identityKey"] = public_fake_iden_key
