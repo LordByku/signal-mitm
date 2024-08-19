@@ -497,8 +497,7 @@ def _v1_ws_message(flow, identifier):
         if msg["destinationDeviceId"] != 1:
             logging.error(f"Secondary devices are not supported as the developer was not paid enough. C.f. my Twint ;)")
 
-
-        # msg_type = CiphertextMessageType(int(msg["type"]))
+        msg_type = CiphertextMessageType(int(msg["type"]))
         envelope_type = EnvelopeType(int(msg['type']))
         logging.warning(f"MESSAGE (Envelope) TYPE: {envelope_type}")
 
