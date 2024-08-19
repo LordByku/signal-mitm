@@ -9,7 +9,6 @@ import json
 from typing import TypeVar, Type, Any
 
 
-
 ### TODO: probably remove later
 def b64encbytes(msg):
     # base64 encoding helper function
@@ -87,6 +86,15 @@ class PushTransportDetails:
 def open_terminal(command: str):
     os.system(f"gnome-terminal -- {command} &")
 
+
+def strip_uuid_and_id(path: str) -> tuple[str, str]:
+    path = path.lower()
+    words = path.split(":")
+
+    if len(words) > 1:
+        return words[0], words[1]
+    else:
+        return "aci", words[0]
 
 
 T = TypeVar('T')

