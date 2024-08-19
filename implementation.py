@@ -122,7 +122,8 @@ def _v1_registration_req(flow: HTTPFlow):
     req = utils.json_to_dataclass(RegistrationRequest, flow.request.content)
     # TODO: json_to_dataclass has issue with inner classes (remain dict instead of dataclass) -- must be investiaged
     # unidentified_access_key = req.accountAttributes.unidentifiedAccessKey
-    unidentified_access_key = None
+    # unidentified_access_key = None
+    unidentified_access_key = req.accountAttributes['unidentifiedAccessKey']
 
     aci_iden_key = req.aciIdentityKey
     pni_iden_key = req.pniIdentityKey
@@ -214,7 +215,6 @@ def _v1_registration_resp(flow: HTTPFlow):
 def _v2_keys(flow: HTTPFlow):
     identity = flow.request.query["identity"]
 
-    from schemas import SetKeysRequest
     req = utils.json_to_dataclass(SetKeysRequest, flow.request.content)
     # req = json.loads(flow.request.content)
     # logging.error(req2)
