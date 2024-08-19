@@ -497,7 +497,6 @@ def _v1_ws_message(flow, identifier):
         if msg["destinationDeviceId"] != 1:
             logging.error(f"Secondary devices are not supported as the developer was not paid enough. C.f. my Twint ;)")
 
-        msg_type = CiphertextMessageType(int(msg["type"]))
         envelope_type = EnvelopeType(int(msg['type']))
         logging.warning(f"MESSAGE (Envelope) TYPE: {envelope_type}")
 
@@ -507,6 +506,7 @@ def _v1_ws_message(flow, identifier):
 
         content = b64decode(msg["content"])[1:]
 
+        msg_type = OutgoingMessageType(int(msg["type"]))
         if msg_type == OutgoingMessageType.PREKEY_BUNDLE:
             ctxt = PreKeySignalMessage()
             ctxt.ParseFromString(content)
