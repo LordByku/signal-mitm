@@ -398,11 +398,11 @@ ipython_config.py
 
 # PEP 582; used by e.g. github.com/David-OConnor/pyflow and github.com/pdm-project/pdm
 __pypackages__/
-__pycache__/
+
 # Celery stuff
 celerybeat-schedule
 celerybeat.pid
-.vscode
+
 # SageMath parsed files
 *.sage.py
 
@@ -471,4 +471,3 @@ Cargo.lock
 *.pdb
 
 # End of https://www.toptal.com/developers/gitignore/api/python,rust,node,linux,jetbrains
-saved/
