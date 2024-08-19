@@ -267,6 +267,8 @@ def test_alice_to_bob():
     notifu(f"Alice decrypts '{alice_decrypts.decode()}'")
     assert alice_decrypts == bobs_response
 
+    print(Alice.encrypt(Bob.address, serializedContent).serialize().hex())
+
 def test_mitm_alice_to_bob():
 
     ####### ENDPOINT /v2/keys/
@@ -356,4 +358,4 @@ def test_mitm_bob_to_alice():
     print(mitm.messages_exchange)
 
 
-test_mitm_bob_to_alice()
+test_alice_to_bob()

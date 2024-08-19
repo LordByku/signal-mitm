@@ -86,9 +86,6 @@ class MitmUser(object):
 
         # return self.store.load_session(address) and self.store.load_session(address).session_version() == 3
 
-    def save_bundle(self, address: address.ProtocolAddress):
-        return self.store.store_pre_key_bundle(address, self.pre_key_bundle)
-
     def encrypt(self, address: address.ProtocolAddress, plaintext: bytes):
         return session_cipher.message_encrypt(self.store, address, plaintext)
 

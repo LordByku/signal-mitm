@@ -37,6 +37,9 @@ class CiphertextMessageType(Enum):
     SENDERKEY_DISTRIBUTION = 7
     PLAINTEXT = 8
 
+class OutgoingMessageType(Enum):
+    PREKEY_BUNDLE = 3
+    UNIDENTIFIED = 6
 
 class EnvelopeType(Enum):
     # https://github.com/signalapp/Signal-Android/blob/main/libsignal-service/src/main/protowire/SignalService.proto#L14-L23
@@ -278,7 +281,7 @@ def v2_keys_identifier_device_id(flow, identifier: str, device_id: str):
     ############ MitmToBob setup (fake Alice)
     for id, bundle in enumerate(resp["devices"]):
         # data should be uuid of Alice and the device id (in this case 1 is ok)
-        fakeVictim = MitmUser(address.ProtocolAddress("1", 1))
+        fakeVictim = MitmUser(address.ProtocolAddress("fake_alice", 1))
 
         bob_registartion_id = bundle["registrationId"]
 
@@ -384,7 +387,8 @@ def v2_keys_identifier_device_id(flow, identifier: str, device_id: str):
     mitm_bundle.on_conflict_replace().execute()
 
     resp.update(fakeBundle_wire)
-    conversation_session[(ip_address, identifier)] = (fakeUser, fakeVictim)
+    conversation_session[(ip_address, identifier)] = (fakeVictim, fakeUser)
+    logging.warn(f"session {conversation_session}")
     flow.response.content = json.dumps(resp, sort_keys=True).encode()
 
 
@@ -485,6 +489,10 @@ def _v1_ws_message(flow, identifier):
 
     identifier, destination = strip_uuid_and_id(destination_user)
 
+    session = conversation_session.get((ip_address, destination))
+
+    logging.warning(f"SESSION: {conversation_session}")
+
     for msg in resp["messages"]:
         if msg["destinationDeviceId"] != 1:
             logging.error(f"Secondary devices are not supported as the developer was not paid enough. C.f. my Twint ;)")
@@ -500,8 +508,9 @@ def _v1_ws_message(flow, identifier):
 
         content = b64decode(msg["content"])[1:]
 
-        ctxt = PreKeySignalMessage()
-        ctxt.ParseFromString(content)
+        if msg_type == OutgoingMessageType.PREKEY_BUNDLE:
+            ctxt = PreKeySignalMessage()
+            ctxt.ParseFromString(content)
 
         logging.warning(f"ctxt from IK: {b64encode(ctxt.identity_key).decode()}")
         logging.info(f"ctxt from IK: {ctxt}")
