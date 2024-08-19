@@ -52,8 +52,8 @@ class EnvelopeType(Enum):
 
 @dataclass
 class PendingWebSocket():
-    request: WebSocketMessage = None
-    respone: WebSocketMessage = None
+    request: WebSocketRequestMessage = None
+    response: WebSocketResponseMessage = None
 
 
 websocket_open_state = defaultdict(PendingWebSocket)
@@ -550,16 +550,16 @@ ws_resp.add_route(HOST_HTTPBIN, Parser("/v1/profile/{identifier}/{version}/{cred
                   _v1_ws_my_profile, None)
 ws_resp.add_route(HOST_HTTPBIN, Parser("/v1/profile/{identifier}/{version}"), HTTPVerb.ANY, _v1_ws_profile_futut, None)
 ws_resp.add_route(HOST_HTTPBIN, Parser("/v1/profile/{identifier}"), HTTPVerb.ANY, _v1_ws_profile, None)
+ws_resp.add_route(HOST_HTTPBIN, Parser("/v1/keepalive"), HTTPVerb.ANY, lambda x: None, None)
+
 
 ws_req = Router()
 ws_req.add_route(HOST_HTTPBIN, Parser("/v1/messages/{identifier}"), HTTPVerb.ANY, _v1_ws_message, None)
-
-logging.warning(f"ROUTES (REQ): {ws_req.routes}")
-logging.warning(f"ROUTES (RESP): {ws_resp.routes}")
+ws_req.add_route(HOST_HTTPBIN, Parser("/v1/keepalive"), HTTPVerb.ANY, lambda x: None, None)
 
 
 @api.ws_route("/v1/websocket/", rtype=RouteType.REQUEST)
-def _v1_websocket_req(flow, msg):
+def _v1_websocket_req(flow: HTTPFlow, msg):
     ws_msg = WebSocketMessage()
     ws_msg.ParseFromString(msg.content)
     ws_msg = ws_msg.request
@@ -573,9 +573,11 @@ def _v1_websocket_req(flow, msg):
     websocket_open_state[ws_msg.id].request = ws_msg
     path = websocket_open_state[id].request.path
 
+    host = flow.request.host if flow.live else HOST_HTTPBIN
+
     f = decap_ws_msg(flow, msg)
-    handler, params, _ = ws_req.find_handler(HOST_HTTPBIN, path)  # todo: HARDCODING IS BAD, onii-chan
-    logging.warning(f"HANDLER: {handler}, PARAMS: {params} -- {HOST_HTTPBIN} / {path}")
+    handler, params, _ = ws_req.find_handler(host, path)
+    logging.warning(f"HANDLER (req): {handler}, PARAMS: {params} -- {host} / {path}")
     if handler:
         req = handler(f, *params.fixed, **params.named)
         if req:
@@ -587,7 +589,7 @@ def _v1_websocket_req(flow, msg):
 
 
 @api.ws_route("/v1/websocket/", rtype=RouteType.RESPONSE)
-def _v1_websocket_resp(flow, msg):
+def _v1_websocket_resp(flow: HTTPFlow, msg):
     ws_msg = WebSocketMessage()
     ws_msg.ParseFromString(msg.content)
     ws_msg = ws_msg.response
@@ -596,17 +598,19 @@ def _v1_websocket_resp(flow, msg):
     id = ws_msg.id
 
     if not websocket_open_state.get(id):
-        logging.warning(f"Message request does not exist for id {id}")
+        logging.info(f"Message request does not exist for id {id}: {ws_msg.body}")
         return
-    # websocket_open_state[ws_msg.id].request = ws_msg
+
     path = websocket_open_state[id].request.path
 
     websocket_open_state[id].response = ws_msg
     logging.warning(f"Websocket resp with id {id} and path {path}")
 
+    host = flow.request.host if flow.live else HOST_HTTPBIN
+
     f = decap_ws_msg(flow, msg, RouteType.RESPONSE)
-    handler, params, _ = ws_resp.find_handler(HOST_HTTPBIN, path)  # todo: HARDCODING IS BAD, onii-chan
-    logging.warning(f"HANDLER: {handler}, PARAMS: {params} -- {HOST_HTTPBIN} / {path}")
+    handler, params, _ = ws_resp.find_handler(host, path)
+    logging.warning(f"HANDLER (resp): {handler}, PARAMS: {params} -- {host} / {path}")
     if handler:
         resp = handler(f, *params.fixed, **params.named)
         if resp:
