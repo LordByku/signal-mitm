@@ -5,9 +5,9 @@ import os
 import sys
 import signal
 from itertools import product
-from peewee import SqliteDatabase
-from database import create_tables
 
+from playhouse.sqlite_ext import SqliteExtDatabase
+from database import create_tables
 
 import config
 
@@ -54,7 +54,7 @@ class NetworkHandler:
 
 
 def setup_db():
-    database = SqliteDatabase(config.DB_NAME)
+    database = SqliteExtDatabase(config.DB_NAME)
     database.connect()
     create_tables()
 
