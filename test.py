@@ -126,7 +126,7 @@ class MitmUser(object):
 
         try:
             ciphertext = protocol.PreKeySignalMessage.try_from(ciphertext)
-        except Exception as s:
+        except Exception as e:
             pass
 
         try:
@@ -273,6 +273,8 @@ def test_alice_to_bob():
     assert alice_decrypts == bobs_response
 
 
+    print(Alice.encrypt(Bob.address, serializedContent).serialize().hex())
+
 def test_mitm_alice_to_bob():
     ####### ENDPOINT /v2/keys/
 
@@ -361,4 +363,5 @@ def test_mitm_bob_to_alice():
     print(mitm.messages_exchange)
 
 
-test_mitm_bob_to_alice()
+test_alice_to_bob()
+# test_mitm_bob_to_alice()

@@ -1,10 +1,12 @@
 import base64
 import hashlib
 import hmac
+import logging
 import subprocess
 import sys
 import os
 from dataclasses import dataclass, fields, is_dataclass, asdict
+from schemas import *
 import json
 from typing import TypeVar, Type, Any
 
@@ -118,7 +120,12 @@ def json_to_dataclass(dc_cls: Type[T], json_str) -> T:
     ctor_args = {}
     for field in fields(dc_cls):
         if field.name in parsed_json:
-            ctor_args[field.name] = parsed_json[field.name]
+            field_value = parsed_json[field.name]
+            # If the field type is also a dataclass, recursively parse it
+            if is_dataclass(field.type):
+                ctor_args[field.name] = json_to_dataclass(field.type, json.dumps(field_value))
+            else:
+                ctor_args[field.name] = field_value
         elif hasattr(field, 'default'):
             ctor_args[field.name] = field.default
         elif hasattr(field, 'default_factory'):

