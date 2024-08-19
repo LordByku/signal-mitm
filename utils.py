@@ -1,6 +1,23 @@
+import base64
+import hashlib
+import hmac
 import subprocess
 import sys
 import os
+
+
+### TODO: probably remove later
+def b64enc(msg):
+    # base64 encoding helper function
+    return base64.encodebytes(msg).decode("utf-8").strip()
+
+
+def hmac_sha256(key: bytes, msg: bytes):
+    result = hmac.new(key, msg, digestmod=hashlib.sha256).hexdigest()
+    return result
+
+
+####
 
 
 def try_run(cmd: str):
@@ -57,6 +74,7 @@ class PushTransportDetails:
             message_part_count += 1
 
         return message_part_count * 160
+
 
 def open_terminal(command: str):
     os.system(f"gnome-terminal -- {command} &")

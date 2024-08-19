@@ -1,7 +1,7 @@
 DB_NAME = "mitm.db"
 
 INTERNET_IFACE = "wlp0s20f3"
-AP_IFACE = "wlp0s20f0u5u1"  ## TODO: Change this to the actual AP interface
+AP_IFACE = "wlp0s20f0u5u1"  # TODO: Change this to the actual AP interface
 
 AP_SSID = "DummyHotspot"
 AP_PASSWORD = "1234567890"

