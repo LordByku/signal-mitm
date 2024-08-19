@@ -118,7 +118,7 @@ class LegitBundle(BaseSqliteModel):
     ) -> Union[dict, list[dict], None]:
         try:
             # Fetch the bundle using the primary key
-            bundle = cls.get(cls.aci == aci, cls.deviceId == device_id)
+            bundle = cls.get(cls.aci == aci, cls.device_id == device_id)
             matching_keys = [
                 key for key in bundle.kyberKeys if key.get("keyId") == key_id
             ]
@@ -167,7 +167,6 @@ class MitMBundle(BaseSqliteModel):
 
     class Meta:
         primary_key = CompositeKey("type", "aci", "device_id")
-        primary_key = CompositeKey("type", "aci", "deviceId")
 
     @classmethod
     def get_pre_key(
@@ -203,7 +202,7 @@ class MitMBundle(BaseSqliteModel):
     ) -> Union[dict, list[dict], None]:
         try:
             # Fetch the bundle using the primary key
-            bundle = cls.get(cls.aci == aci, cls.deviceId == device_id)
+            bundle = cls.get(cls.aci == aci, cls.device_id == device_id)
             matching_keys = [
                 key for key in bundle.fakeKyberKeys if key.get("keyId") == key_id
             ]
