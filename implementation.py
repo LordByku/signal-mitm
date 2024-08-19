@@ -1,4 +1,4 @@
-from mitmproxy.http import HTTPFlow
+from mitmproxy.http import HTTPFlow, Request, Response, Headers
 # from mitmproxy import ctx
 from dataclasses import dataclass
 from typing import Optional
@@ -491,7 +491,7 @@ def _v1_ws_message(flow, identifier):
 
     session = conversation_session.get((ip_address, destination))
 
-    logging.warning(f"SESSION: {conversation_session}")
+    logging.warning(f"SESSION: {session}")
 
     for msg in resp["messages"]:
         if msg["destinationDeviceId"] != 1:
@@ -515,13 +515,7 @@ def _v1_ws_message(flow, identifier):
         logging.info(f"ctxt from IK: {ctxt}")
         # TODO: unproduf / decrypt / alter / encrypt / prodobuf 
 
-    # msg_type = CiphertextMessageType(int(resp["type"]))
-    # logging.warning(f"MESSAGE TYPE: {msg_type}")
 
-    # logging.warning(f"{registration_info[ip_address].aciData.IdenKey}")
-
-
-from mitmproxy.http import Request, Response, HTTPFlow
 
 
 def decap_ws_msg(orig_flow: HTTPFlow, msg, rtype=RouteType.REQUEST):
@@ -530,7 +524,6 @@ def decap_ws_msg(orig_flow: HTTPFlow, msg, rtype=RouteType.REQUEST):
     ws_msg = ws_msg.request if rtype == RouteType.REQUEST else ws_msg.response
 
     f = HTTPFlow(client_conn=orig_flow.client_conn, server_conn=orig_flow.server_conn)
-    from mitmproxy.http import Headers
 
     if rtype == RouteType.REQUEST:
         # todo: handle headers
