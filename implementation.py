@@ -38,6 +38,18 @@ class CiphertextMessageType(Enum):
     PLAINTEXT = 8
 
 
+class EnvelopeType(Enum):
+    # https://github.com/signalapp/Signal-Android/blob/main/libsignal-service/src/main/protowire/SignalService.proto#L14-L23
+    UNKNOWN = 0
+    CIPHERTEXT = 1
+    KEY_EXCHANGE = 2
+    PREKEY_BUNDLE = 3
+    RECEIPT = 5
+    UNIDENTIFIED_SENDER = 6
+    reserved_SENDERKEY_MESSAGE = 7
+    PLAINTEXT_CONTENT = 8
+
+
 @dataclass
 class PendingWebSocket():
     request: WebSocketMessage = None
@@ -192,14 +204,20 @@ def _v2_keys(flow: HTTPFlow):
 
     ## TODO: instead of naming each key for both variables, just use the identifier as a key and the bundle(dict) as the value
     if not registration_info.get(address):
-        logging.error(f"Address {address} not found in registration_info. {registration_info}")
+        logging.warning(f"Address {address} not found in registration_info. {registration_info}")
+        return
 
-    key_data = registration_info[address].aciData if identity == "aci" else registration_info[address].pniData
+    # try:
+    key_data = registration_info.get(address).aciData if identity == "aci" else registration_info.get(address).pniData
+    # except AttributeError:
+    #     logging.warning(f"I cannot retrieve the regData for ip {address}.\n{registration_info}")
+    #     return
 
     try:
         alice_identity_key_pair = key_data.fake_IdenKey
     except KeyError:
         logging.exception(f"{flow} AND {registration_info}")
+        return
 
     pq_pre_keys = req["pqPreKeys"]
     pre_keys = req["preKeys"]
@@ -392,6 +410,9 @@ def _v1_ws_my_profile(flow, identifier, version, credentialRequest):
     resp = json.loads(flow.response.content)
     ip_address = flow.client_conn.address[0]
 
+    if registration_info.get(ip_address) is None:
+        logging.warning(f"Cannot find registration for key {ip_address}.\n{registration_info}\nEarly stop.")
+        return
     logging.warning(f"{registration_info[ip_address].aciData.IdenKey}")
 
     resp["identityKey"] = registration_info[ip_address].aciData.IdenKey
@@ -406,10 +427,11 @@ def _v1_ws_profile_futut(flow, identifier, version):
     resp = json.loads(flow.response.content)
     ip_address = flow.client_conn.address[0]
 
-    try:
-        logging.warning(f"{registration_info[ip_address].aciData.IdenKey}")
-    except KeyError:
-        logging.exception(f"{registration_info}")
+    if registration_info.get(ip_address) is None:
+        logging.warning(f"Cannot find registration for key {ip_address}.\n{registration_info}\nEarly stop.")
+        return
+
+    logging.warning(f"{registration_info[ip_address].aciData.IdenKey}")
 
     resp["identityKey"] = registration_info[ip_address].aciData.IdenKey
     flow.response.content = json.dumps(resp).encode()
@@ -467,11 +489,13 @@ def _v1_ws_message(flow, identifier):
         if msg["destinationDeviceId"] != 1:
             logging.error(f"Secondary devices are not supported as the developer was not paid enough. C.f. my Twint ;)")
 
-        msg_type = CiphertextMessageType(int(msg["type"]))
-        logging.warning(f"MESSAGE TYPE: {msg_type}")
 
-        if msg_type != CiphertextMessageType.PREKEY_BUNDLE:
-            logging.error(f"Only PREKEY_BUNDLE is supported at the moment. C.f. my Twint ;)")
+        # msg_type = CiphertextMessageType(int(msg["type"]))
+        envelope_type = EnvelopeType(int(msg['type']))
+        logging.warning(f"MESSAGE (Envelope) TYPE: {envelope_type}")
+
+        if envelope_type not in [EnvelopeType.PREKEY_BUNDLE]:
+            logging.warning(f"Only PREKEY_BUNDLE is supported at the moment, got {envelope_type}. C.f. my Twint ;)")
             continue
 
         content = b64decode(msg["content"])[1:]
@@ -479,7 +503,7 @@ def _v1_ws_message(flow, identifier):
         ctxt = PreKeySignalMessage()
         ctxt.ParseFromString(content)
 
-        logging.warning(f"ctxt from IK: {b64encode(ctxt.identity_key)}")
+        logging.warning(f"ctxt from IK: {b64encode(ctxt.identity_key).decode()}")
         logging.info(f"ctxt from IK: {ctxt}")
         # TODO: unproduf / decrypt / alter / encrypt / prodobuf 
 
