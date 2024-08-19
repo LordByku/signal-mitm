@@ -13,7 +13,7 @@ def b64encbytes(msg):
 
 
 def b64enc(msg: bytes) -> str:
-    return base64.b64decode(msg).decode("ascii")
+    return base64.b64encode(msg).decode("ascii")
 
 def hmac_sha256(key: bytes, msg: bytes):
     result = hmac.new(key, msg, digestmod=hashlib.sha256).hexdigest()

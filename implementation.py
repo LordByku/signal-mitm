@@ -322,8 +322,8 @@ def v2_keys_identifier_device_id(flow, identifier: str, device_id: str):
             identity_key = fake_user.identity_key_pair
 
         else:
-            fake_user = MitmUser(address=ProtocolAddress(uuid, _id), identity_key=identity_key.fake_identityKey)
-            identity_key = identity_key.fake_identityKey
+            fake_user = MitmUser(address=ProtocolAddress(uuid, _id), identity_key=identity_key.fake_identity_key)
+            identity_key = identity_key.fake_identity_key
 
         fake_bundle = fake_user.pre_key_bundle.to_dict()
 
@@ -519,10 +519,10 @@ def decap_ws_msg(orig_flow: HTTPFlow, msg, rtype=RouteType.REQUEST):
 
 ws_resp = Router()
 
-ws_resp.add_route(HOST_HTTPBIN, parse.Parser("/v1/profile/{identifier}/{version}/{credentialRequest}"), HTTPVerb.ANY,
+ws_resp.add_route(HOST_HTTPBIN, parse.Parser("/v1/profile/{identifier}/{version}/{credential_request}"), HTTPVerb.ANY,
                   _v1_ws_profile_with_credential, None)
-ws_resp.add_route(HOST_HTTPBIN, parse.Parser("/v1/profile/{identifier}/{version}"), HTTPVerb.ANY, _v1_ws_versioned_profile,
-                  None)
+ws_resp.add_route(HOST_HTTPBIN, parse.Parser("/v1/profile/{identifier}/{version}"), HTTPVerb.ANY,
+                  _v1_ws_versioned_profile,None)
 ws_resp.add_route(HOST_HTTPBIN, parse.Parser("/v1/profile/{identifier}"), HTTPVerb.ANY, _v1_ws_profile,
                   None)
 
