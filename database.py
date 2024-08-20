@@ -5,13 +5,18 @@
 # from itertools import product
 # import sqlite3
 # from pathlib import Path
-from peewee import *
+import json
+from jsonschema import validate, ValidationError
 
-#TODO: Remove relationship of pni Device and pni User
+from peewee import *
+from playhouse.sqlite_ext import SqliteExtDatabase, JSONField
+
+# TODO: Remove relationship of pni Device and pni User
 
 DB_NAME = "mitm.db"
 
-database = SqliteDatabase(DB_NAME)
+# database = SqliteDatabase(DB_NAME)
+database = SqliteExtDatabase(DB_NAME)
 database.connect()
 
 
@@ -44,24 +49,98 @@ class LegitBundle(BaseSqliteModel):
     aci = ForeignKeyField(Device, field="aci", backref='legitbundles')
     deviceId = ForeignKeyField(Device, field="deviceId", backref='legitbundles')
     IdenKey = ForeignKeyField(Device, field="aciIdenKey", backref='legitbundles')
-    SignedPreKey = CharField()
-    PreKeys = CharField()
-    kyberKeys = CharField()
-    lastResortKyber = CharField()
+    SignedPreKey = JSONField()
+    PreKeys = JSONField()
+    kyberKeys = JSONField()
+    lastResortKyber = JSONField()
 
     class Meta:
         primary_key = CompositeKey('type', 'aci', 'deviceId')
 
 
+key_schema_signed = {
+    "$schema": "http://json-schema.org/draft-04/schema#",
+    "type": "object",
+    "properties": {
+        "keyId": {"type": "integer"},
+        "publicKey": {"type": "string"},
+        "signature": {"type": "string"},
+        "privateKey": {"type": "string"}
+    },
+    "required": ["keyId", "publicKey", "signature", "privateKey"]
+}
+
+key_array_schema_signed = {
+    "$schema": "http://json-schema.org/draft-04/schema#",
+    "type": "array",
+    "items": [
+        {
+            "type": "object",
+            "properties": {
+                "keyId": {"type": "integer"},
+                "publicKey": {"type": "string"},
+                "signature": {"type": "string"},
+                "privateKey": {"type": "string"}
+            },
+            "required": ["keyId", "publicKey", "signature", "privateKey"]
+        }
+    ]
+}
+
+key_array_schema = {
+    "$schema": "http://json-schema.org/draft-04/schema#",
+    "type": "array",
+    "items": [
+        {
+            "type": "object",
+            "properties": {
+                "keyId": {"type": "integer"},
+                "publicKey": {"type": "string"},
+                "privateKey": {"type": "string"}
+            },
+            "required": ["keyId", "publicKey", "privateKey"]
+        }
+    ]
+}
+
+key_schema = {
+    "$schema": "http://json-schema.org/draft-04/schema#",
+    "type": "object",
+    "properties": {
+        "keyId": {"type": "integer"},
+        "publicKey": {"type": "string"},
+        "privateKey": {"type": "string"}
+    },
+    "required": ["keyId", "publicKey", "privateKey"]
+}
+
+
+def custom_dumps_signed(obj) -> str:
+    validate(instance=obj, schema=key_schema_signed)
+    return json.dumps(obj)
+
+
+def custom_dumps_key(obj) -> str:
+    validate(instance=obj, schema=key_schema)
+    return json.dumps(obj)
+
+def custom_dumps_signed_array(obj) -> str:
+    validate(instance=obj, schema=key_array_schema_signed)
+    return json.dumps(obj)
+
+def custom_dumps_array(obj) -> str:
+    validate(instance=obj, schema=key_array_schema)
+    return json.dumps(obj)
+
 class MitMBundle(BaseSqliteModel):
     type = CharField()
     aci = ForeignKeyField(Device, field="aci", backref='mitmbundles')
     deviceId = ForeignKeyField(Device, field="deviceId", backref='mitmbundles')
-    FakeIdenKey = CharField()
-    FakeSignedPreKey = CharField()
-    FakePrekeys = CharField()
-    fakeKyberKeys = CharField()
-    fakeLastResortKyber = CharField()
+    FakeIdenKey = JSONField()
+    FakeSignedPreKey = JSONField(json_dumps=custom_dumps_signed)
+    FakePrekeys = JSONField(json_dumps=custom_dumps_array)
+    fakeKyberKeys = JSONField(json_dumps=custom_dumps_signed_array)
+    fakeLastResortKyber = JSONField(json_dumps=custom_dumps_key)
 
     class Meta:
         primary_key = CompositeKey('type', 'aci', 'deviceId')
