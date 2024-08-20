@@ -2,6 +2,7 @@ pycryptodome
 protobuf
 mitmproxy~=10.4.2
 peewee~=3.17.6
+jsonschema
 git+https://github.com/TheTechZone/xepor@feat-websocket
 black
 astor

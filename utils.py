@@ -2,6 +2,7 @@ import base64
 import hashlib
 import hmac
 import logging
+import logging
 import subprocess
 import sys
 import os
@@ -109,6 +110,16 @@ def json_join_public(data1: list[dict], data2: dict):
             item["privateKey"] = data2[keyId]
     return data1
 
+# array1 = [
+#     {"keyId": "id1", "value1": "value1a"},
+#     {"keyId": "id2", "value1": "value1b"},
+# ]
+# array2 = {
+#     "id1": "value2a",
+#     "id2": "value2b",
+# }
+# print(json_join_public(array1, array2))
+
 
 T = TypeVar("T")
 
@@ -178,3 +189,13 @@ def update_dataclass(instance, updates: dict):
 # print(instance)
 # # json_string = dataclass_to_json(instance)
 # print(json_string)
+
+# from playhouse.sqlite_ext import SqliteExtDatabase
+# database = SqliteExtDatabase(config.DB_NAME)
+# database.connect()
+# from database import LegitBundle, MitMBundle
+# # print()
+#
+# record = MitMBundle.select().where(MitMBundle.fakeLastResortKyber['keyId'] == 42069)
+# for r in record:
+#     print(r.fakeLastResortKyber['publicKey'])

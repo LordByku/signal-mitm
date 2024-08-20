@@ -430,11 +430,11 @@ def v2_keys_identifier_device_id(flow: HTTPFlow, identifier: str, device_id: str
             type=identity.lower(),
             aci=uuid,
             device_id=device_id,
-            fake_iden_key=json.dumps(fake_ik),
-            fake_signed_pre_key=json.dumps(fake_spk),
-            fake_pre_keys=json.dumps(fake_pre_keys),
-            fake_kyber_keys=json.dumps([fake_kyber]),
-            fake_last_resort_kyber=json.dumps(lastResortPq)
+            fake_iden_key=fake_ik,
+            fake_signed_pre_key=fake_spk,
+            fake_pre_keys=fake_pre_keys,
+            fake_kyber_keys=[fake_kyber],
+            fake_last_resort_kyber=lastResortPq
         )
         mitm_bundle.on_conflict_replace().execute()
         mitm_bundles[_id] = mitm_bundle, fake_bundle_wire, fake_user, fake_victims[_id]
@@ -515,7 +515,7 @@ def _v1_ws_profile(flow: HTTPFlow, identifier):
     bundle = MitMBundle.select().where(MitMBundle.type == uuid_type, MitMBundle.aci == uuid).first()
 
     if bundle:
-        public_fake_iden_key = bundle.fake_iden_key[0]
+        public_fake_iden_key = bundle.fake_iden_key['publicKey']
     else:
         fake_iden_key = IdentityKeyPair.generate()
         bobs_bundle[uuid] = BobIdenKey(uuid, iden_key, fake_iden_key)
@@ -570,7 +570,6 @@ def _v1_ws_message(flow: HTTPFlow, identifier):
         logging.warning(f"ctxt from IK: {b64encode(ctxt.identity_key).decode()}")
         logging.info(f"ctxt from IK: {ctxt}")
         # TODO: unproduf / decrypt / alter / encrypt / prodobuf 
-
 
 
 
