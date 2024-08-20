@@ -670,7 +670,7 @@ def _v1_websocket_resp(flow: HTTPFlow, msg):
 
     unwrapped_flow = decap_ws_msg(flow, msg, RouteType.RESPONSE)
     handler, params, _ = ws_resp.find_handler(host, path)
-    logging.warning(f"HANDLER: {handler}, PARAMS: {params} -- {host} / {path}")
+    logging.warning(f"HANDLER (resp): {handler}, PARAMS: {params} -- {host} / {path}")
     if handler:
         resp = handler(unwrapped_flow, *params.fixed, **params.named)
         if resp:
