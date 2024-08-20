@@ -268,11 +268,11 @@ def _v2_keys(flow: HTTPFlow):
         type=identity,
         aci=registration_info[address].aci,
         deviceId=1,  # todo: shouldnt be static
-        FakeIdenKey=json.dumps(fake_ik),
-        FakeSignedPreKey=json.dumps(fake_spk),
-        FakePrekeys=json.dumps(prekeys),
-        fakeKyberKeys=json.dumps(fake_kyber),
-        fakeLastResortKyber=json.dumps(fake_last_resort)
+        FakeIdenKey=fake_ik,
+        FakeSignedPreKey=fake_spk,
+        FakePrekeys=prekeys,
+        fakeKyberKeys=fake_kyber,
+        fakeLastResortKyber=fake_last_resort
     )
 
     legit_bundle.on_conflict_replace().execute()

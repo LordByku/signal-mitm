@@ -8,6 +8,8 @@
 import json
 from jsonschema import validate, ValidationError
 
+import db_json_schemas
+from db_json_schemas import Fake_key_schema, Fake_key_array_schema, Fake_key_schema_signed, Fake_key_array_schema_signed
 from peewee import *
 from playhouse.sqlite_ext import SqliteExtDatabase, JSONField
 
@@ -43,93 +45,51 @@ class Device(BaseSqliteModel):
     class Meta:
         primary_key = CompositeKey('aci', 'deviceId')
 
+def custom_dumps_bundle_spk(obj) -> str:
+    validate(instance=obj, schema=db_json_schemas.key_schema_signed)
+    return json.dumps(obj)
+
+def custom_dumps_bundle_pre_keys(obj) -> str:
+    validate(instance=obj, schema=db_json_schemas.prekey_bundle_schema)
+    return json.dumps(obj)
+
+def custom_dumps_bundle_kyber_keys(obj) -> str:
+    validate(instance=obj, schema=db_json_schemas.kyber_keys_schema)
+    return json.dumps(obj)
+
+def custom_last_resort_kyber(obj) -> str:
+    validate(instance=obj, schema=db_json_schemas.last_resort_kyber)
+    return json.dumps(obj)
 
 class LegitBundle(BaseSqliteModel):
     type = CharField()
     aci = ForeignKeyField(Device, field="aci", backref='legitbundles')
     deviceId = ForeignKeyField(Device, field="deviceId", backref='legitbundles')
     IdenKey = ForeignKeyField(Device, field="aciIdenKey", backref='legitbundles')
-    SignedPreKey = JSONField()
-    PreKeys = JSONField()
-    kyberKeys = JSONField()
-    lastResortKyber = JSONField()
+    SignedPreKey = JSONField(json_dumps=custom_dumps_bundle_spk)
+    PreKeys = JSONField(json_dumps=custom_dumps_bundle_pre_keys)
+    kyberKeys = JSONField(json_dumps=custom_dumps_bundle_kyber_keys)
+    lastResortKyber = JSONField(json_dumps=custom_last_resort_kyber)
 
     class Meta:
         primary_key = CompositeKey('type', 'aci', 'deviceId')
 
 
-key_schema_signed = {
-    "$schema": "http://json-schema.org/draft-04/schema#",
-    "type": "object",
-    "properties": {
-        "keyId": {"type": "integer"},
-        "publicKey": {"type": "string"},
-        "signature": {"type": "string"},
-        "privateKey": {"type": "string"}
-    },
-    "required": ["keyId", "publicKey", "signature", "privateKey"]
-}
-
-key_array_schema_signed = {
-    "$schema": "http://json-schema.org/draft-04/schema#",
-    "type": "array",
-    "items": [
-        {
-            "type": "object",
-            "properties": {
-                "keyId": {"type": "integer"},
-                "publicKey": {"type": "string"},
-                "signature": {"type": "string"},
-                "privateKey": {"type": "string"}
-            },
-            "required": ["keyId", "publicKey", "signature", "privateKey"]
-        }
-    ]
-}
-
-key_array_schema = {
-    "$schema": "http://json-schema.org/draft-04/schema#",
-    "type": "array",
-    "items": [
-        {
-            "type": "object",
-            "properties": {
-                "keyId": {"type": "integer"},
-                "publicKey": {"type": "string"},
-                "privateKey": {"type": "string"}
-            },
-            "required": ["keyId", "publicKey", "privateKey"]
-        }
-    ]
-}
-
-key_schema = {
-    "$schema": "http://json-schema.org/draft-04/schema#",
-    "type": "object",
-    "properties": {
-        "keyId": {"type": "integer"},
-        "publicKey": {"type": "string"},
-        "privateKey": {"type": "string"}
-    },
-    "required": ["keyId", "publicKey", "privateKey"]
-}
-
-
 def custom_dumps_signed(obj) -> str:
-    validate(instance=obj, schema=key_schema_signed)
+    validate(instance=obj, schema=Fake_key_schema_signed)
     return json.dumps(obj)
 
 
 def custom_dumps_key(obj) -> str:
-    validate(instance=obj, schema=key_schema)
+    validate(instance=obj, schema=Fake_key_schema)
     return json.dumps(obj)
 
 def custom_dumps_signed_array(obj) -> str:
-    validate(instance=obj, schema=key_array_schema_signed)
+    validate(instance=obj, schema=Fake_key_array_schema_signed)
     return json.dumps(obj)
 
 def custom_dumps_array(obj) -> str:
-    validate(instance=obj, schema=key_array_schema)
+    validate(instance=obj, schema=Fake_key_array_schema)
     return json.dumps(obj)
 
 class MitMBundle(BaseSqliteModel):
