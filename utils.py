@@ -70,7 +70,7 @@ class PushTransportDetails:
         otherwise it'll add a full 16 extra bytes.
         """
         padded_message_length = (
-            PushTransportDetails.get_padded_message_length(len(message_body) + 1) - 1
+                PushTransportDetails.get_padded_message_length(len(message_body) + 1) - 1
         )
         padded_message = bytearray(padded_message_length)
         padded_message[: len(message_body)] = message_body
@@ -100,6 +100,14 @@ def strip_uuid_and_id(path: str) -> tuple[str, str]:
         return words[0], words[1]
     else:
         return "aci", words[0]
+
+
+def json_join_public(data1: list[dict], data2: dict):
+    for item in data1:
+        keyId = str(item["keyId"])
+        if keyId in data2:
+            item["privateKey"] = data2[keyId]
+    return data1
 
 
 T = TypeVar("T")
@@ -156,7 +164,6 @@ def update_dataclass(instance, updates: dict):
     for key, value in updates.items():
         if hasattr(instance, key):
             setattr(instance, key, value)
-
 
 # # Use case
 # @dataclass
