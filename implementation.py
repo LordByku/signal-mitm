@@ -245,10 +245,10 @@ def _v2_keys(flow: HTTPFlow):
         aci=registration_info[address].aci,
         deviceId=1,  # todo: shouldnt be static
         IdenKey=key_data.IdenKey,
-        SignedPreKey=key_data.SignedPreKey,
-        PreKeys=key_data.PreKeys,
-        kyberKeys=key_data.pq_PreKeys,
-        lastResortKyber=key_data.pq_lastResortKey
+        SignedPreKey=json.dumps(key_data.SignedPreKey),
+        PreKeys=json.dumps(key_data.PreKeys),
+        kyberKeys=json.dumps(key_data.pq_PreKeys),
+        lastResortKyber=json.dumps(key_data.pq_lastResortKey),
     )
 
     fake_ik = {
@@ -333,12 +333,12 @@ def v2_keys_identifier_device_id(flow, identifier: str, device_id: str):
             aci=uuid,
             deviceId=device_id,
             IdenKey=b64encode(bob_identity_key_public).decode("ascii"),
-            SignedPreKey=bob_signed_pre_key,
+            SignedPreKey=json.dumps(bob_signed_pre_key),
             # todo: using array notation to match the other bundle (i.e arrays of keys vs 1 key dict here)
-            PreKeys=[bob_pre_key],
-            kyberKeys=[bob_kyber_pre_key],
+            PreKeys=json.dumps([bob_pre_key]),
+            kyberKeys=json.dumps([bob_kyber_pre_key]),
             # todo: using array notation to match the other bundle (i.e arrays of keys vs 1 key dict here)
-            lastResortKyber=lastResortPq.pq_lastResortKey # need to get from registration_info
+            lastResortKyber=json.dumps(lastResortPq.pq_lastResortKey)  # need to get from registration_info
         )
         legit_bundle.on_conflict_replace().execute()
         fakeVictim.process_pre_key_bundle(address.ProtocolAddress(uuid, id), bob_bundle)
