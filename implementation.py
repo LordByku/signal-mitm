@@ -32,6 +32,7 @@ from server_proto import addons, HOST_HTTPBIN
 from mitm_interface import MitmUser
 from collections import defaultdict
 
+
 # logging.getLogger().addHandler(utils.ColorHandler())
 
 class CiphertextMessageType(Enum):
@@ -40,9 +41,11 @@ class CiphertextMessageType(Enum):
     SENDER_KEY_DISTRIBUTION = 7
     PLAINTEXT = 8
 
+
 class OutgoingMessageType(Enum):
     PREKEY_BUNDLE = 3
     UNIDENTIFIED = 6
+
 
 class EnvelopeType(Enum):
     # https://github.com/signalapp/Signal-Android/blob/main/libsignal-service/src/main/protowire/SignalService.proto#L14-L23
@@ -572,7 +575,6 @@ def _v1_ws_message(flow: HTTPFlow, identifier):
         # TODO: unproduf / decrypt / alter / encrypt / prodobuf 
 
 
-
 def decap_ws_msg(orig_flow: HTTPFlow, msg, rtype=RouteType.REQUEST):
     ws_msg = WebSocketMessage()
     ws_msg.ParseFromString(msg.content)
@@ -609,7 +611,6 @@ ws_resp.add_route(HOST_HTTPBIN, parse.Parser("/v1/profile/{identifier}/{version}
 ws_resp.add_route(HOST_HTTPBIN, parse.Parser("/v1/profile/{identifier}"), HTTPVerb.ANY, _v1_ws_profile,
                   None)
 ws_resp.add_route(HOST_HTTPBIN, parse.Parser("/v1/keepalive"), HTTPVerb.ANY, lambda x: None, None)
-
 
 ws_req = Router()
 ws_req.add_route(HOST_HTTPBIN, parse.Parser("/v1/messages/{identifier}"), HTTPVerb.ANY, _v1_ws_message, None)
