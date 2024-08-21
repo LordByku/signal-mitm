@@ -32,12 +32,13 @@ def hmac_sha256(key: bytes, msg: bytes):
 def try_run(cmd: str):
     try:
         res = subprocess.run(cmd, shell=True, check=True, stdout=open(os.devnull, "wb"))
-        print(res.returncode)
+        logging.debug(f"exit code: {res.returncode}")
     except subprocess.CalledProcessError as e:
         print(f"cmd failed: {e}\n{cmd}")
 
 
 def try_run_sudo(cmd: str):
+    logging.debug(f"trying to run command with sudo: {cmd}")
     try_run(f"sudo {cmd}")
 
 
@@ -64,13 +65,15 @@ class PushTransportDetails:
     def get_padded_message_body(message_body):
         """To quote the original devs:
 
-         NOTE: This is dumb.  We have our own padding scheme, but so does the cipher.
-         The +1 -1 here is to make sure the Cipher has room to add one padding byte,
-         otherwise it'll add a full 16 extra bytes.
+        NOTE: This is dumb.  We have our own padding scheme, but so does the cipher.
+        The +1 -1 here is to make sure the Cipher has room to add one padding byte,
+        otherwise it'll add a full 16 extra bytes.
         """
-        padded_message_length = PushTransportDetails.get_padded_message_length(len(message_body) + 1) - 1
+        padded_message_length = (
+            PushTransportDetails.get_padded_message_length(len(message_body) + 1) - 1
+        )
         padded_message = bytearray(padded_message_length)
-        padded_message[:len(message_body)] = message_body
+        padded_message[: len(message_body)] = message_body
         padded_message[len(message_body)] = 0x80
         return bytes(padded_message)
 
@@ -99,7 +102,7 @@ def strip_uuid_and_id(path: str) -> tuple[str, str]:
         return "aci", words[0]
 
 
-T = TypeVar('T')
+T = TypeVar("T")
 
 
 def json_to_dataclass(dc_cls: Type[T], json_str) -> T:
@@ -123,12 +126,14 @@ def json_to_dataclass(dc_cls: Type[T], json_str) -> T:
             field_value = parsed_json[field.name]
             # If the field type is also a dataclass, recursively parse it
             if is_dataclass(field.type):
-                ctor_args[field.name] = json_to_dataclass(field.type, json.dumps(field_value))
+                ctor_args[field.name] = json_to_dataclass(
+                    field.type, json.dumps(field_value)
+                )
             else:
                 ctor_args[field.name] = field_value
-        elif hasattr(field, 'default'):
+        elif hasattr(field, "default"):
             ctor_args[field.name] = field.default
-        elif hasattr(field, 'default_factory'):
+        elif hasattr(field, "default_factory"):
             ctor_args[field.name] = field.default_factory()
 
     return dc_cls(**ctor_args)
@@ -151,6 +156,7 @@ def update_dataclass(instance, updates: dict):
     for key, value in updates.items():
         if hasattr(instance, key):
             setattr(instance, key, value)
+
 
 # # Use case
 # @dataclass
