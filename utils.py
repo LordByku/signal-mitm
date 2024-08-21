@@ -2,6 +2,7 @@ import logging
 import subprocess
 import sys
 import os
+import copy
 
 def try_run(cmd: str):
     try:
@@ -36,11 +37,12 @@ def strip_uuid_and_id(path: str):
 
 
 def json_join_public(data1: list[dict], data2: dict):
-    for item in data1:
-        keyId = str(item["keyId"])
-        if keyId in data2:
-            item["privateKey"] = data2[keyId]
-    return data1
+    result = copy.deepcopy(data1)
+    for item in result:
+        key_id = str(item["keyId"])
+        if key_id in data2:
+            item["privateKey"] = data2[key_id]
+    return result
 
 
 # array1 = [
