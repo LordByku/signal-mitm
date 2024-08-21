@@ -8,6 +8,7 @@ from itertools import product
 from peewee import SqliteDatabase
 from database import create_tables
 
+
 import config
 
 from utils import try_run_sudo
@@ -102,7 +103,8 @@ def setup():
 
 if __name__ == "__main__":
     logger = logging.getLogger()
-    logger.setLevel(logging.DEBUG)  # Adjust as needed
+    logger.setLevel(logging.DEBUG)
+    logger.addHandler(utils.ColorHandler())
 
     signal.signal(signal.SIGINT, signal_handler)
     # handler  receives signal number and stack frame

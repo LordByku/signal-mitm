@@ -110,6 +110,7 @@ def json_join_public(data1: list[dict], data2: dict):
             item["privateKey"] = data2[keyId]
     return data1
 
+
 # array1 = [
 #     {"keyId": "id1", "value1": "value1a"},
 #     {"keyId": "id2", "value1": "value1b"},
@@ -199,3 +200,25 @@ def update_dataclass(instance, updates: dict):
 # record = MitMBundle.select().where(MitMBundle.fakeLastResortKyber['keyId'] == 42069)
 # for r in record:
 #     print(r.fakeLastResortKyber['publicKey'])
+
+class ColorHandler(logging.StreamHandler):
+    # https://en.wikipedia.org/wiki/ANSI_escape_code#Colors
+    GRAY8 = "38;5;8"
+    GRAY7 = "38;5;7"
+    ORANGE = "33"
+    RED = "31"
+    WHITE = "0"
+
+    def emit(self, record):
+        # Don't use white for any logging, to help distinguish from user print statements
+        level_color_map = {
+            logging.DEBUG: self.GRAY8,
+            logging.INFO: self.GRAY7,
+            logging.WARNING: self.ORANGE,
+            logging.ERROR: self.RED,
+        }
+
+        csi = f"{chr(27)}["  # control sequence introducer
+        color = level_color_map.get(record.levelno, self.WHITE)
+
+        print(f"{csi}{color}m{record.msg}{csi}m")
