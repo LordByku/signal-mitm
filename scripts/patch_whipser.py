@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 import subprocess
 import os
 import logging
@@ -5,7 +7,7 @@ import shutil
 import sys
 
 # Initialize logging
-logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
+logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 
 bc_jar_path = os.path.realpath("scripts/bcprov-jdk18on-1.78.1.jar")
 
@@ -17,12 +19,27 @@ def check_keytool_exists():
 
 def print_certificate_details(keystore_path, keystore_password, alias):
     """Print certificate details for a given alias in the keystore."""
-    print_command = ["keytool", "-exportcert", "-keystore", keystore_path,
-                     "-storepass", keystore_password, "-alias", alias, "-rfc",
-                     "-storetype", "BKS",
-                     "-provider", "org.bouncycastle.jce.provider.BouncyCastleProvider", "-providerpath", bc_jar_path]
+    print_command = [
+        "keytool",
+        "-exportcert",
+        "-keystore",
+        keystore_path,
+        "-storepass",
+        keystore_password,
+        "-alias",
+        alias,
+        "-rfc",
+        "-storetype",
+        "BKS",
+        "-provider",
+        "org.bouncycastle.jce.provider.BouncyCastleProvider",
+        "-providerpath",
+        bc_jar_path,
+    ]
     try:
-        cert = subprocess.check_output(print_command, stderr=subprocess.STDOUT, universal_newlines=True)
+        cert = subprocess.check_output(
+            print_command, stderr=subprocess.STDOUT, universal_newlines=True
+        )
         logging.info(f"Certificate details for alias '{alias}':\n{cert}")
     except subprocess.CalledProcessError as e:
         logging.error(f"Failed to print certificate details: {e.output}")
@@ -35,7 +52,8 @@ def replace_ca_in_keystore(keystore_path, keystore_password, new_ca_path, ca_ali
         logging.error(
             "keytool could not be found. Please ensure the Java Development Kit (JDK) is installed and keytool is in "
             "your PATH. Visit https://www.oracle.com/java/technologies/downloads/ (or your distribution's wiki) for "
-            "more details.")
+            "more details."
+        )
         exit(-1)
 
     # Print old CA certificate details
@@ -43,9 +61,22 @@ def replace_ca_in_keystore(keystore_path, keystore_password, new_ca_path, ca_ali
     print_certificate_details(keystore_path, keystore_password, ca_alias)
 
     # Delete the existing CA certificate
-    delete_command = ["keytool", "-delete", "-alias", ca_alias, "-keystore", keystore_path, "-storepass",
-                      keystore_password, "-storetype", "BKS",
-                      "-provider", "org.bouncycastle.jce.provider.BouncyCastleProvider", "-providerpath", bc_jar_path]
+    delete_command = [
+        "keytool",
+        "-delete",
+        "-alias",
+        ca_alias,
+        "-keystore",
+        keystore_path,
+        "-storepass",
+        keystore_password,
+        "-storetype",
+        "BKS",
+        "-provider",
+        "org.bouncycastle.jce.provider.BouncyCastleProvider",
+        "-providerpath",
+        bc_jar_path,
+    ]
     try:
         subprocess.check_call(delete_command, stderr=subprocess.STDOUT)
         logging.info("Existing CA certificate deleted successfully.")
@@ -54,9 +85,25 @@ def replace_ca_in_keystore(keystore_path, keystore_password, new_ca_path, ca_ali
         exit(-1)
 
     # Import the new CA certificate
-    import_command = ["keytool", "-import", "-alias", ca_alias, "-file", new_ca_path, "-keystore", keystore_path,
-                      "-noprompt", "-storepass", keystore_password, "-storetype", "BKS",
-                      "-provider", "org.bouncycastle.jce.provider.BouncyCastleProvider", "-providerpath", bc_jar_path]
+    import_command = [
+        "keytool",
+        "-import",
+        "-alias",
+        ca_alias,
+        "-file",
+        new_ca_path,
+        "-keystore",
+        keystore_path,
+        "-noprompt",
+        "-storepass",
+        keystore_password,
+        "-storetype",
+        "BKS",
+        "-provider",
+        "org.bouncycastle.jce.provider.BouncyCastleProvider",
+        "-providerpath",
+        bc_jar_path,
+    ]
     try:
         subprocess.check_call(import_command, stderr=subprocess.STDOUT)
         logging.info("New CA certificate imported successfully.")
