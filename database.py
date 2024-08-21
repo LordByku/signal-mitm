@@ -1,6 +1,19 @@
 import json
-from jsonschema import validate, ValidationError
+import logging
+from typing import Union
 
+import peewee
+from jsonschema import (
+    validate,
+    ValidationError,
+)  # todo: Handle ValidationError properly
+import db_json_schemas
+from db_json_schemas import (
+    Fake_key_schema,
+    Fake_key_array_schema,
+    Fake_key_schema_signed,
+    Fake_key_array_schema_signed,
+)
 from peewee import (
     Model,
     CharField,
@@ -10,9 +23,6 @@ from peewee import (
     IntegerField,
     TimestampField,
 )
-import db_json_schemas
-from db_json_schemas import Fake_key_schema, Fake_key_array_schema, Fake_key_schema_signed, Fake_key_array_schema_signed
-from peewee import *
 from playhouse.sqlite_ext import SqliteExtDatabase, JSONField
 
 # TODO: Remove relationship of pni Device and pni User
@@ -51,17 +61,21 @@ def custom_dumps_bundle_spk(obj) -> str:
     validate(instance=obj, schema=db_json_schemas.key_schema_signed)
     return json.dumps(obj)
 
+
 def custom_dumps_bundle_pre_keys(obj) -> str:
     validate(instance=obj, schema=db_json_schemas.prekey_bundle_schema)
     return json.dumps(obj)
+
 
 def custom_dumps_bundle_kyber_keys(obj) -> str:
     validate(instance=obj, schema=db_json_schemas.kyber_keys_schema)
     return json.dumps(obj)
 
+
 def custom_last_resort_kyber(obj) -> str:
     validate(instance=obj, schema=db_json_schemas.last_resort_kyber)
     return json.dumps(obj)
+
 
 class LegitBundle(BaseSqliteModel):
     type = CharField()
@@ -75,6 +89,51 @@ class LegitBundle(BaseSqliteModel):
 
     class Meta:
         primary_key = CompositeKey("type", "aci", "device_id")
+        primary_key = CompositeKey("type", "aci", "deviceId")
+
+    @classmethod
+    def get_pre_key(
+        cls, aci: str, device_id: int, key_id: int
+    ) -> Union[dict, list[dict], None]:
+        try:
+            # Fetch the bundle using the primary key
+            bundle = cls.get(cls.aci == aci, cls.device_id == device_id)
+            matching_keys = [
+                key for key in bundle.PreKeys if key.get("keyId") == key_id
+            ]
+
+            if len(matching_keys) < 2:
+                if len(matching_keys) == 1:
+                    return matching_keys[0]  # one key
+                return None
+            logging.info(
+                f"query get_kyber_key_by_aci with (aci={aci}, keyId={key_id}) has more than 1 result! "
+            )
+            return matching_keys
+        except peewee.DoesNotExist:
+            return None
+
+    @classmethod
+    def get_kyber_key(
+        cls, aci: str, device_id: int, key_id: int
+    ) -> Union[dict, list[dict], None]:
+        try:
+            # Fetch the bundle using the primary key
+            bundle = cls.get(cls.aci == aci, cls.deviceId == device_id)
+            matching_keys = [
+                key for key in bundle.kyberKeys if key.get("keyId") == key_id
+            ]
+
+            if len(matching_keys) < 2:
+                if len(matching_keys) == 1:
+                    return matching_keys[0]  # one key
+                return None
+            logging.info(
+                f"query get_kyber_key_by_aci with (aci={aci}, keyId={key_id}) has more than 1 result! "
+            )
+            return matching_keys
+        except peewee.DoesNotExist:
+            return None
 
 
 def custom_dumps_signed(obj) -> str:
@@ -86,13 +145,16 @@ def custom_dumps_key(obj) -> str:
     validate(instance=obj, schema=Fake_key_schema)
     return json.dumps(obj)
 
+
 def custom_dumps_signed_array(obj) -> str:
     validate(instance=obj, schema=Fake_key_array_schema_signed)
     return json.dumps(obj)
 
+
 def custom_dumps_array(obj) -> str:
     validate(instance=obj, schema=Fake_key_array_schema)
     return json.dumps(obj)
+
 
 class MitMBundle(BaseSqliteModel):
     type = CharField()
@@ -106,6 +168,63 @@ class MitMBundle(BaseSqliteModel):
 
     class Meta:
         primary_key = CompositeKey("type", "aci", "device_id")
+        primary_key = CompositeKey("type", "aci", "deviceId")
+
+    @classmethod
+    def get_pre_key(
+        cls, aci: str, device_id: int, key_id: int, with_private=True
+    ) -> Union[dict, list[dict], None]:
+        try:
+            # Fetch the bundle using the primary key
+            bundle = cls.get(cls.aci == aci, cls.device_id == device_id)
+            matching_keys = [
+                key for key in bundle.FakePrekeys if key.get("keyId") == key_id
+            ]
+
+            if not with_private:
+                matching_keys = [
+                    {k: v for k, v in d.items() if k != "privateKey"}
+                    for d in matching_keys
+                ]
+
+            if len(matching_keys) < 2:
+                if len(matching_keys) == 1:
+                    return matching_keys[0]  # one key
+                return None
+            logging.info(
+                f"query get_kyber_key_by_aci with (aci={aci}, keyId={key_id}) has more than 1 result! "
+            )
+            return matching_keys
+        except peewee.DoesNotExist:
+            return None
+
+    @classmethod
+    def get_kyber_key(
+        cls, aci: str, device_id: int, key_id: int, with_private=True
+    ) -> Union[dict, list[dict], None]:
+        try:
+            # Fetch the bundle using the primary key
+            bundle = cls.get(cls.aci == aci, cls.deviceId == device_id)
+            matching_keys = [
+                key for key in bundle.fakeKyberKeys if key.get("keyId") == key_id
+            ]
+
+            if not with_private:
+                matching_keys = [
+                    {k: v for k, v in d.items() if k != "privateKey"}
+                    for d in matching_keys
+                ]
+
+            if len(matching_keys) < 2:
+                if len(matching_keys) == 1:
+                    return matching_keys[0]  # one key
+                return None
+            logging.info(
+                f"query get_kyber_key_by_aci with (aci={aci}, keyId={key_id}) has more than 1 result! "
+            )
+            return matching_keys
+        except peewee.DoesNotExist:
+            return None
 
 
 class Session(BaseSqliteModel):
