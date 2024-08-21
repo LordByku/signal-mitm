@@ -28,6 +28,7 @@ from server_proto import addons, HOST_HTTPBIN
 from mitm_interface import *
 from collections import defaultdict
 
+
 # logging.getLogger().addHandler(utils.ColorHandler())
 
 class CiphertextMessageType(Enum):
@@ -36,9 +37,11 @@ class CiphertextMessageType(Enum):
     SENDERKEY_DISTRIBUTION = 7
     PLAINTEXT = 8
 
+
 class OutgoingMessageType(Enum):
     PREKEY_BUNDLE = 3
     UNIDENTIFIED = 6
+
 
 class EnvelopeType(Enum):
     # https://github.com/signalapp/Signal-Android/blob/main/libsignal-service/src/main/protowire/SignalService.proto#L14-L23
@@ -260,9 +263,9 @@ def _v2_keys(flow: HTTPFlow):
     prekeys = utils.json_join_public(key_data.fake_PreKeys, key_data.fake_secret_PreKeys)
     fake_kyber = utils.json_join_public(key_data.fake_pq_PreKeys, key_data.fake_secret_pq_PreKeys)
     fake_last_resort = {
-            "keyId": key_data.fake_lastResortKey["keyId"],
-            "publicKey": key_data.fake_lastResortKey["publicKey"],
-            "privateKey": key_data.fake_secret_lastResortKey
+        "keyId": key_data.fake_lastResortKey["keyId"],
+        "publicKey": key_data.fake_lastResortKey["publicKey"],
+        "privateKey": key_data.fake_secret_lastResortKey
     }
     mitm_bundle = MitMBundle.insert(
         type=identity,
@@ -326,7 +329,8 @@ def v2_keys_identifier_device_id(flow, identifier: str, device_id: str):
                                                    kem.PublicKey.deserialize(bob_kyber_pre_key_public),
                                                    bob_kyber_pre_key_signature)
 
-        lastResortPq = registration_info[ip_address].aciData if identifier == "aci" else registration_info[ip_address].pniData
+        lastResortPq = registration_info[ip_address].aciData if identifier == "aci" else registration_info[
+            ip_address].pniData
 
         legit_bundle = LegitBundle.insert(
             type=identity.lower(),
@@ -403,9 +407,9 @@ def v2_keys_identifier_device_id(flow, identifier: str, device_id: str):
         fake_spk = fakeBundle_wire["devices"][0]["signedPreKey"]
         fake_spk["privateKey"] = b64encode(fakeUser.signed_pre_key_pair.private_key().serialize()).decode("utf-8")
         fake_pre_keys = [{
-                "keyId": fakeBundle_wire["devices"][0]["preKey"]["keyId"],
-                "publicKey": fakeBundle_wire["devices"][0]["preKey"]["publicKey"],
-                "privateKey": fakeUser.pre_key_pair.private_key().to_base64()
+            "keyId": fakeBundle_wire["devices"][0]["preKey"]["keyId"],
+            "publicKey": fakeBundle_wire["devices"][0]["preKey"]["publicKey"],
+            "privateKey": fakeUser.pre_key_pair.private_key().to_base64()
         }]
         fake_kyber = fakeBundle_wire["devices"][0]["pqPreKey"]
         fake_kyber["privateKey"] = fakeUser.kyber_pre_key_pair.get_private().to_base64()
@@ -552,7 +556,6 @@ def _v1_ws_message(flow, identifier):
         # TODO: unproduf / decrypt / alter / encrypt / prodobuf 
 
 
-
 def decap_ws_msg(orig_flow: HTTPFlow, msg, rtype=RouteType.REQUEST):
     ws_msg = WebSocketMessage()
     ws_msg.ParseFromString(msg.content)
@@ -587,7 +590,6 @@ ws_resp.add_route(HOST_HTTPBIN, Parser("/v1/profile/{identifier}/{version}/{cred
 ws_resp.add_route(HOST_HTTPBIN, Parser("/v1/profile/{identifier}/{version}"), HTTPVerb.ANY, _v1_ws_profile_futut, None)
 ws_resp.add_route(HOST_HTTPBIN, Parser("/v1/profile/{identifier}"), HTTPVerb.ANY, _v1_ws_profile, None)
 ws_resp.add_route(HOST_HTTPBIN, Parser("/v1/keepalive"), HTTPVerb.ANY, lambda x: None, None)
-
 
 ws_req = Router()
 ws_req.add_route(HOST_HTTPBIN, Parser("/v1/messages/{identifier}"), HTTPVerb.ANY, _v1_ws_message, None)
