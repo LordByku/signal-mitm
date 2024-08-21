@@ -11,6 +11,7 @@ project-description/proposal.pdf
 thesis/thesis.pdf
 *.pyc
 *.apk
+*.bak
 
 config.py
 
