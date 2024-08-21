@@ -12,6 +12,8 @@ thesis/thesis.pdf
 *.pyc
 *.apk
 
+config.py
+
 # Created by https://www.toptal.com/developers/gitignore/api/python,rust,node,linux
 # Edit at https://www.toptal.com/developers/gitignore?templates=python,rust,node,linux
 
