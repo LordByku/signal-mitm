@@ -1,3 +1,5 @@
+import logging
+import shutil
 import subprocess
 import os
 import sys
@@ -9,6 +11,7 @@ from pathlib import Path
 import config
 
 from utils import *
+
 
 class NetworkHandler:
     def __init__(self):
@@ -66,17 +69,43 @@ def signal_handler(sig, frame):
     sys.exit(0)
 
 
+def __get_term():
+    """get the preferred terminal to enhance portability
+
+    todo: actually find a way to do this. there is gsettings but that only works on gnome and $TERM is a bit
+    useless since everyone pretends to be `xterm-256color`
+    """
+
+    terminals = [
+        "gnome-terminal",
+        "konsole",
+        "xfce4-terminal",
+        "xterm",
+        "terminator",
+        "lxterminal",
+    ]
+    for terminal in terminals:
+        if shutil.which(terminal):
+            return terminal
+    return "gnome-terminal"
+
+
 def setup():
     NetworkHandler().setup()
+    logging.info("Network is up.")
     setup_db()
-    mitm = rf"mitmproxy --mode transparent --showhost --ssl-insecure --ignore-hosts {config.IGNORE_HOSTS}"# -s implementation.py"
-    # mitm = r'mitmproxy --mode wireguard --showhost --ssl-insecure --ignore-hosts ".*google\w*\.com"'# -s intercept.py'
-    os.system(f"gnome-terminal -- {mitm} &")
+    logging.info("DB is up.\n")
+    mitm = rf"mitmproxy --mode transparent --showhost --ssl-insecure --ignore-hosts {config.IGNORE_HOSTS} {' '.join(sys.argv[1:])}"  # -s implementation.py"
+    logging.warning(f"Starting mitmproxy as: {mitm}")
+    os.system(f"{__get_term()} -- {mitm} &")
 
 
 if __name__ == "__main__":
+    logger = logging.getLogger()
+    logger.setLevel(logging.DEBUG)  # Adjust as needed
+
     signal.signal(signal.SIGINT, signal_handler)
     # handler  receives signal number and stack frame
-    print("started")
+    logging.debug("beginning setup")
     setup()
     signal.pause()

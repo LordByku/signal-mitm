@@ -3,9 +3,6 @@ import subprocess
 import sys
 import os
 
-import config
-
-
 def try_run(cmd: str):
     try:
         res = subprocess.run(cmd, shell=True, check=True, stdout=open(os.devnull, "wb"))
@@ -15,11 +12,12 @@ def try_run(cmd: str):
 
 
 def try_run_sudo(cmd: str):
+    logging.debug(f"trying to run command with sudo: {cmd}")
     try_run(f"sudo {cmd}")
 
 
 def signal_handler(sig, frame):
-    print('You pressed Ctrl+C!')
+    print("You pressed Ctrl+C!")
     sys.exit(0)
 
 
@@ -35,9 +33,6 @@ def strip_uuid_and_id(path: str):
         return tuple(words)
     else:
         return tuple(["aci", words[0]])
-
-
-import json
 
 
 def json_join_public(data1: list[dict], data2: dict):
