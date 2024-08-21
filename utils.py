@@ -30,7 +30,6 @@ def hmac_sha256(key: bytes, msg: bytes):
 ####
 
 
-
 def try_run(cmd: str):
     try:
         res = subprocess.run(cmd, shell=True, check=True, stdout=open(os.devnull, "wb"))
@@ -72,10 +71,10 @@ class PushTransportDetails:
         otherwise it'll add a full 16 extra bytes.
         """
         padded_message_length = (
-                PushTransportDetails.get_padded_message_length(len(message_body) + 1) - 1
+            PushTransportDetails.get_padded_message_length(len(message_body) + 1) - 1
         )
         padded_message = bytearray(padded_message_length)
-        padded_message[:len(message_body)] = message_body
+        padded_message[: len(message_body)] = message_body
         padded_message[len(message_body)] = 0x80
         return bytes(padded_message)
 
@@ -178,6 +177,7 @@ def update_dataclass(instance, updates: dict):
         if hasattr(instance, key):
             setattr(instance, key, value)
 
+
 # # Use case
 # @dataclass
 # class ThirdPartyClass:
@@ -201,6 +201,7 @@ def update_dataclass(instance, updates: dict):
 # record = MitMBundle.select().where(MitMBundle.fakeLastResortKyber['keyId'] == 42069)
 # for r in record:
 #     print(r.fakeLastResortKyber['publicKey'])
+
 
 class ColorHandler(logging.StreamHandler):
     # https://en.wikipedia.org/wiki/ANSI_escape_code#Colors

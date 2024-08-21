@@ -57,6 +57,7 @@ class Device(BaseSqliteModel):
     class Meta:
         primary_key = CompositeKey("aci", "device_id")
 
+
 def custom_dumps_bundle_spk(obj) -> str:
     validate(instance=obj, schema=db_json_schemas.key_schema_signed)
     return json.dumps(obj)
@@ -167,62 +168,6 @@ class MitMBundle(BaseSqliteModel):
 
     class Meta:
         primary_key = CompositeKey("type", "aci", "device_id")
-
-    @classmethod
-    def get_pre_key(
-        cls, aci: str, device_id: int, key_id: int, with_private=True
-    ) -> Union[dict, list[dict], None]:
-        try:
-            # Fetch the bundle using the primary key
-            bundle = cls.get(cls.aci == aci, cls.device_id == device_id)
-            matching_keys = [
-                key for key in bundle.FakePrekeys if key.get("keyId") == key_id
-            ]
-
-            if not with_private:
-                matching_keys = [
-                    {k: v for k, v in d.items() if k != "privateKey"}
-                    for d in matching_keys
-                ]
-
-            if len(matching_keys) < 2:
-                if len(matching_keys) == 1:
-                    return matching_keys[0]  # one key
-                return None
-            logging.info(
-                f"query get_kyber_key_by_aci with (aci={aci}, keyId={key_id}) has more than 1 result! "
-            )
-            return matching_keys
-        except peewee.DoesNotExist:
-            return None
-
-    @classmethod
-    def get_kyber_key(
-        cls, aci: str, device_id: int, key_id: int, with_private=True
-    ) -> Union[dict, list[dict], None]:
-        try:
-            # Fetch the bundle using the primary key
-            bundle = cls.get(cls.aci == aci, cls.device_id == device_id)
-            matching_keys = [
-                key for key in bundle.fakeKyberKeys if key.get("keyId") == key_id
-            ]
-
-            if not with_private:
-                matching_keys = [
-                    {k: v for k, v in d.items() if k != "privateKey"}
-                    for d in matching_keys
-                ]
-
-            if len(matching_keys) < 2:
-                if len(matching_keys) == 1:
-                    return matching_keys[0]  # one key
-                return None
-            logging.info(
-                f"query get_kyber_key_by_aci with (aci={aci}, keyId={key_id}) has more than 1 result! "
-            )
-            return matching_keys
-        except peewee.DoesNotExist:
-            return None
 
 
 class Session(BaseSqliteModel):

@@ -65,9 +65,6 @@ class PendingWebSocket:
     response: WebSocketResponseMessage = None
 
 
-websocket_open_state = defaultdict(PendingWebSocket)
-
-
 @dataclass
 class KeyData:
     iden_key: Optional[IdentityKey] = None
@@ -110,6 +107,7 @@ class BobIdenKey:
 registration_info: dict[str, RegistrationInfo] = dict()
 conversation_session: dict[(str, str), (MitmUser, MitmUser)] = dict()
 bobs_bundle: dict[str, BobIdenKey] = dict()
+websocket_open_state: dict[int, PendingWebSocket] = defaultdict(PendingWebSocket)
 
 
 api = addons[0]
@@ -683,16 +681,3 @@ def _v1_websocket_resp(flow: HTTPFlow, msg):
 
 
 addons = [api]
-
-# from mitmproxy.tools.main import mitmproxy, mitmdump
-#
-# if __name__ == "__main__":
-#     mitmdump(
-#         [
-#             "-q",      # quiet flag, only script's output
-#             "-s",      # script flag
-#             __file__,  # use the same file as the hook
-#             "-r",
-#             "mitmproxy_flows/new/23_04_kyber_messages"
-#         ]
-#     )
