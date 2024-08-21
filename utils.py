@@ -74,13 +74,3 @@ class ColorHandler(logging.StreamHandler):
         color = level_color_map.get(record.levelno, self.WHITE)
 
         print(f"{csi}{color}m{record.msg}{csi}m")
-
-# from playhouse.sqlite_ext import SqliteExtDatabase
-# database = SqliteExtDatabase(config.DB_NAME)
-# database.connect()
-# from database import LegitBundle, MitMBundle
-# # print()
-#
-# record = MitMBundle.select().where(MitMBundle.fakeLastResortKyber['keyId'] == 42069)
-# for r in record:
-#     print(r.fakeLastResortKyber['publicKey'])
