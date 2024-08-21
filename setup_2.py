@@ -11,7 +11,7 @@ from database import create_tables
 
 import config
 
-from utils import try_run_sudo
+from utils import try_run_sudo, ColorHandler
 
 
 class NetworkHandler:
@@ -98,13 +98,14 @@ def setup():
     logging.info("DB is up.\n")
     mitm = rf"mitmproxy --mode transparent --showhost --ssl-insecure --ignore-hosts {config.IGNORE_HOSTS} {' '.join(sys.argv[1:])}"  # -s implementation.py"
     logging.warning(f"Starting mitmproxy as: {mitm}")
+    logging.warning("mitmproxy started in another window. Press (CTRL+C) in this terminal to stop it.")
     os.system(f"{__get_term()} -- {mitm} &")
 
 
 if __name__ == "__main__":
     logger = logging.getLogger()
     logger.setLevel(logging.DEBUG)
-    logger.addHandler(utils.ColorHandler())
+    logger.addHandler(ColorHandler())
 
     signal.signal(signal.SIGINT, signal_handler)
     # handler  receives signal number and stack frame
