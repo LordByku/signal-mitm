@@ -3,6 +3,7 @@ import shutil
 import subprocess
 import os
 import sys
+import time
 import signal
 from itertools import product
 
@@ -97,7 +98,12 @@ def setup():
     logging.info("Network is up.")
     setup_db()
     logging.info("DB is up.\n")
-    mitm = rf"mitmproxy --mode transparent --showhost --ssl-insecure --ignore-hosts {config.IGNORE_HOSTS} {' '.join(sys.argv[1:])}"  # -s implementation.py"
+    args = ' '.join(sys.argv[1:])
+    mitm = rf"mitmproxy --mode transparent --showhost --ssl-insecure --ignore-hosts {config.IGNORE_HOSTS} {args}"  # -s implementation.py"
+    if "-w" not in args:
+        flow_name = f"autosaved_{int(time.time())}.flow"
+        logging.warning(f"Logging flow automatically to: {flow_name}")
+        mitm += rf" -w {flow_name}"
     logging.warning(f"Starting mitmproxy as: {mitm}")
     logging.warning("mitmproxy started in another window. Press (CTRL+C) in this terminal to stop it.")
     os.system(f"{__get_term()} -- {mitm} &")
