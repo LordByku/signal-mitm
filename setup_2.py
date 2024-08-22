@@ -97,7 +97,7 @@ def setup():
     logging.info("Network is up.")
     setup_db()
     logging.info("DB is up.\n")
-    mitm = rf"mitmproxy --mode transparent --showhost --ssl-insecure --ignore-hosts {config.IGNORE_HOSTS} {' '.join(sys.argv[1:])}"  # -s implementation.py"
+    mitm = rf"mitmproxy --mode transparent --showhost --ssl-insecure --ignore-hosts {config.IGNORE_HOSTS} {' '.join(sys.argv[1:])} -s implementation.py"
     logging.warning(f"Starting mitmproxy as: {mitm}")
     logging.warning("mitmproxy started in another window. Press (CTRL+C) in this terminal to stop it.")
     os.system(f"{__get_term()} -- {mitm} &")
