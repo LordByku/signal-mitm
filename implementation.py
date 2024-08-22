@@ -634,6 +634,9 @@ def _v1_websocket_req(flow: HTTPFlow, msg):
     f = decap_ws_msg(flow, msg)
     handler, params, _ = ws_req.find_handler(host, path)
     logging.warning(f"HANDLER (req): {handler}, PARAMS: {params} -- {host} / {path}")
+
+    if "messages" in path:
+        assert handler is not None, f"something went terriblu: {path}"
     if handler:
         req = handler(f, *params.fixed, **params.named)
         if req:
@@ -667,6 +670,9 @@ def _v1_websocket_resp(flow: HTTPFlow, msg):
     f = decap_ws_msg(flow, msg, RouteType.RESPONSE)
     handler, params, _ = ws_resp.find_handler(host, path)
     logging.warning(f"HANDLER (resp): {handler}, PARAMS: {params} -- {host} / {path}")
+
+    if "profile" in path:
+        assert handler is not None, f"something went terriblu: {path}"
     if handler:
         resp = handler(f, *params.fixed, **params.named)
         if resp:

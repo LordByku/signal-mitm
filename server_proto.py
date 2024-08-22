@@ -3526,49 +3526,28 @@ def resp_v1_payments_conversions(flow: HTTPFlow):
     pass
 
 
-@api.route("/v1/profile/{identifier}/{version}", rtype=RouteType.REQUEST)
-def req_v1_profile_identifier_version(flow: HTTPFlow, identifier, version):
+@api.route("/v1/profile/identity_check/batch", rtype=RouteType.REQUEST)
+def req_v1_profile_identity_check_batch(flow: HTTPFlow):
     """
 
 
-         Parameters:
-            Unidentified-Access-Key
-              location: header
-              None
-
-            identifier  (required)
-              location: path
-              None
-
-            version  (required)
-              location: path
-              None
+    Parameters:
 
 
-         Security:
-            authenticatedAccount - basic
-            Account authentication is based on Basic authentication schema,
-    where `username` has a format of `<user_id>[.<device_id>]`. If `device_id` is not specified,
-    user's `main` device is assumed.
 
     """
     # Implement the function body here
     pass
 
 
-@api.route("/v1/profile/{identifier}/{version}", rtype=RouteType.RESPONSE)
-def resp_v1_profile_identifier_version(flow: HTTPFlow, identifier, version):
+@api.route("/v1/profile/identity_check/batch", rtype=RouteType.RESPONSE)
+def resp_v1_profile_identity_check_batch(flow: HTTPFlow):
     """
 
 
-         Responses:
-            default - default response
+    Responses:
+       default - default response
 
-         Security:
-            authenticatedAccount - basic
-            Account authentication is based on Basic authentication schema,
-    where `username` has a format of `<user_id>[.<device_id>]`. If `device_id` is not specified,
-    user's `main` device is assumed.
 
     """
     # Implement the function body here
@@ -3640,6 +3619,55 @@ def resp_v1_profile_identifier_version_credentialRequest(
     pass
 
 
+@api.route("/v1/profile/{identifier}/{version}", rtype=RouteType.REQUEST)
+def req_v1_profile_identifier_version(flow: HTTPFlow, identifier, version):
+    """
+
+
+         Parameters:
+            Unidentified-Access-Key
+              location: header
+              None
+
+            identifier  (required)
+              location: path
+              None
+
+            version  (required)
+              location: path
+              None
+
+
+         Security:
+            authenticatedAccount - basic
+            Account authentication is based on Basic authentication schema,
+    where `username` has a format of `<user_id>[.<device_id>]`. If `device_id` is not specified,
+    user's `main` device is assumed.
+
+    """
+    # Implement the function body here
+    pass
+
+
+@api.route("/v1/profile/{identifier}/{version}", rtype=RouteType.RESPONSE)
+def resp_v1_profile_identifier_version(flow: HTTPFlow, identifier, version):
+    """
+
+
+         Responses:
+            default - default response
+
+         Security:
+            authenticatedAccount - basic
+            Account authentication is based on Basic authentication schema,
+    where `username` has a format of `<user_id>[.<device_id>]`. If `device_id` is not specified,
+    user's `main` device is assumed.
+
+    """
+    # Implement the function body here
+    pass
+
+
 @api.route("/v1/profile/{identifier}", rtype=RouteType.REQUEST)
 def req_v1_profile_identifier(flow: HTTPFlow, identifier):
     """
@@ -3691,34 +3719,6 @@ def resp_v1_profile_identifier(flow: HTTPFlow, identifier):
             Account authentication is based on Basic authentication schema,
     where `username` has a format of `<user_id>[.<device_id>]`. If `device_id` is not specified,
     user's `main` device is assumed.
-
-    """
-    # Implement the function body here
-    pass
-
-
-@api.route("/v1/profile/identity_check/batch", rtype=RouteType.REQUEST)
-def req_v1_profile_identity_check_batch(flow: HTTPFlow):
-    """
-
-
-    Parameters:
-
-
-
-    """
-    # Implement the function body here
-    pass
-
-
-@api.route("/v1/profile/identity_check/batch", rtype=RouteType.RESPONSE)
-def resp_v1_profile_identity_check_batch(flow: HTTPFlow):
-    """
-
-
-    Responses:
-       default - default response
-
 
     """
     # Implement the function body here
