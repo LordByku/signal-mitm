@@ -20,6 +20,7 @@ IGNORE_HOSTS_LIST = [
     r"(.*google\w*\.com)",
     r"(.*hcaptcha\.com)",
     r"(.*signalcaptchas\.org)",
+    r"(.*gstatic\w*\.com)",
 ]
 
 # Compiles the IGNORE_HOSTS_LIST into a single string, used in some configurations.
