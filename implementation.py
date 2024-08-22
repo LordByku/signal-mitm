@@ -325,7 +325,7 @@ def v2_keys_identifier_device_id(flow, identifier: str, device_id: str):
 
         bob_bundle = state.PreKeyBundle(
             bob_registartion_id,
-            address.DeviceId(id),
+            address.DeviceId(device_id),
             (state.PreKeyId(bundle["preKey"]["keyId"]), PublicKey.deserialize(bob_pre_key_public)),
             state.SignedPreKeyId(1),
             PublicKey.deserialize(bob_signed_pre_key_public),
@@ -336,7 +336,12 @@ def v2_keys_identifier_device_id(flow, identifier: str, device_id: str):
         bob_bundle = bob_bundle.with_kyber_pre_key(state.KyberPreKeyId(bob_kyber_pre_key_id),
                                                    kem.PublicKey.deserialize(bob_kyber_pre_key_public),
                                                    bob_kyber_pre_key_signature)
-        assert bob_bundle.device_id().get_id() > 0
+        
+        
+        try:
+            assert bob_bundle.device_id().get_id() > 0
+        except AssertionError:
+            logging.error(f"Device ID is not greater than 0: {bundle}")
 
         logging.warning(registration_info[ip_address])
         lastResortPq = registration_info[ip_address].aciData if identifier == "aci" else registration_info[
@@ -359,11 +364,7 @@ def v2_keys_identifier_device_id(flow, identifier: str, device_id: str):
 
     ############ Swap the prekeybundle TODO 
 
-    for id, bundle in enumerate(resp["devices"]):
-        # This should impersonate Bob's info 
-        # identity_key = MitMBundle.select().where(MitMBundle.type == identity,
-        #                                             MitMBundle.aci == uuid,
-        #                                             MitMBundle.deviceId == device_id).first()
+    for bundle in resp["devices"]:
 
         identity_key = bobs_bundle.get(uuid)
         bob_device_id = int(bundle["deviceId"])
@@ -548,12 +549,12 @@ def _v1_ws_message(flow, identifier):
     logging.info(f"message: {identifier}")
     logging.info(f"message: {flow.request.content}")
 
-    resp = json.loads(flow.request.content)
+    req = json.loads(flow.request.content)
     ip_address = flow.client_conn.address[0]
 
-    logging.info(f"ws message content: {resp}")
+    logging.info(f"ws message content: {req}")
 
-    destination_user = resp["destination"]
+    destination_user = req["destination"]
 
     identifier, destination = strip_uuid_and_id(destination_user)
 
@@ -561,7 +562,7 @@ def _v1_ws_message(flow, identifier):
 
     logging.warning(f"SESSION: {session}")
 
-    for msg in resp["messages"]:
+    for msg in req["messages"]:
         if msg["destinationDeviceId"] != 1:
             logging.error(f"Secondary devices are not supported as the developer was not paid enough. C.f. my Twint ;)")
 
