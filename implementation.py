@@ -30,6 +30,7 @@ from collections import defaultdict
 
 
 # logging.getLogger().addHandler(utils.ColorHandler())
+# todo -- fix logging precendence -- https://stackoverflow.com/a/20280587
 logging.getLogger('passlib').setLevel(logging.ERROR)  # suppressing an issue coming from xepor -> passlib
 logging.getLogger('peewee').setLevel(logging.WARN)  # peewee emits full SQL queries otherwise which is not great
 logging.getLogger('xepor.xepor').setLevel(logging.INFO)
