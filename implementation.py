@@ -321,11 +321,11 @@ def v2_keys_identifier_device_id(flow, identifier: str, device_id: str):
         bob_pre_key = bundle["preKey"]
         bob_pre_key_public = b64decode(bob_pre_key["publicKey"])
 
-        device_id = bundle["deviceId"]
+        device_id = int(bundle["deviceId"])
 
         bob_bundle = state.PreKeyBundle(
             bob_registartion_id,
-            address.DeviceId(id),
+            address.DeviceId(device_id),
             (state.PreKeyId(bundle["preKey"]["keyId"]), PublicKey.deserialize(bob_pre_key_public)),
             state.SignedPreKeyId(1),
             PublicKey.deserialize(bob_signed_pre_key_public),
