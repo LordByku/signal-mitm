@@ -385,7 +385,7 @@ def v2_keys_identifier_device_id(flow, identifier: str, device_id: str):
             "identityKey": b64encode(identity_key.public_key().serialize()).decode("utf-8"),
             "devices": [
                 {
-                    "devicedId": 1,
+                    "deviceId": 1,
                     "registrationId": fakeBundle["registration_id"],
                     "preKey": {
                         "keyId": fakeBundle["pre_key_id"],
@@ -458,22 +458,6 @@ def v2_keys_identifier_device_id(flow, identifier: str, device_id: str):
     assert "privateKey" not in resp['devices'][0]['signedPreKey']
     assert "privateKey" not in resp['devices'][0]['pqPreKey']
     flow.response.content = json.dumps(resp, sort_keys=True).encode()
-
-
-@api.ws_route("/v1/websocket/")
-def _v1_websocket(flow, msg):
-    # logging.info(f"WEBSOCKET: {msg}")
-    ws_msg = WebSocketMessage()
-    ws_msg.ParseFromString(msg.content)
-    ws_msg = ws_msg.request
-    logging.info(f"WEBSOCKET: {ws_msg}")
-
-    id, path = ws_msg.id, ws_msg.path
-    if websocket_open_state.get(id):
-        logging.warning(f"Message already exists with id {id}")
-    websocket_open_state[id].request = ws_msg
-
-    logging.warning(f"Websocket req with id {id} and path {path}")
 
 
 def _v1_ws_my_profile(flow, identifier, version, credentialRequest):
