@@ -321,7 +321,7 @@ def v2_keys_identifier_device_id(flow, identifier: str, device_id: str):
         bob_pre_key = bundle["preKey"]
         bob_pre_key_public = b64decode(bob_pre_key["publicKey"])
 
-        device_id = bundle["deviceId"]
+        device_id = int(bundle["deviceId"])
 
         bob_bundle = state.PreKeyBundle(
             bob_registartion_id,
