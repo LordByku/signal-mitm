@@ -99,7 +99,7 @@ def setup():
     setup_db()
     logging.info("DB is up.\n")
     args = ' '.join(sys.argv[1:])
-    mitm = rf"mitmproxy --mode transparent --showhost --ssl-insecure --ignore-hosts {config.IGNORE_HOSTS} {args}"  # -s implementation.py"
+    mitm = rf"mitmproxy --mode transparent --showhost --ssl-insecure --ignore-hosts {config.IGNORE_HOSTS} {args}  -s implementation.py"  # -s implementation.py"
     if "-w" not in args:
         flow_name = f"autosaved_{int(time.time())}.flow"
         logging.warning(f"Logging flow automatically to: {flow_name}")
