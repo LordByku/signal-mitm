@@ -342,7 +342,7 @@ def v2_keys_identifier_device_id(flow, identifier: str, device_id: str):
         except AssertionError:
             logging.error(f"Device ID is not greater than 0: {bob_bundle.device_id().get_id()}")
 
-        logging.warning(registration_info)
+        logging.warning(registration_info.keys())
         #logging.warning(flow, ip_address)
         lastResortPq = registration_info[ip_address].aciData if identifier == "aci" else registration_info[
             ip_address].pniData
@@ -630,9 +630,10 @@ def _v1_websocket_req(flow: HTTPFlow, msg):
     websocket_open_state[ws_msg.id].request = ws_msg
     path = websocket_open_state[id].request.path
 
-    host = flow.request.host if flow.live else HOST_HTTPBIN
+    host = flow.request.pretty_host if flow.live else HOST_HTTPBIN
+    if not "signal" in host:
+        host = HOST_HTTPBIN # this shouldn't be needed but just to be safe ^^
 
-    # note to self: remap the ip to a host
     f = decap_ws_msg(flow, msg)
     handler, params, _ = ws_req.find_handler(host, path)
     logging.warning(f"HANDLER (req): {handler}, PARAMS: {params} -- {host} / {path}")
@@ -667,7 +668,9 @@ def _v1_websocket_resp(flow: HTTPFlow, msg):
     websocket_open_state[id].response = ws_msg
     logging.warning(f"Websocket resp with id {id} and path {path}")
 
-    host = flow.request.host if flow.live else HOST_HTTPBIN
+    host = flow.request.pretty_host if flow.live else HOST_HTTPBIN
+    if not "signal" in host:
+        host = HOST_HTTPBIN # this shouldn't be needed but just to be safe ^^
 
     f = decap_ws_msg(flow, msg, RouteType.RESPONSE)
     handler, params, _ = ws_resp.find_handler(host, path)
@@ -686,3 +689,25 @@ def _v1_websocket_resp(flow: HTTPFlow, msg):
 
 
 addons = [api]
+
+from mitmproxy.tools.main import mitmdump
+
+if __name__ == "__main__":
+  import time
+  import config
+  flow_name = f"debug_{int(time.time())}.flow"
+  mitmdump(
+    [
+      # "-q",   # quiet flag, only script's output
+      "--mode",
+      "transparent",
+      "--showhost",
+      "--ssl-insecure",
+      "--ignore-hosts",
+      config.IGNORE_HOSTS,
+      "-s",   # script flag
+      __file__,# use the same file as the hook
+      "-w",
+      flow_name
+    ]
+  )

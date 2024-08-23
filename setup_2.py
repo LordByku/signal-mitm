@@ -106,7 +106,7 @@ def setup():
         mitm += rf" -w {flow_name}"
     logging.warning(f"Starting mitmproxy as: {mitm}")
     logging.warning("mitmproxy started in another window. Press (CTRL+C) in this terminal to stop it.")
-    os.system(f"{__get_term()} -- {mitm} &")
+    #os.system(f"{__get_term()} -- {mitm} &")
 
 
 if __name__ == "__main__":
