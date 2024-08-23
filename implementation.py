@@ -632,6 +632,7 @@ def _v1_websocket_req(flow: HTTPFlow, msg):
 
     host = flow.request.host if flow.live else HOST_HTTPBIN
 
+    # note to self: remap the ip to a host
     f = decap_ws_msg(flow, msg)
     handler, params, _ = ws_req.find_handler(host, path)
     logging.warning(f"HANDLER (req): {handler}, PARAMS: {params} -- {host} / {path}")
