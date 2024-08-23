@@ -341,7 +341,7 @@ def v2_keys_identifier_device_id(flow, identifier: str, device_id: str):
         except AssertionError:
             logging.error(f"Device ID is not greater than 0: {bob_bundle.device_id().get_id()}")
 
-        logging.warning(registration_info)
+        logging.warning(registration_info.keys())
         #logging.warning(flow, ip_address)
         lastResortPq = registration_info[ip_address].aciData if identifier == "aci" else registration_info[
             ip_address].pniData
