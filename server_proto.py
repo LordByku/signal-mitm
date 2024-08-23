@@ -3157,6 +3157,71 @@ def resp_v1_messages_report_source_messageGuid(flow: HTTPFlow, source, messageGu
     pass
 
 
+@api.route("/v1/messages/multi_recipient", rtype=RouteType.REQUEST)
+def req_v1_messages_multi_recipient(flow: HTTPFlow):
+    """
+            Send multi-recipient sealed-sender message
+            Deliver a common-payload message to multiple recipients.
+    An unidentifed-access key for all recipients must be provided, unless the message is a story.
+
+         Parameters:
+            Unidentified-Access-Key
+              location: header
+              The bitwise xor of the unidentified access keys for every recipient of the message. Will be replaced with group send endorsements
+
+            Group-Send-Token
+              location: header
+              A group send endorsement token covering recipients of this message. Must not be combined with `Unidentified-Access-Key` or set on a story message.
+
+            User-Agent
+              location: header
+              None
+
+            online
+              location: query
+              If true, deliver the message only to recipients that are online when it is sent
+
+            ts
+              location: query
+              The sender's timestamp for the envelope
+
+            urgent
+              location: query
+              If true, this message should cause push notifications to be sent to recipients
+
+            story
+              location: query
+              If true, the message is a story; access tokens are not checked and sending to nonexistent recipients is permitted
+
+
+
+    """
+    # Implement the function body here
+    pass
+
+
+@api.route("/v1/messages/multi_recipient", rtype=RouteType.RESPONSE)
+def resp_v1_messages_multi_recipient(flow: HTTPFlow):
+    """
+            Send multi-recipient sealed-sender message
+            Deliver a common-payload message to multiple recipients.
+    An unidentifed-access key for all recipients must be provided, unless the message is a story.
+
+         Responses:
+            200 - Message was successfully sent to all recipients
+            400 - The envelope specified delivery to the same recipient device multiple times
+            401 - The message is not a story and the unauthorized access key or group send endorsement token is missing or incorrect
+            404 - The message is not a story and some of the recipient service IDs do not correspond to registered Signal users
+            409 - Incorrect set of devices supplied for some recipients
+            410 - Mismatched registration ids supplied for some recipient devices
+
+
+    """
+    # Implement the function body here
+    pass
+
+
+
 @api.route("/v1/messages/{destination}", rtype=RouteType.REQUEST)
 def req_v1_messages_destination(flow: HTTPFlow, destination):
     """
@@ -3216,70 +3281,6 @@ def resp_v1_messages_destination(flow: HTTPFlow, destination):
             Account authentication is based on Basic authentication schema,
     where `username` has a format of `<user_id>[.<device_id>]`. If `device_id` is not specified,
     user's `main` device is assumed.
-
-    """
-    # Implement the function body here
-    pass
-
-
-@api.route("/v1/messages/multi_recipient", rtype=RouteType.REQUEST)
-def req_v1_messages_multi_recipient(flow: HTTPFlow):
-    """
-            Send multi-recipient sealed-sender message
-            Deliver a common-payload message to multiple recipients.
-    An unidentifed-access key for all recipients must be provided, unless the message is a story.
-
-         Parameters:
-            Unidentified-Access-Key
-              location: header
-              The bitwise xor of the unidentified access keys for every recipient of the message. Will be replaced with group send endorsements
-
-            Group-Send-Token
-              location: header
-              A group send endorsement token covering recipients of this message. Must not be combined with `Unidentified-Access-Key` or set on a story message.
-
-            User-Agent
-              location: header
-              None
-
-            online
-              location: query
-              If true, deliver the message only to recipients that are online when it is sent
-
-            ts
-              location: query
-              The sender's timestamp for the envelope
-
-            urgent
-              location: query
-              If true, this message should cause push notifications to be sent to recipients
-
-            story
-              location: query
-              If true, the message is a story; access tokens are not checked and sending to nonexistent recipients is permitted
-
-
-
-    """
-    # Implement the function body here
-    pass
-
-
-@api.route("/v1/messages/multi_recipient", rtype=RouteType.RESPONSE)
-def resp_v1_messages_multi_recipient(flow: HTTPFlow):
-    """
-            Send multi-recipient sealed-sender message
-            Deliver a common-payload message to multiple recipients.
-    An unidentifed-access key for all recipients must be provided, unless the message is a story.
-
-         Responses:
-            200 - Message was successfully sent to all recipients
-            400 - The envelope specified delivery to the same recipient device multiple times
-            401 - The message is not a story and the unauthorized access key or group send endorsement token is missing or incorrect
-            404 - The message is not a story and some of the recipient service IDs do not correspond to registered Signal users
-            409 - Incorrect set of devices supplied for some recipients
-            410 - Mismatched registration ids supplied for some recipient devices
-
 
     """
     # Implement the function body here
