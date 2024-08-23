@@ -94,11 +94,11 @@ def dataclass_to_json(instance: T) -> str:
     result = {}
     for field in fields(instance):
         if is_dataclass(field.type):
-            print(field.name)
+            # print(field.name)
             result[field.name] = asdict(getattr(instance, field.name))
         else:
             result[field.name] = getattr(instance, field.name)
-    return
+    return json.dumps(result)
 
 class ColorHandler(logging.StreamHandler):
     # https://en.wikipedia.org/wiki/ANSI_escape_code#Colors
