@@ -110,7 +110,7 @@ class BobIdenKey():
     fake_identityKey: Optional[identity_key.IdentityKeyPair] = None
 
 
-registration_info: dict[str, RegistrationInfo] = dict()
+registration_info: dict[str, RegistrationInfo] = None
 conversation_session = dict()
 bobs_bundle = dict()
 f = open('registration_info.json', 'w')
@@ -122,6 +122,7 @@ f.close()
 
 api = addons[0]
 
+toRegInfo = lambda x: json_to_dataclass(RegistrationInfo, x)
 
 @api.route("/v1/registration", rtype=RouteType.REQUEST)
 def _v1_registration(flow: HTTPFlow):
@@ -130,7 +131,7 @@ def _v1_registration(flow: HTTPFlow):
     req = json.loads(flow.request.content)
 
     with open("registration_info.json", "r") as f:
-        registration_info = json.loads(f.read())
+        registration_info = json.loads(f.read(), object_hook=toRegInfo)
     # todo: is this the first time?
     
     already_saved = registration_info.get(flow.client_conn.address[0])
@@ -194,7 +195,7 @@ def _v1_registration(flow: HTTPFlow):
     )
 
     with open("registration_info.json", "w") as f:
-        f.write(json.dumps(registration_info, indent=4))
+        f.write(json.dumps(registration_info, default=dataclass_to_json))
 
     flow.request.content = json.dumps(req).encode()
 
@@ -206,7 +207,7 @@ def _v1_registration(flow: HTTPFlow):
     ip_address = flow.client_conn.address[0]
 
     with open("registration_info.json", "r") as f:
-        registration_info = json.loads(f.read())
+        registration_info = json.loads(f.read(), object_hook=toRegInfo)
 
     user = User.insert(
         pNumber=resp["number"],
@@ -231,7 +232,7 @@ def _v1_registration(flow: HTTPFlow):
     registration_info[ip_address].pni = resp["pni"]
 
     with open("registration_info.json", "w") as f:
-        f.write(json.dumps(registration_info, indent=4))
+        f.write(json.dumps(registration_info, default=dataclass_to_json))
 
 
 @api.route("/v2/keys", rtype=RouteType.REQUEST, method=HTTPVerb.PUT)
@@ -242,7 +243,7 @@ def _v2_keys(flow: HTTPFlow):
     address = flow.client_conn.address[0]
 
     with open("registration_info.json", "r") as f:
-        registration_info = json.loads(f.read())
+        registration_info = json.loads(f.read(), object_hook=toRegInfo)
 
     ## TODO: instead of naming each key for both variables, just use the identifier as a key and the bundle(dict) as the value
     if not registration_info.get(address):
@@ -319,7 +320,7 @@ def _v2_keys(flow: HTTPFlow):
     assert "privateKey" not in req['preKeys'][0]
 
     with open("registration_info.json", "w") as f:
-        f.write(json.dumps(registration_info, indent=4))
+        f.write(json.dumps(registration_info, default=dataclass_to_json))
 
 
     flow.request.content = json.dumps(req).encode()
@@ -331,7 +332,7 @@ def v2_keys_identifier_device_id(flow, identifier: str, device_id: str):
     # logging.exception((flow.response.content, identifier, device_id))
 
     with open("registration_info.json", "r") as f:
-        registration_info = json.loads(f.read())
+        registration_info = json.loads(f.read(), object_hook=toRegInfo)
 
     resp = json.loads(flow.response.content)
     ip_address = flow.client_conn.address[0]
@@ -503,7 +504,7 @@ def v2_keys_identifier_device_id(flow, identifier: str, device_id: str):
         f.write(json.dumps(conversation_session, indent=4))
 
     with open("registration_info.json", "w") as f:
-        f.write(json.dumps(registration_info, indent=4))
+        f.write(json.dumps(registration_info, default=dataclass_to_json))
     flow.response.content = json.dumps(resp, sort_keys=True).encode()
 
 
@@ -511,7 +512,7 @@ def _v1_ws_my_profile(flow, identifier, version, credentialRequest):
     logging.info(f"my profile: {identifier} {version} {credentialRequest}")
 
     with open("registration_info.json", "r") as f:
-        registration_info = json.loads(f.read())
+        registration_info = json.loads(f.read(), object_hook=toRegInfo)
 
     resp = json.loads(flow.response.content)
     ip_address = flow.client_conn.address[0]
@@ -525,7 +526,8 @@ def _v1_ws_my_profile(flow, identifier, version, credentialRequest):
     flow.response.content = json.dumps(resp).encode()
 
     with open("registration_info.json", "w") as f:
-        f.write(json.dumps(registration_info, indent=4))
+        f.write(json.dumps(registration_info, default=dataclass_to_json))
+
 
     return flow.response.content
     # raise RuntimeError(f"my profile: {identifier} {version} {credentialRequest}")
@@ -533,7 +535,7 @@ def _v1_ws_my_profile(flow, identifier, version, credentialRequest):
 
 def _v1_ws_profile_futut(flow, identifier, version):
     with open("registration_info.json", "r") as f:
-        registration_info = json.loads(f.read())
+        registration_info = json.loads(f.read(), object_hook=toRegInfo)
 
 
     logging.info(f"my profile 2: {identifier} {version}")
@@ -551,7 +553,7 @@ def _v1_ws_profile_futut(flow, identifier, version):
     flow.response.content = json.dumps(resp).encode()
     
     with open("registration_info.json", "w") as f:
-        f.write(json.dumps(registration_info, indent=4))
+        f.write(json.dumps(registration_info, default=dataclass_to_json))
 
     return flow.response.content
 
@@ -760,24 +762,24 @@ def _v1_websocket_resp(flow: HTTPFlow, msg):
 
 addons = [api]
 
-# from mitmproxy.tools.main import mitmdump
+from mitmproxy.tools.main import mitmdump
 
-# if __name__ == "__main__":
-#   import time
-#   import config
-#   flow_name = f"debug_{int(time.time())}.flow"
-#   mitmdump(
-#     [
-#       # "-q",   # quiet flag, only script's output
-#       "--mode",
-#       "transparent",
-#       "--showhost",
-#       "--ssl-insecure",
-#       "--ignore-hosts",
-#       config.IGNORE_HOSTS,
-#       "-s",   # script flag
-#       __file__,# use the same file as the hook
-#       "-w",
-#       flow_name
-#     ]
-#   )
+if __name__ == "__main__":
+  import time
+  import config
+  flow_name = f"debug_{int(time.time())}.flow"
+  mitmdump(
+    [
+      # "-q",   # quiet flag, only script's output
+      "--mode",
+      "transparent@8082",
+      "--showhost",
+      "--ssl-insecure",
+      "--ignore-hosts",
+      config.IGNORE_HOSTS,
+      "-s",   # script flag
+      __file__,# use the same file as the hook
+      "-r",
+      "mitmproxy_flows/PQ_registration"
+    ]
+  )

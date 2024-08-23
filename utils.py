@@ -64,7 +64,13 @@ def json_to_dataclass(dc_cls: Type[T], json_str) -> T:
     if not is_dataclass(dc_cls):
         raise ValueError(f"{dc_cls} must be a dataclass")
 
-    parsed_json = json.loads(json_str)
+
+    if type(json_str) == dict:
+        # print()
+        parsed_json = json_str
+        # raise ValueError(f"{json_str} must be a string")
+    else:
+        parsed_json = json.loads(json_str)
 
     # Prepare constructor arguments, respecting default values if not present in JSON
     ctor_args = {}
