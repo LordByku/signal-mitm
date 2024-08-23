@@ -64,13 +64,7 @@ def json_to_dataclass(dc_cls: Type[T], json_str) -> T:
     if not is_dataclass(dc_cls):
         raise ValueError(f"{dc_cls} must be a dataclass")
 
-
-    if type(json_str) == dict:
-        # print()
-        parsed_json = json_str
-        # raise ValueError(f"{json_str} must be a string")
-    else:
-        parsed_json = json.loads(json_str)
+    parsed_json = json.loads(json_str)
 
     # Prepare constructor arguments, respecting default values if not present in JSON
     ctor_args = {}
@@ -101,7 +95,8 @@ def dataclass_to_json(instance: T) -> str:
     for field in fields(instance):
         if is_dataclass(field.type):
             # print(field.name)
-            result[field.name] = asdict(getattr(instance, field.name))
+            result[field.name] = json.loads(dataclass_to_json(getattr(instance, field.name)))
+            # result[field.name] = asdict(getattr(instance, field.name))
         else:
             result[field.name] = getattr(instance, field.name)
     return json.dumps(result)

