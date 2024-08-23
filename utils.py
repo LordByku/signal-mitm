@@ -4,6 +4,10 @@ import sys
 import os
 import copy
 
+from typing import Type, TypeVar
+from dataclasses import dataclass, fields, is_dataclass, asdict
+import json
+
 def try_run(cmd: str):
     try:
         res = subprocess.run(cmd, shell=True, check=True, stdout=open(os.devnull, "wb"))
@@ -45,15 +49,56 @@ def json_join_public(data1: list[dict], data2: dict):
     return result
 
 
-# array1 = [
-#     {"keyId": "id1", "value1": "value1a"},
-#     {"keyId": "id2", "value1": "value1b"},
-# ]
-# array2 = {
-#     "id1": "value2a",
-#     "id2": "value2b",
-# }
-# print(json_join_public(array1, array2))
+T = TypeVar("T")
+
+
+def json_to_dataclass(dc_cls: Type[T], json_str) -> T:
+    """
+    Convert a JSON string to an instance of a specified dataclass.
+
+    :param dc_cls: The dataclass type to instantiate.
+    :param json_str: The JSON string to parse.
+    :return: An instance of dc_cls populated with data from json_str.
+    """
+    # Ensure dc_cls is indeed a dataclass
+    if not is_dataclass(dc_cls):
+        raise ValueError(f"{dc_cls} must be a dataclass")
+
+    parsed_json = json.loads(json_str)
+
+    # Prepare constructor arguments, respecting default values if not present in JSON
+    ctor_args = {}
+    for field in fields(dc_cls):
+        if field.name in parsed_json:
+            field_value = parsed_json[field.name]
+            # If the field type is also a dataclass, recursively parse it
+            if is_dataclass(field.type):
+                ctor_args[field.name] = json_to_dataclass(
+                    field.type, json.dumps(field_value)
+                )
+            else:
+                ctor_args[field.name] = field_value
+        elif hasattr(field, "default"):
+            ctor_args[field.name] = field.default
+        elif hasattr(field, "default_factory"):
+            ctor_args[field.name] = field.default_factory()
+
+    return dc_cls(**ctor_args)
+
+
+def dataclass_to_json(instance: T) -> str:
+    # # Convert the dataclass instance to a dictionary
+    # instance_dict = asdict(instance)
+    # # Serialize the dictionary to a JSON string
+    # return json.dumps(instance_dict)
+    result = {}
+    for field in fields(instance):
+        if is_dataclass(field.type):
+            print(field.name)
+            result[field.name] = asdict(getattr(instance, field.name))
+        else:
+            result[field.name] = getattr(instance, field.name)
+    return
 
 class ColorHandler(logging.StreamHandler):
     # https://en.wikipedia.org/wiki/ANSI_escape_code#Colors
