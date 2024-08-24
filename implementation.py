@@ -1,5 +1,6 @@
 from mitmproxy.addonmanager import Loader
 from mitmproxy.http import HTTPFlow, Request, Response, Headers
+from mitmproxy.net.http.status_codes import RESPONSES
 # from mitmproxy import ctx
 from dataclasses import dataclass
 from typing import Optional
@@ -194,7 +195,7 @@ def _v1_registration(flow: HTTPFlow):
     
     already_saved = registration_info.get(flow.client_conn.address[0])
     if already_saved:
-        logging.warning(f"Already saved {already_saved}. Serving the same bundle")
+        logging.warning(f"Already saved. Serving the same bundle")
         flow.request.content = json.dumps(already_saved.serialized_registration_req).encode()
         return
 
@@ -259,8 +260,30 @@ def _v1_registration(flow: HTTPFlow):
     flow.request.content = json.dumps(req).encode()
 
 
-@api.route("/v1/registration", rtype=RouteType.RESPONSE, allowed_statuses=[200])
+@api.route("/v1/verification/session/{sessionId}/code", rtype=RouteType.RESPONSE)
+def _v1_verif_error(flow: HTTPFlow, sessionId: str):
+    status = flow.response.status_code
+    if status < 300:
+        return
+    logging.warning(f"Registration for session {sessionId} will likely fail due to verification error, got {status}: {RESPONSES[status]}")
+
+@api.route("/v1/registration", rtype=RouteType.RESPONSE)
 def _v1_registration(flow: HTTPFlow):
+    # todo - move to discrete route once xepor matching bug is fixed
+    status = flow.response.status_code
+    seconds_left = flow.response.headers.get("Retry-After", -1)
+    failcases = {
+        403: "Verification failed for the provided Registration Recovery Password",
+        409: "The caller has not explicitly elected to skip transferring data from another device, but a device transfer is technically possible",
+        422: "The request did not pass validation",
+        423: "Registration Lock failure.",
+        429: f"Too many attempts, try after {seconds_left} seconds"
+    }
+    if status in failcases:
+        resp_name = f"({RESPONSES[status]})" if status in RESPONSES else ""
+        logging.warning(f"Registration failed with error code {status} {resp_name} -- {failcases[status]}")
+        return
+
     resp = json.loads(flow.response.content)
     # logging.info(f"RESPONSE: {resp}")
     ip_address = flow.client_conn.address[0]
@@ -834,14 +857,16 @@ if __name__ == "__main__":
     [
       # "-q",   # quiet flag, only script's output
       "--mode",
-      "transparent@8082",
+      "transparent",
       "--showhost",
       "--ssl-insecure",
       "--ignore-hosts",
       config.IGNORE_HOSTS,
       "-s",   # script flag
       __file__,# use the same file as the hook
-      "-r",
-      "mitmproxy_flows/PQ_registration"
+      # "-r",
+      # "mitmproxy_flows/PQ_registration"
+      "-w",
+      flow_name
     ]
   )
