@@ -4,6 +4,13 @@ from mitmproxy.http import HTTPFlow, Request, Response, Headers
 from dataclasses import dataclass
 from typing import Optional
 import logging
+# FORMAT = "[%(filename)s:%(lineno)s-%(funcName)20s()] %(message)s"
+# logging.basicConfig(format=FORMAT)
+# logging.getLogger('passlib').setLevel(logging.ERROR)  # suppressing an issue coming from xepor -> passlib
+# logging.getLogger('peewee').setLevel(logging.WARN)  # peewee emits full SQL queries otherwise which is not great
+# logging.getLogger('xepor.xepor').setLevel(logging.INFO)
+# # logging.getLogger('mitmproxy').
+
 from xepor import InterceptedAPI, RouteType, HTTPVerb, Router
 import json
 from signal_protocol import identity_key, curve, session_cipher, address, storage, state, helpers, address
@@ -32,11 +39,7 @@ from mitmproxy import ctx
 
 # logging.getLogger().addHandler(utils.ColorHandler())
 # todo -- fix logging precendence -- https://stackoverflow.com/a/20280587
-logging.getLogger('passlib').setLevel(logging.ERROR)  # suppressing an issue coming from xepor -> passlib
-logging.getLogger('peewee').setLevel(logging.WARN)  # peewee emits full SQL queries otherwise which is not great
-logging.getLogger('xepor.xepor').setLevel(logging.INFO)
-FORMAT = "[%(filename)s:%(lineno)s - %(funcName)20s()] %(message)s"
-logging.basicConfig(format=FORMAT)
+
 
 class CiphertextMessageType(Enum):
     WHISPER = 2
@@ -114,9 +117,9 @@ class BobIdenKey():
 registration_info: dict[str, RegistrationInfo] = None
 conversation_session = dict()
 bobs_bundle = dict()
-f = open('registration_info.json', 'wb')
-f.write(b"{}")
-f.close()
+# f = open('registration_info.json', 'wb')
+# f.write(b"{}")
+# f.close()
 
 api = addons[0]
 
@@ -466,11 +469,11 @@ def v2_keys_identifier_device_id(flow, identifier: str, device_id: str):
 
         if not identity_key:
             # todo create row
-            fakeUser = MitmUser(address=address.ProtocolAddress(uuid, bob_device_id), pre_key_id= bundle["preKey"]["keyId"], signed_pre_key_id=bundle["signedPreKey"]["keyId"], kyber_pre_key_id=bundle["pqPreKey"]["keyId"])
+            fakeUser = MitmUser(address=address.ProtocolAddress(uuid, bob_device_id), RID = bundle["registrationId"], pre_key_id= bundle["preKey"]["keyId"], signed_pre_key_id=bundle["signedPreKey"]["keyId"], kyber_pre_key_id=bundle["pqPreKey"]["keyId"])
             identity_key = fakeUser.identity_key_pair
 
         else:
-            fakeUser = MitmUser(address=address.ProtocolAddress(uuid, bob_device_id), pre_key_id= bundle["preKey"]["keyId"], signed_pre_key_id=bundle["signedPreKey"]["keyId"], kyber_pre_key_id=bundle["pqPreKey"]["keyId"], identity_key=identity_key.fake_identityKey)
+            fakeUser = MitmUser(address=address.ProtocolAddress(uuid, bob_device_id), RID = bundle["registrationId"], pre_key_id= bundle["preKey"]["keyId"], signed_pre_key_id=bundle["signedPreKey"]["keyId"], kyber_pre_key_id=bundle["pqPreKey"]["keyId"], identity_key=identity_key.fake_identityKey)
             identity_key = identity_key.fake_identityKey
 
         fakeBundle = fakeUser.pre_key_bundle.to_dict()
@@ -688,8 +691,12 @@ def _v1_ws_message(flow, identifier):
 
         msg_type = OutgoingMessageType(int(msg["type"]))
         if msg_type == OutgoingMessageType.PREKEY_BUNDLE:
-
-            fakeUser.decrypt(address.ProtocolAddress(destination, msg["destinationDeviceId"]), protocol.PreKeySignalMessage.try_from(content))
+            pksm = protocol.PreKeySignalMessage.try_from(content)
+            logging.warning(f"{pksm}")
+            try:
+                fakeUser.decrypt(address.ProtocolAddress(destination, msg["destinationDeviceId"]), pksm)
+            except Exception as e:
+                logging.warning(f"DECRYPTION FAILED: {e}\n\t{pksm}")
 
         # logging.warning(f"ctxt from IK: {b64encode(ctxt.identity_key).decode()}")
         # logging.info(f"ctxt from IK: {ctxt}")
