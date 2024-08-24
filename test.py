@@ -10,6 +10,7 @@ from signal_protocol import (
     kem,
 )
 import os
+import json
 
 from implementation import *
 
@@ -59,8 +60,8 @@ class MitmUser(object):
             .calculate_signature(self.signed_pre_key_public)
         )
 
-        self.pre_key_id = state.PreKeyId(31337)
-        self.signed_pre_key_id = state.SignedPreKeyId(22)
+        self.pre_key_id = state.PreKeyId(14566991)
+        self.signed_pre_key_id = state.SignedPreKeyId(13472625)
 
         self.pre_key_bundle = state.PreKeyBundle(
             self.store.get_local_registration_id(),

@@ -48,8 +48,8 @@ class MitmUser(object):
             .calculate_signature(self.signed_pre_key_public)
         )
 
-        self.pre_key_id = PreKeyId(31337)
-        self.signed_pre_key_id = SignedPreKeyId(22)
+        self.pre_key_id = PreKeyId(kwargs.get("pre_key_id", 31337))
+        self.signed_pre_key_id = SignedPreKeyId(kwargs.get("signed_pre_key_id", 22))
 
         self.pre_key_bundle = PreKeyBundle(
             self.store.get_local_registration_id(),
@@ -61,7 +61,7 @@ class MitmUser(object):
             self.store.get_identity_key_pair().identity_key(),
         )
 
-        self.kyber_pre_key_id = KyberPreKeyId(24)
+        self.kyber_pre_key_id = KyberPreKeyId(kwargs.get("kyber_pre_key_id", 25))
         self.kyber_pre_key_pair :kem.KeyPair = kem.KeyPair.generate(kem.KeyType(0))
         self.kyber_pre_key_signature = self.identity_key_pair.private_key().calculate_signature(
                                             self.kyber_pre_key_pair.get_public().serialize()
