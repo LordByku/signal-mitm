@@ -113,11 +113,11 @@ class BobIdenKey():
 registration_info: dict[str, RegistrationInfo] = None
 conversation_session = dict()
 bobs_bundle = dict()
-f = open('registration_info.json', 'w')
-f.write("{}")
+f = open('registration_info.json', 'wb')
+f.write(b"{}")
 f.close()
-f = open('conversation_info.json', 'w')
-f.write("{}")
+f = open('conversation_info.json', 'wb')
+f.write(b"{}")
 f.close()
 
 api = addons[0]
