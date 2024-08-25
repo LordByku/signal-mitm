@@ -1,0 +1,25 @@
+#!/bin/sh
+# Clean up the database, temporary files and other junk lying around.
+
+# Navigate to the parent directory of the script
+cd "$(dirname "$0")"/.. || exit
+
+echo -e "\033[31;40mBegin NUKE\033[0m"
+
+# Remove files matching the pattern 'debug_*.flow' or `autosaved_*.flow` in the parent directory
+# Using the '-f' flag with 'rm' to avoid errors if no files match the pattern
+rm -f debug_*.flow
+rm -f autosaved_*.flow
+
+echo "- [ x ] Removed debug files in $(pwd)"
+
+rm -f mitm.db
+echo "- [ x ] Removed sqlite database in $(pwd)/mitm,db"
+
+python3 -c 'from database import create_tables; from playhouse.sqlite_ext import SqliteExtDatabase, JSONField; import config; database = SqliteExtDatabase(config.DB_NAME); database.connect(); create_tables(); '
+echo "- [ x ] Created new sqlite database in $(pwd)/mitm,db"
+
+echo "{}" > registration_info.json
+echo "- [ x ] Wiped all keys from registration_info.json"
+
+echo -e "\033[32;40m\`You can only predict things after they have happened.'\033[0m"

@@ -1,3 +1,5 @@
+from copy import deepcopy
+
 from mitmproxy.addonmanager import Loader
 from mitmproxy.http import HTTPFlow, Request, Response, Headers
 from mitmproxy.net.http.status_codes import RESPONSES
@@ -7,10 +9,7 @@ from typing import Optional
 import logging
 # FORMAT = "[%(filename)s:%(lineno)s-%(funcName)20s()] %(message)s"
 # logging.basicConfig(format=FORMAT)
-# logging.getLogger('passlib').setLevel(logging.ERROR)  # suppressing an issue coming from xepor -> passlib
-# logging.getLogger('peewee').setLevel(logging.WARN)  # peewee emits full SQL queries otherwise which is not great
-# logging.getLogger('xepor.xepor').setLevel(logging.INFO)
-# # logging.getLogger('mitmproxy').
+# logging.getLogger('mitmproxy').
 
 from xepor import InterceptedAPI, RouteType, HTTPVerb, Router
 import json
@@ -40,6 +39,10 @@ from mitmproxy import ctx
 
 # logging.getLogger().addHandler(utils.ColorHandler())
 # todo -- fix logging precendence -- https://stackoverflow.com/a/20280587
+logging.getLogger('passlib').setLevel(logging.ERROR)  # suppressing an issue coming from xepor -> passlib
+logging.getLogger('parse').setLevel(logging.ERROR)  # don't cares
+logging.getLogger('peewee').setLevel(logging.WARN)  # peewee emits full SQL queries otherwise which is not great
+logging.getLogger('xepor.xepor').setLevel(logging.INFO)
 
 
 class CiphertextMessageType(Enum):
@@ -195,29 +198,35 @@ def _v1_registration(flow: HTTPFlow):
     
     already_saved = registration_info.get(flow.client_conn.address[0])
     if already_saved:
-        logging.warning(f"Already saved. Serving the same bundle")
+        logging.warning("Already saved. Serving the same bundle")
         flow.request.content = json.dumps(already_saved.serialized_registration_req).encode()
         return
-
-    qry = Device.select().where(Device.aciIdenKey == req["aciIdentityKey"])
-
-    # logging.info(f"QUERY: {qry}")
 
     unidentifiedAccessKey = req['accountAttributes']['unidentifiedAccessKey']
 
     aci_IdenKey = req['aciIdentityKey']
     pni_IdenKey = req['pniIdentityKey']
 
-    aci_SignedPreKey = req['aciSignedPreKey']
-    pni_SignedPreKey = req['pniSignedPreKey']
+    aci_SignedPreKey = deepcopy(req['aciSignedPreKey'])
+    pni_SignedPreKey = deepcopy(req['pniSignedPreKey'])
 
-    aci_pq_lastResortKey = req['aciPqLastResortPreKey']
-    pni_pq_lastResortKey = req['pniPqLastResortPreKey']
+    aci_pq_lastResortKey = deepcopy(req['aciPqLastResortPreKey'])
+    pni_pq_lastResortKey = deepcopy(req['pniPqLastResortPreKey'])
 
     aci_fake_IdenKey = identity_key.IdentityKeyPair.generate()
     pni_fake_IdenKey = identity_key.IdentityKeyPair.generate()
 
-    fake_signed_pre_keys, fake_secret_SignedPreKeys = helpers.create_registration(aci_fake_IdenKey, pni_fake_IdenKey)
+    fake_signed_pre_keys, fake_secret_SignedPreKeys = helpers.create_registration(aci_fake_IdenKey, pni_fake_IdenKey,
+                                                                                  aci_spk_id=aci_SignedPreKey['keyId'],
+                                                                                  pni_spk_id=pni_SignedPreKey['keyId'],
+                                                                                  aci_kyber_id=aci_pq_lastResortKey['keyId'],
+                                                                                  pni_kyber_id=pni_pq_lastResortKey['keyId'])
+
+    # todo: assert id's are the same ^^
+    assert fake_signed_pre_keys['aciSignedPreKey']['keyId'] == req['aciSignedPreKey']['keyId'], "registration: keyId mismatch for aciSignedPreKey"
+    assert fake_signed_pre_keys['pniSignedPreKey']['keyId'] == req['pniSignedPreKey']['keyId'], "registration: keyId mismatch for pniSignedPreKey"
+    assert fake_signed_pre_keys['aciPqLastResortPreKey']['keyId'] == req['aciPqLastResortPreKey']['keyId'], "registration: keyId mismatch for aciPqLastResortPreKey"
+    assert fake_signed_pre_keys['pniPqLastResortPreKey']['keyId'] == req['pniPqLastResortPreKey']['keyId'], "registration: keyId mismatch for pniPqLastResortPreKey"
 
     req.update(fake_signed_pre_keys)
 
@@ -260,6 +269,22 @@ def _v1_registration(flow: HTTPFlow):
     flow.request.content = json.dumps(req).encode()
 
 
+@api.route("/v1/verification/session", rtype=RouteType.RESPONSE)
+def _v1_verif_errors(flow: HTTPFlow):
+    status = flow.response.status_code
+    seconds_left = flow.response.headers.get("Retry-After", -1)
+    failcases = {
+        403: "Verification failed for the provided Registration Recovery Password",
+        409: "The caller has not explicitly elected to skip transferring data from another device, but a device transfer is technically possible",
+        422: "The request did not pass validation: isEverySignedKeyValid() failed",
+        423: "Registration Lock failure.",
+        429: f"Too many attempts, try after {utils.human_time_duration(seconds_left)} ({seconds_left} seconds)"
+    }
+    if status in failcases:
+        resp_name = f"({RESPONSES[status]})" if status in RESPONSES else ""
+        logging.warning(f"Registration failed with error code {status} {resp_name} -- {failcases[status]}")
+
+
 @api.route("/v1/verification/session/{sessionId}/code", rtype=RouteType.RESPONSE)
 def _v1_verif_error(flow: HTTPFlow, sessionId: str):
     status = flow.response.status_code
@@ -275,9 +300,9 @@ def _v1_registration(flow: HTTPFlow):
     failcases = {
         403: "Verification failed for the provided Registration Recovery Password",
         409: "The caller has not explicitly elected to skip transferring data from another device, but a device transfer is technically possible",
-        422: "The request did not pass validation",
+        422: "The request did not pass validation: `isEverySignedKeyValid` (https://github.com/signalapp/Signal-Server/blob/9249cf240e7894b54638784340231a081a2e4eda/service/src/main/java/org/whispersystems/textsecuregcm/entities/RegistrationRequest.java#L100-L106) failed",
         423: "Registration Lock failure.",
-        429: f"Too many attempts, try after {seconds_left} seconds"
+        429: f"Too many attempts, try after {utils.human_time_duration(seconds_left)} ({seconds_left} seconds)"
     }
     if status in failcases:
         resp_name = f"({RESPONSES[status]})" if status in RESPONSES else ""
@@ -351,7 +376,9 @@ def _v2_keys(flow: HTTPFlow):
     key_data.pq_PreKeys = pq_pre_keys
     key_data.PreKeys = pre_keys
 
-    fake_pre_keys, fake_secret_PreKeys = helpers.create_keys_data(100, alice_identity_key_pair)
+    fake_pre_keys, fake_secret_PreKeys = helpers.create_keys_data(100, alice_identity_key_pair,
+                                                                  prekey_start=pre_keys[0]["keyId"],
+                                                                  kyber_prekey_start=pq_pre_keys[0]["keyId"])
 
     req.update(fake_pre_keys)
 
@@ -736,16 +763,16 @@ def decap_ws_msg(orig_flow: HTTPFlow, msg, rtype=RouteType.REQUEST):
     if rtype == RouteType.REQUEST:
         # todo: handle headers
         f.request = Request(host=orig_flow.request.host, port=orig_flow.request.port,
-                            scheme=orig_flow.request.scheme,
-                            method=ws_msg.verb.upper(),
-                            authority=orig_flow.request.authority,
-                            http_version=orig_flow.request.http_version,
+                            scheme=orig_flow.request.scheme.encode(),
+                            method=ws_msg.verb.upper().encode(),
+                            authority=orig_flow.request.authority.encode(),
+                            http_version=orig_flow.request.http_version.encode(),
                             trailers=None, timestamp_start=orig_flow.request.timestamp_start,
                             timestamp_end=orig_flow.request.timestamp_end,
-                            path=ws_msg.path, headers=Headers(), content=ws_msg.body)
+                            path=ws_msg.path.encode(), headers=Headers(), content=ws_msg.body)
     else:
         # todo: handle headeers + reason
-        rp = Response(http_version=orig_flow.response.http_version, status_code=ws_msg.status, reason=b"id: ",
+        rp = Response(http_version=orig_flow.response.http_version.encode(), status_code=ws_msg.status, reason=b"id: ",
                       headers=Headers(), content=ws_msg.body, trailers=None,
                       timestamp_start=orig_flow.response.timestamp_start,
                       timestamp_end=orig_flow.response.timestamp_end)
@@ -852,7 +879,12 @@ from mitmproxy.tools.main import mitmdump
 if __name__ == "__main__":
   import time
   import config
+
   flow_name = f"debug_{int(time.time())}.flow"
+  f = open("registration_info.json", "wb")
+  f.write(b"{}")
+  f.close()
+
   mitmdump(
     [
       # "-q",   # quiet flag, only script's output
