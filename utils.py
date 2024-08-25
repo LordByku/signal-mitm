@@ -7,7 +7,9 @@ import copy
 from typing import Type, TypeVar
 from dataclasses import dataclass, fields, is_dataclass, asdict
 import json
-
+from signal_protocol import kem
+from signal_protocol.state import KyberPreKeyRecord
+from protos.gen.storage_pb2 import SignedPreKeyRecordStructure
 
 def try_run(cmd: str):
     try:
@@ -121,6 +123,17 @@ def human_time_duration(seconds):
         if amount > 0:
             parts.append('{} {}{}'.format(amount, unit, "" if amount == 1 else "s"))
     return ', '.join(parts)
+
+
+
+def make_kyber_record(key_id: int, ts: int, kp: kem.KeyPair, signature: bytes):
+    sss = SignedPreKeyRecordStructure()
+    sss.id = key_id
+    sss.public_key = kp.get_public().serialize()
+    sss.private_key = kp.get_private().serialize()
+    sss.signature = signature
+    sss.timestamp = ts
+    return KyberPreKeyRecord.deserialize(sss.SerializeToString())
 
 
 class ColorHandler(logging.StreamHandler):

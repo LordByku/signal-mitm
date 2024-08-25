@@ -30,11 +30,9 @@ class MitmUser(object):
 
         self.store = storage.InMemSignalProtocolStore(self.identity_key_pair, self.registration_id)
 
-        self.pre_key_pair = KeyPair.generate()
-        self.signed_pre_key_pair = KeyPair.generate()
-
+        self.signed_pre_key_id = SignedPreKeyId(kwargs.get("signed_pre_key_id", 22))
+        self.signed_pre_key_pair = kwargs.get("signed_pre_key", KeyPair.generate())
         self.signed_pre_key_public = self.signed_pre_key_pair.public_key().serialize()
-
         self.signed_pre_key_signature = (
             self.store.get_identity_key_pair()
             .private_key()
@@ -42,7 +40,7 @@ class MitmUser(object):
         )
 
         self.pre_key_id = PreKeyId(kwargs.get("pre_key_id", 31337))
-        self.signed_pre_key_id = SignedPreKeyId(kwargs.get("signed_pre_key_id", 22))
+        self.pre_key_pair = kwargs.get("pre_key", KeyPair.generate())
 
         self.pre_key_bundle = PreKeyBundle(
             self.store.get_local_registration_id(), # this is 1 because of how we initialize the store
@@ -59,7 +57,12 @@ class MitmUser(object):
         # self.kyber_pre_key_signature = self.identity_key_pair.private_key().calculate_signature(
         #                                     self.kyber_pre_key_pair.get_public().serialize()
         #                                 )
-        temp_kyber = KyberPreKeyRecord.generate(kem_type, self.kyber_pre_key_id, self.identity_key_pair.private_key())
+
+        if "kyber_record" in kwargs:
+            temp_kyber: KyberPreKeyRecord = kwargs.get("kyber_record")
+            self.kyber_pre_key_id = temp_kyber.id()
+        else:
+            temp_kyber = KyberPreKeyRecord.generate(kem_type, self.kyber_pre_key_id, self.identity_key_pair.private_key())
         self.kyber_pre_key_pair = temp_kyber.key_pair()
         self.kyber_pre_key_signature = temp_kyber.signature() ## if it meeeps, blame chrissy
 
@@ -75,7 +78,11 @@ class MitmUser(object):
         # self.last_resort_kyber: kem.KeyPair = kem.KeyPair.generate(kem.KeyType(0))
         self.last_resort_kyber_pre_key_id = KyberPreKeyId(kwargs.get("kyber_pre_key_id", 25)) ## TODO: please please, please ^^
 
-        temp_last_resort = KyberPreKeyRecord.generate(kem_type, self.last_resort_kyber_pre_key_id, self.identity_key_pair.private_key())
+        if "last_resort_kyber_record" in kwargs:
+            temp_last_resort: KyberPreKeyRecord = kwargs.get("kyber_record")
+            self.last_resort_kyber_pre_key_id = temp_last_resort.id()
+        else:
+            temp_last_resort = KyberPreKeyRecord.generate(kem_type, self.last_resort_kyber_pre_key_id, self.identity_key_pair.private_key())
         self.last_resort_kyber = temp_last_resort.key_pair()
         self.store.save_kyber_pre_key(self.last_resort_kyber_pre_key_id, temp_last_resort) ## todo, make sure the id doesn't match the normal kyber one ^^
         # self.prekey = None
