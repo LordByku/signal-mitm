@@ -376,6 +376,8 @@ def _v2_keys(flow: HTTPFlow):
                                                                   prekey_start_at=pre_keys[0]["keyId"],
                                                                   kyber_prekey_start_at=pq_pre_keys[0]["keyId"])
 
+    ## todo for later: Make sure all the keys we generate are stored in the database
+
     req.update(fake_pre_keys)
 
     key_data.fake_PreKeys = fake_pre_keys["preKeys"]
@@ -555,7 +557,7 @@ def v2_keys_identifier_device_id(flow, identifier: str, device_id: str):
         }
 
         lastResortPq = {
-            "keyId": 42069,
+            "keyId": lastResortPq["keyId"],
             "publicKey": b64encode(fakeUser.last_resort_kyber.get_public().serialize()).decode(),
             "privateKey": fakeUser.last_resort_kyber.get_private().to_base64(),
         }
@@ -745,6 +747,7 @@ def _v1_ws_message(flow, identifier):
                 fakeUser.decrypt(ProtocolAddress(destination, msg["destinationDeviceId"]), pksm)
             except Exception as e:
                 logging.warning(f"DECRYPTION FAILED: {e}\n\t{pksm}")
+                logging.warning(f"RAW content: {msg['content']}")
 
         # logging.warning(f"ctxt from IK: {b64encode(ctxt.identity_key).decode()}")
         # logging.info(f"ctxt from IK: {ctxt}")

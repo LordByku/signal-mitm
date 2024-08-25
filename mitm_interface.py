@@ -2,7 +2,7 @@ from signal_protocol import identity_key, storage, protocol, session_cipher, ses
 from signal_protocol.kem import KeyType
 
 from signal_protocol.address import ProtocolAddress, DeviceId
-from signal_protocol.state import PreKeyId, KyberPreKeyId, SignedPreKeyId, SignedPreKeyRecord, PreKeyBundle, PreKeyRecord
+from signal_protocol.state import PreKeyId, KyberPreKeyId, SignedPreKeyId, SignedPreKeyRecord, PreKeyBundle, PreKeyRecord, KyberPreKeyRecord
 
 from signal_protocol.curve import KeyPair, PublicKey
 from signal_protocol.identity_key import IdentityKeyPair
@@ -17,6 +17,7 @@ FORMAT = '%(levelname)s %(name)s %(asctime)-15s %(filename)s:%(lineno)d %(messag
 logging.basicConfig(format=FORMAT)
 logging.getLogger().setLevel(logging.INFO)
 
+kem_type = kem.KeyType(0)
 
 class MitmUser(object):
     def __init__(self, *args, **kwargs):
@@ -54,10 +55,15 @@ class MitmUser(object):
         )
 
         self.kyber_pre_key_id = KyberPreKeyId(kwargs.get("kyber_pre_key_id", 25))
-        self.kyber_pre_key_pair :kem.KeyPair = kem.KeyPair.generate(kem.KeyType(0))
-        self.kyber_pre_key_signature = self.identity_key_pair.private_key().calculate_signature(
-                                            self.kyber_pre_key_pair.get_public().serialize()
-                                        )
+        # self.kyber_pre_key_pair :kem.KeyPair = kem.KeyPair.generate(kem.KeyType(0))
+        # self.kyber_pre_key_signature = self.identity_key_pair.private_key().calculate_signature(
+        #                                     self.kyber_pre_key_pair.get_public().serialize()
+        #                                 )
+        temp_kyber = KyberPreKeyRecord.generate(kem_type, self.kyber_pre_key_id, self.identity_key_pair.private_key())
+        self.kyber_pre_key_pair = temp_kyber.key_pair()
+        self.kyber_pre_key_signature = temp_kyber.signature() ## if it meeeps, blame chrissy
+
+        self.store.save_kyber_pre_key(self.kyber_pre_key_id, temp_kyber)
 
 
         self.pre_key_bundle = self.pre_key_bundle.with_kyber_pre_key(
@@ -66,8 +72,14 @@ class MitmUser(object):
             self.kyber_pre_key_signature
         )
 
-        self.last_resort_kyber: kem.KeyPair = kem.KeyPair.generate(kem.KeyType(0))
+        # self.last_resort_kyber: kem.KeyPair = kem.KeyPair.generate(kem.KeyType(0))
+        self.last_resort_kyber_pre_key_id = KyberPreKeyId(kwargs.get("kyber_pre_key_id", 25)) ## TODO: please please, please ^^
+
+        temp_last_resort = KyberPreKeyRecord.generate(kem_type, self.last_resort_kyber_pre_key_id, self.identity_key_pair.private_key())
+        self.last_resort_kyber = temp_last_resort.key_pair()
+        self.store.save_kyber_pre_key(self.last_resort_kyber_pre_key_id, temp_last_resort) ## todo, make sure the id doesn't match the normal kyber one ^^
         # self.prekey = None
+
 
     def __getstate__(self):
         state = self.__dict__.copy()
