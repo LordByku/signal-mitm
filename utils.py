@@ -157,3 +157,45 @@ class ColorHandler(logging.StreamHandler):
         color = level_color_map.get(record.levelno, self.WHITE)
 
         print(f"{csi}{color}m{record.msg}{csi}m")
+
+
+class PushTransportDetails:
+    @staticmethod
+    def get_stripped_padding_message_body(message_with_padding):
+        padding_start = 0
+        for i in range(len(message_with_padding) - 1, -1, -1):
+            if message_with_padding[i] == 0x80:
+                padding_start = i
+                break
+            elif message_with_padding[i] != 0x00:
+                print("Padding byte is malformed, returning unstripped padding.")
+                return message_with_padding
+        stripped_message = message_with_padding[:padding_start]
+        return stripped_message
+
+    @staticmethod
+    def get_padded_message_body(message_body):
+        """To quote the original devs:
+
+        NOTE: This is dumb.  We have our own padding scheme, but so does the cipher.
+        The +1 -1 here is to make sure the Cipher has room to add one padding byte,
+        otherwise it'll add a full 16 extra bytes.
+        """
+        padded_message_length = (
+            PushTransportDetails.get_padded_message_length(len(message_body) + 1) - 1
+        )
+        padded_message = bytearray(padded_message_length)
+        padded_message[: len(message_body)] = message_body
+        padded_message[len(message_body)] = 0x80
+        return bytes(padded_message)
+
+    @staticmethod
+    def get_padded_message_length(message_length):
+        message_length_with_terminator = message_length + 1
+        message_part_count = message_length_with_terminator // 160
+
+        if message_length_with_terminator % 160 != 0:
+            message_part_count += 1
+
+        return message_part_count * 160
+

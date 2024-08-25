@@ -6,6 +6,7 @@ from signal_protocol.state import PreKeyId, KyberPreKeyId, SignedPreKeyId, Signe
 
 from signal_protocol.curve import KeyPair, PublicKey
 from signal_protocol.identity_key import IdentityKeyPair
+from signal_protocol.error import SignalProtocolException
 
 import json
 import base64
@@ -150,13 +151,17 @@ class MitmUser(object):
 
         try:
             ciphertext = protocol.PreKeySignalMessage.try_from(ciphertext)
-        except Exception:
-            pass
+        except SignalProtocolException as e:
+            logging.warning(f"{e}")
+            return
 
         try:
-            ciphertext = protocol.SignalMessage.try_from(ciphertext)
-        except Exception:
-            pass
+            # ciphertext = protocol.SignalMessage.try_from(ciphertext)
+            ciphertext = ciphertext.message()
+        except SignalProtocolException as e:
+            logging.warning(f"{e}")
+            return
+
 
         self.prekey = PreKeyRecord(self.pre_key_id, self.pre_key_pair)
         self.store.save_pre_key(self.pre_key_id, self.prekey)
