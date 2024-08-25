@@ -95,13 +95,13 @@ def dataclass_to_json(instance: T) -> str:
     result = {}
     for field in fields(instance):
         if is_dataclass(field.type):
+            # todo: this goes a bit crazy when unwrapping optionals instead of dicts
             # print(field.name)
             result[field.name] = json.loads(dataclass_to_json(getattr(instance, field.name)))
             # result[field.name] = asdict(getattr(instance, field.name))
         else:
             result[field.name] = getattr(instance, field.name)
     return json.dumps(result)
-
 
 TIME_DURATION_UNITS = (
     ('week', 60 * 60 * 24 * 7),

@@ -107,8 +107,8 @@ class RegistrationInfo():
     pni: Optional[str] = None
     unidentifiedAccessKey: Optional[str] = None
 
-    aciData: Optional[KeyData] = None
-    pniData: Optional[KeyData] = None
+    aciData: KeyData = None
+    pniData: KeyData = None
 
     serialized_registration_req: Optional[dict] = None
 
@@ -424,9 +424,6 @@ def _v2_keys(flow: HTTPFlow):
     # prevent regressions
     assert "privateKey" not in req['pqPreKeys'][0]
     assert "privateKey" not in req['preKeys'][0]
-
-    with open("registration_info.json", "w") as f:
-        f.write(json.dumps(registration_info, default=dataclass_to_json))
 
     with open(REGISTRATION_INFO_PATH, "w") as f:
         f.write(json.dumps(registration_info, default=utils.dataclass_to_json))
