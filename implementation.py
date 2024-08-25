@@ -373,8 +373,8 @@ def _v2_keys(flow: HTTPFlow):
     key_data.PreKeys = pre_keys
 
     fake_pre_keys, fake_secret_PreKeys = helpers.create_keys_data(100, alice_identity_key_pair,
-                                                                  prekey_start=pre_keys[0]["keyId"],
-                                                                  kyber_prekey_start=pq_pre_keys[0]["keyId"])
+                                                                  prekey_start_at=pre_keys[0]["keyId"],
+                                                                  kyber_prekey_start_at=pq_pre_keys[0]["keyId"])
 
     req.update(fake_pre_keys)
 
