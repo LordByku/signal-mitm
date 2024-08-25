@@ -11,8 +11,10 @@ project-description/proposal.pdf
 thesis/thesis.pdf
 *.pyc
 *.apk
-*.bak
 
+*.bak
+debug*.flow
+autosaved*.flow
 config.py
 registration_info.json
 

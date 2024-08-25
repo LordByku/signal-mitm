@@ -1,25 +1,17 @@
 from signal_protocol import identity_key, storage, protocol, session_cipher, session, kem
-from signal_protocol.state import SessionRecord
-from signal_protocol.kem import SerializedCiphertext, KeyPair as KyberKeyPair, KeyType
+from signal_protocol.kem import KeyType
 
 from signal_protocol.address import ProtocolAddress, DeviceId
 from signal_protocol.state import PreKeyId, KyberPreKeyId, SignedPreKeyId, SignedPreKeyRecord, PreKeyBundle, PreKeyRecord
 
-from signal_protocol.curve import KeyPair, PrivateKey, PublicKey
-from signal_protocol.identity_key import IdentityKey, IdentityKeyPair
-from signal_protocol.ratchet import (
-    BobSignalProtocolParameters,
-    initialize_bob_session,
-    AliceSignalProtocolParameters,
-    initialize_alice_session,
-)
+from signal_protocol.curve import KeyPair, PublicKey
+from signal_protocol.identity_key import IdentityKeyPair
 
 import json
 import base64
 
 import logging
 
-from test_protocol_wip import Protocol
 
 FORMAT = '%(levelname)s %(name)s %(asctime)-15s %(filename)s:%(lineno)d %(message)s'
 logging.basicConfig(format=FORMAT)
@@ -52,7 +44,7 @@ class MitmUser(object):
         self.signed_pre_key_id = SignedPreKeyId(kwargs.get("signed_pre_key_id", 22))
 
         self.pre_key_bundle = PreKeyBundle(
-            self.store.get_local_registration_id(),
+            self.store.get_local_registration_id(), # this is 1 because of how we initialize the store
             DeviceId(1),
             (self.pre_key_id, self.pre_key_pair.public_key()),
             self.signed_pre_key_id,
