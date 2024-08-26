@@ -212,6 +212,9 @@ def _v1_registration(flow: HTTPFlow):
                                                                                   pni_kyber_id=pni_pq_lastResortKey[
                                                                                       'keyId'])
 
+    raise RuntimeError("we have the records separate into public and private. we need to reconstruct the {spk/pk/kyber} records"
+                       "and also store them")
+
     # todo: assert id's are the same ^^
     assert fake_signed_pre_keys['aciSignedPreKey']['keyId'] == req['aciSignedPreKey'][
         'keyId'], "registration: keyId mismatch for aciSignedPreKey"
@@ -337,6 +340,9 @@ def _v1_registration(flow: HTTPFlow):
     with open(REGISTRATION_INFO_PATH, "w") as f:
         f.write(json.dumps(registration_info, default=utils.dataclass_to_json))
 
+    raise RuntimeError("aci and pni fake identities must be added to the store {fakeAlice}, once we complete the "
+                       "registration and have her PNI/ACI from the server")
+
 
 @api.route("/v2/keys", rtype=RouteType.REQUEST, method=HTTPVerb.PUT)
 def _v2_keys(flow: HTTPFlow):
@@ -376,6 +382,7 @@ def _v2_keys(flow: HTTPFlow):
                                                                   prekey_start_at=pre_keys[0]["keyId"],
                                                                   kyber_prekey_start_at=pq_pre_keys[0]["keyId"])
 
+    raise RuntimeError("store me up daddy")
     ## todo for later: Make sure all the keys we generate are stored in the database
 
     req.update(fake_pre_keys)
@@ -507,7 +514,7 @@ def v2_keys_identifier_device_id(flow, identifier: str, device_id: str):
         legit_bundle.on_conflict_replace().execute()
         fakeVictim.process_pre_key_bundle(ProtocolAddress(uuid, device_id), bob_bundle)
 
-    ############ Swap the prekeybundle TODO 
+    ############ Swap the prekeybundle TODO
 
     for bundle in resp["devices"]:
 

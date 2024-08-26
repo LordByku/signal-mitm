@@ -107,15 +107,8 @@ store.save_kyber_pre_key(kyber_id, args["kyber_record"])
 sender_addr = ProtocolAddress("bob", 1)
 
 ctxt_data = PreKeySignalMessage.try_from(content)
-# ptxt = session_cipher.message_decrypt(store, sender_addr, ctxt_data)
-# print(ptxt)
 
 c = Content()
-
-# ptxt = utils.PushTransportDetails().get_stripped_padding_message_body(ptxt)
-# c.ParseFromString(ptxt)
-# print(c)
-
 
 fakeUser = MitmUser(
     address=my_addr,
@@ -137,13 +130,13 @@ assert fakeUser.identity_key_pair.serialize() == ik.serialize()
 assert fakeUser.signed_pre_key_pair.serialize() == spkr.key_pair().serialize()
 assert fakeUser.pre_key_pair.serialize() == pkr.key_pair().serialize()
 
-assert fakeUser.store.get_identity_key_pair().serialize()== ik.serialize()
-assert fakeUser.store.get_pre_key(pk_id).serialize() == pkr.serialize()
-assert fakeUser.store.get_signed_pre_key(spk_id).serialize() == spkr.serialize()
-print(fakeUser.store.get_kyber_pre_key(kyber_id).serialize().hex())
+assert fakeUser.aci_store.get_identity_key_pair().serialize() == ik.serialize()
+assert fakeUser.aci_store.get_pre_key(pk_id).serialize() == pkr.serialize()
+assert fakeUser.aci_store.get_signed_pre_key(spk_id).serialize() == spkr.serialize()
+print(fakeUser.aci_store.get_kyber_pre_key(kyber_id).serialize().hex())
 print("++++++++++++++++++++++++++++++++++++++++++++")
 print(args["kyber_record"].serialize().hex())
-assert fakeUser.store.get_kyber_pre_key(kyber_id).serialize() == args["kyber_record"].serialize()
+assert fakeUser.aci_store.get_kyber_pre_key(kyber_id).serialize() == args["kyber_record"].serialize()
 
 
 print(fakeUser.decrypt(sender_addr, content))

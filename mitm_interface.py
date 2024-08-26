@@ -33,18 +33,21 @@ class MitmUser(object):
         self.identity_key_pair = kwargs.get("identity_key",identity_key.IdentityKeyPair.generate())
         self.registration_id = kwargs.get("RID", 1)
 
-        self.store = storage.InMemSignalProtocolStore(self.identity_key_pair, self.registration_id)
+        self.aci_store = storage.InMemSignalProtocolStore(self.identity_key_pair, self.registration_id)
+        if not self.pni_identity_key_pair:
+            raise RuntimeError("fix meee")
+        self.pni_store =storage.InMemSignalProtocolStore(self.pni_identity_key_pair, self.registration_id)
 
         self.signed_pre_key_id = SignedPreKeyId(kwargs.get("signed_pre_key_id", 22))
         self.signed_pre_key_pair = kwargs.get("signed_pre_key", KeyPair.generate())
         self.signed_pre_key_public = self.signed_pre_key_pair.public_key().serialize()
         self.signed_pre_key_signature = (
-            self.store.get_identity_key_pair()
+            self.aci_store.get_identity_key_pair()
             .private_key()
             .calculate_signature(self.signed_pre_key_public)
         )
     
-        self.store.save_signed_pre_key(self.signed_pre_key_id, SignedPreKeyRecord(
+        self.aci_store.save_signed_pre_key(self.signed_pre_key_id, SignedPreKeyRecord(
             self.signed_pre_key_id,
             1724592884969,
             self.signed_pre_key_pair,
@@ -56,16 +59,16 @@ class MitmUser(object):
         self.pre_key_id = PreKeyId(kwargs.get("pre_key_id", 31337))
         self.pre_key_pair = kwargs.get("pre_key", KeyPair.generate())
 
-        self.store.save_pre_key(self.pre_key_id, PreKeyRecord(self.pre_key_id, self.pre_key_pair))
+        self.aci_store.save_pre_key(self.pre_key_id, PreKeyRecord(self.pre_key_id, self.pre_key_pair))
 
         self.pre_key_bundle = PreKeyBundle(
-            self.store.get_local_registration_id(), # this is 1 because of how we initialize the store
+            self.aci_store.get_local_registration_id(), # this is 1 because of how we initialize the store
             DeviceId(1),
             (self.pre_key_id, self.pre_key_pair.public_key()),
             self.signed_pre_key_id,
             self.signed_pre_key_pair.public_key(),
             self.signed_pre_key_signature,
-            self.store.get_identity_key_pair().identity_key(),
+            self.aci_store.get_identity_key_pair().identity_key(),
         )
 
         self.kyber_pre_key_id = KyberPreKeyId(kwargs.get("kyber_pre_key_id", 25))
@@ -83,7 +86,7 @@ class MitmUser(object):
         self.kyber_pre_key_pair = temp_kyber.key_pair()
         self.kyber_pre_key_signature = temp_kyber.signature() ## if it meeeps, blame chrissy
 
-        self.store.save_kyber_pre_key(self.kyber_pre_key_id, temp_kyber)
+        self.aci_store.save_kyber_pre_key(self.kyber_pre_key_id, temp_kyber)
 
 
         self.pre_key_bundle = self.pre_key_bundle.with_kyber_pre_key(
@@ -101,9 +104,13 @@ class MitmUser(object):
         else:
             temp_last_resort = KyberPreKeyRecord.generate(kem_type, self.last_resort_kyber_pre_key_id, self.identity_key_pair.private_key())
         self.last_resort_kyber = temp_last_resort.key_pair()
-        self.store.save_kyber_pre_key(self.last_resort_kyber_pre_key_id, temp_last_resort) ## todo, make sure the id doesn't match the normal kyber one ^^
+        self.aci_store.save_kyber_pre_key(self.last_resort_kyber_pre_key_id, temp_last_resort) ## todo, make sure the id doesn't match the normal kyber one ^^
         # self.prekey = None
 
+    def get_store_for_session(self):
+        # return a pointer to either the aci or pni store, depending on what makes sense
+        # todo:
+        return self.aci_store
 
     def __getstate__(self):
         state = self.__dict__.copy()
@@ -149,19 +156,19 @@ class MitmUser(object):
         self.pre_key_bundle = pre_key_bundle
 
     def check_session(self, address: ProtocolAddress):
-        return self.store.load_session(address)
+        return self.get_store_for_session().load_session(address)
 
     def is_session_kyber_enabled(self, peer_address: ProtocolAddress):
-        return self.store.load_session(peer_address).session_version() == 4
+        return self.get_store_for_session().load_session(peer_address).session_version() == 4
 
     # TODO : Check if this makes sense here or in the MitmVictim class
     def process_pre_key_bundle(self, address: ProtocolAddress, pre_key_bundle: PreKeyBundle):
-        session.process_prekey_bundle(address, self.store, pre_key_bundle)
+        session.process_prekey_bundle(address, self.aci_store, pre_key_bundle)
 
         # return self.store.load_session(address) and self.store.load_session(address).session_version() == 3
 
     def encrypt(self, address: ProtocolAddress, plaintext: bytes):
-        return session_cipher.message_encrypt(self.store, address, plaintext)
+        return session_cipher.message_encrypt(self.get_store_for_session(), address, plaintext)
 
     def decrypt(self, address: ProtocolAddress, ciphertext: bytes):
         try:
@@ -170,7 +177,7 @@ class MitmUser(object):
             logging.warning(f"{e}")
             return
 
-        ptxt = session_cipher.message_decrypt(self.store, address, ciphertext)
+        ptxt = session_cipher.message_decrypt(self.get_store_for_session(), address, ciphertext)
 
         c = Content()
 
