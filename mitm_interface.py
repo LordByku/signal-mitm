@@ -17,6 +17,8 @@ import base64
 
 import logging
 
+from time import time
+
 
 FORMAT = '%(levelname)s %(name)s %(asctime)-15s %(filename)s:%(lineno)d %(message)s'
 logging.basicConfig(format=FORMAT)
@@ -34,66 +36,109 @@ class MitmUser(object):
         self.registration_id = kwargs.get("RID", 1)
 
         self.aci_store = storage.InMemSignalProtocolStore(self.identity_key_pair, self.registration_id)
-        if not self.pni_identity_key_pair:
-            raise RuntimeError("fix meee")
-        self.pni_store =storage.InMemSignalProtocolStore(self.pni_identity_key_pair, self.registration_id)
+        # if not self.pni_identity_key_pair:
+        #     raise RuntimeError("fix meee")
+        # self.pni_store =storage.InMemSignalProtocolStore(self.pni_identity_key_pair, self.registration_id)
 
-        self.signed_pre_key_id = SignedPreKeyId(kwargs.get("signed_pre_key_id", 22))
-        self.signed_pre_key_pair = kwargs.get("signed_pre_key", KeyPair.generate())
-        self.signed_pre_key_public = self.signed_pre_key_pair.public_key().serialize()
-        self.signed_pre_key_signature = (
-            self.aci_store.get_identity_key_pair()
-            .private_key()
-            .calculate_signature(self.signed_pre_key_public)
-        )
+        self.add_signed_pre_key(kwargs.get("signed_pre_key"))
+
+        # self.signed_pre_key_id = SignedPreKeyId(kwargs.get("signed_pre_key_id", 22))
+        # self.signed_pre_key_pair = kwargs.get("signed_pre_key", KeyPair.generate())
+        # self.signed_pre_key_public = self.signed_pre_key_pair.public_key().serialize()
+        # self.signed_pre_key_signature = (
+        #     self.aci_store.get_identity_key_pair()
+        #     .private_key()
+        #     .calculate_signature(self.signed_pre_key_public)
+        # )
+
+
     
-        self.aci_store.save_signed_pre_key(self.signed_pre_key_id, SignedPreKeyRecord(
-            self.signed_pre_key_id,
-            1724592884969,
-            self.signed_pre_key_pair,
-                base64.b64decode(
-        "7Ug2x9ZSSOGrYGeH2VxmVCmiV8nkc6gFVKPehqEGv+HoKRd+Qtn+O0mNUDjaviLd4wtO5p3cJIAG/6NOs5dVCw=="
-    ),
-        ))
+    #     self.aci_store.save_signed_pre_key(self.signed_pre_key_id, SignedPreKeyRecord(
+    #         self.signed_pre_key_id,
+    #         1724592884969,
+    #         self.signed_pre_key_pair,
+    #             base64.b64decode(
+    #     "7Ug2x9ZSSOGrYGeH2VxmVCmiV8nkc6gFVKPehqEGv+HoKRd+Qtn+O0mNUDjaviLd4wtO5p3cJIAG/6NOs5dVCw=="
+    # ),
+        # ))
 
-        self.pre_key_id = PreKeyId(kwargs.get("pre_key_id", 31337))
-        self.pre_key_pair = kwargs.get("pre_key", KeyPair.generate())
+        # self.pre_key_id = PreKeyId(kwargs.get("pre_key_id", 31337))
+        # self.pre_key_pair = kwargs.get("pre_key", KeyPair.generate())
 
-        self.aci_store.save_pre_key(self.pre_key_id, PreKeyRecord(self.pre_key_id, self.pre_key_pair))
+        # self.aci_store.save_pre_key(self.pre_key_id, PreKeyRecord(self.pre_key_id, self.pre_key_pair))
+
+        #self.add_pre_keys(kwargs.get("pre_key_id", 31337), kwargs.get("pre_key"))
+        self.add_pre_keys(kwargs.get("pre_key"))
+
+        bundle_pre_key_id = self.aci_store.all_pre_key_ids()[0]
+        bundle_pre_key = self.aci_store.get_pre_key(bundle_pre_key_id)
+        bundle_signed_pre_key_id = self.aci_store.all_signed_pre_key_ids()[0]
+        bundle_signed_pre_key = self.aci_store.get_signed_pre_key(bundle_signed_pre_key_id)
+        bundle_signed_pre_key_signature = bundle_signed_pre_key.signature()
 
         self.pre_key_bundle = PreKeyBundle(
             self.aci_store.get_local_registration_id(), # this is 1 because of how we initialize the store
             DeviceId(1),
-            (self.pre_key_id, self.pre_key_pair.public_key()),
-            self.signed_pre_key_id,
-            self.signed_pre_key_pair.public_key(),
-            self.signed_pre_key_signature,
-            self.aci_store.get_identity_key_pair().identity_key(),
+            (bundle_pre_key.id(), bundle_pre_key.key_pair().public_key()),
+            bundle_signed_pre_key_id,
+            bundle_signed_pre_key.key_pair().public_key(),
+            bundle_signed_pre_key_signature,
+            self.identity_key_pair.identity_key(),
         )
 
+        # self.pre_key_bundle = PreKeyBundle(
+        #     self.aci_store.get_local_registration_id(), # this is 1 because of how we initialize the store
+        #     DeviceId(1),
+        #     (self.pre_key_id, self.pre_key_pair.public_key()),
+        #     self.signed_pre_key_id,
+        #     self.signed_pre_key_pair.public_key(),
+        #     self.signed_pre_key_signature,
+        #     self.aci_store.get_identity_key_pair().identity_key(),
+        # )
+
+        # self.pre_key_bundle = PreKeyBundle(
+        #     self.aci_store.get_local_registration_id(), # this is 1 because of how we initialize the store
+        #     DeviceId(1),
+        #     (self.aci_store.get_pre_key(self.pre_key_id).id(), self.aci_store.get_pre_key(self.pre_key_id).key_pair().get_public()),
+        #     self.
+        
         self.kyber_pre_key_id = KyberPreKeyId(kwargs.get("kyber_pre_key_id", 25))
         # self.kyber_pre_key_pair :kem.KeyPair = kem.KeyPair.generate(kem.KeyType(0))
         # self.kyber_pre_key_signature = self.identity_key_pair.private_key().calculate_signature(
         #                                     self.kyber_pre_key_pair.get_public().serialize()
         #                                 )
 
-        if "kyber_record" in kwargs:
-            temp_kyber: KyberPreKeyRecord = kwargs.get("kyber_record")
-            self.kyber_pre_key_id = temp_kyber.id()
-        else:
-            temp_kyber = KyberPreKeyRecord.generate(kem_type, self.kyber_pre_key_id, self.identity_key_pair.private_key())
+        # if "kyber_record" in kwargs:
+        #     temp_kyber: KyberPreKeyRecord = kwargs.get("kyber_record")
+        #     self.kyber_pre_key_id = temp_kyber.id()
+        # else:
+        #     temp_kyber = KyberPreKeyRecord.generate(kem_type, self.kyber_pre_key_id, self.identity_key_pair.private_key())
 
-        self.kyber_pre_key_pair = temp_kyber.key_pair()
-        self.kyber_pre_key_signature = temp_kyber.signature() ## if it meeeps, blame chrissy
+        # self.kyber_pre_key_pair = temp_kyber.key_pair()
+        # self.kyber_pre_key_signature = temp_kyber.signature() ## if it meeeps, blame chrissy
 
-        self.aci_store.save_kyber_pre_key(self.kyber_pre_key_id, temp_kyber)
+        # self.aci_store.save_kyber_pre_key(self.kyber_pre_key_id, temp_kyber)
+
+        #self.add_kyber_pre_key(kwargs.get("kyber_pre_key_id", 25), kwargs.get("kyber_record"))
+        self.add_kyber_pre_key(kwargs.get("kyber_record"))
+
+        bundle_kyber_pre_key_id = self.aci_store.all_kyber_pre_key_ids()[0]
+        bundle_kyber_pre_key = self.aci_store.get_kyber_pre_key(bundle_kyber_pre_key_id)
+        bundle_kyber_pre_key_signature = bundle_kyber_pre_key.signature()
 
 
         self.pre_key_bundle = self.pre_key_bundle.with_kyber_pre_key(
-            self.kyber_pre_key_id,
-            self.kyber_pre_key_pair.get_public(),
-            self.kyber_pre_key_signature
-        )
+            bundle_kyber_pre_key_id,
+            bundle_kyber_pre_key.key_pair().get_public(),
+            bundle_kyber_pre_key_signature
+        )        
+
+
+        # self.pre_key_bundle = self.pre_key_bundle.with_kyber_pre_key(
+        #     self.kyber_pre_key_id,
+        #     self.kyber_pre_key_pair.get_public(),
+        #     self.kyber_pre_key_signature
+        # )
 
         # self.last_resort_kyber: kem.KeyPair = kem.KeyPair.generate(kem.KeyType(0))
         self.last_resort_kyber_pre_key_id = KyberPreKeyId(kwargs.get("last_resort_kyber_pre_key_id", 25)) ## TODO: please please, please ^^
@@ -151,6 +196,24 @@ class MitmUser(object):
         self.last_resort_kyber = kem.KeyPair.from_base64(state['last_resort_kyber'][0].encode(), state['last_resort_kyber'][1].encode())
         self.kyber_pre_key_pair = kem.KeyPair.from_base64(state['kyber_pre_key_pair'][0].encode(), state['kyber_pre_key_pair'][1].encode())
 
+
+    def add_identity_key(self, other_address: ProtocolAddress, other_identity_key: str):
+        self.aci_store.save_identity(ProtocolAddress("1", 1), identity_key.IdentityKey.from_base64(other_identity_key.encode()))
+
+    def add_pre_keys(self, pre_key_json: str):
+        prekeys = json.loads(pre_key_json)
+        pkid = PreKeyId(prekeys["keyId"])
+        self.aci_store.save_pre_key(pkid, PreKeyRecord(pkid, KeyPair.from_public_and_private(base64.b64decode(prekeys["publicKey"]), base64.b64decode(prekeys["privateKey"]))))
+
+    def add_signed_pre_key(self, signed_pre_key_json: str):
+        signed_pre_key = json.loads(signed_pre_key_json)
+        pkid = SignedPreKeyId(signed_pre_key["keyId"])
+        self.aci_store.save_signed_pre_key(pkid, SignedPreKeyRecord(pkid, int(time()), KeyPair.from_public_and_private(base64.b64decode(signed_pre_key["publicKey"]), base64.b64decode(signed_pre_key["privateKey"])), base64.b64decode(signed_pre_key["signature"])))
+
+    def add_kyber_pre_key(self, kyber_pre_key_json: str):
+        kyber_pre_key = json.loads(kyber_pre_key_json)
+        pkid = KyberPreKeyId(kyber_pre_key["keyId"])
+        self.aci_store.save_kyber_pre_key(pkid, utils.make_kyber_record(pkid.get_id(), int(time()), kem.KeyPair.from_public_and_private(base64.b64decode(kyber_pre_key["publicKey"]), base64.b64decode(kyber_pre_key["privateKey"])), base64.b64decode(kyber_pre_key["signature"])))
 
     def set_pre_key_bundle(self, pre_key_bundle: PreKeyBundle):
         self.pre_key_bundle = pre_key_bundle
