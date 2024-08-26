@@ -231,6 +231,8 @@ class MitmUser(object):
         # return self.store.load_session(address) and self.store.load_session(address).session_version() == 3
 
     def encrypt(self, address: ProtocolAddress, plaintext: bytes):
+
+        plaintext = utils.PushTransportDetails().get_padded_message_body(plaintext)
         return session_cipher.message_encrypt(self.get_store_for_session(), address, plaintext)
 
     def decrypt(self, address: ProtocolAddress, ciphertext: bytes):

