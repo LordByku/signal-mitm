@@ -745,18 +745,12 @@ def _v1_ws_message(flow, identifier):
 
         msg_type = OutgoingMessageType(int(msg["type"]))
         if msg_type == OutgoingMessageType.PREKEY_BUNDLE:
-            pksm = protocol.PreKeySignalMessage.try_from(content)
-            # logging.warning(f"PKSM> kyber: {pksm.message()}")
             try:
-                dec = fakeUser.decrypt(ProtocolAddress(destination, msg["destinationDeviceId"]), pksm)
-                logging.warning(f"DECRYPTION IS: {dec}")
+                dec = fakeUser.decrypt(ProtocolAddress(destination, msg["destinationDeviceId"]), content)
+                logging.warning(f"DECRYPTION IS:\n{dec}")
             except Exception as e:
-                logging.warning(f"DECRYPTION FAILED: {e}\n\t{pksm}")
+                logging.warning(f"DECRYPTION FAILED: {e}")
                 logging.warning(f"RAW content: {msg['content']}")
-
-        # logging.warning(f"ctxt from IK: {b64encode(ctxt.identity_key).decode()}")
-        # logging.info(f"ctxt from IK: {ctxt}")
-        # TODO: unproduf / decrypt / alter / encrypt / prodobuf 
 
 
 def decap_ws_msg(orig_flow: HTTPFlow, msg, rtype=RouteType.REQUEST):
@@ -804,7 +798,7 @@ def _v1_websocket_req(flow: HTTPFlow, msg):
     ws_msg = WebSocketMessage()
     ws_msg.ParseFromString(msg.content)
     ws_msg = ws_msg.request
-    logging.info(f"WEBSOCKET REQUEST: {ws_msg}")
+    logging.debug(f"WEBSOCKET REQUEST: {ws_msg}")
     msg.injected = True
 
     id = ws_msg.id
@@ -821,7 +815,7 @@ def _v1_websocket_req(flow: HTTPFlow, msg):
 
     f = decap_ws_msg(flow, msg)
     handler, params, _ = ws_req.find_handler(host, path)
-    logging.warning(f"HANDLER (req): {handler}, PARAMS: {params} -- {host} / {path}")
+    logging.debug(f"HANDLER (req): {handler}, PARAMS: {params} -- {host} / {path}")
 
     if "messages" in path:
         assert handler is not None, f"something went terriblu: {path}"
@@ -841,19 +835,19 @@ def _v1_websocket_resp(flow: HTTPFlow, msg):
     ws_msg = WebSocketMessage()
     ws_msg.ParseFromString(msg.content)
     ws_msg = ws_msg.response
-    logging.info(f"WEBSOCKET RESPONSE: {ws_msg}")
+    logging.debug(f"WEBSOCKET RESPONSE: {ws_msg}")
     msg.injected = True
 
     id = ws_msg.id
 
     if not websocket_open_state.get(id):
-        logging.info(f"Message request does not exist for id {id}: {ws_msg.body}")
+        logging.debug(f"Message request does not exist for id {id}: {ws_msg.body}")
         return
 
     path = websocket_open_state[id].request.path
 
     websocket_open_state[id].response = ws_msg
-    logging.warning(f"Websocket resp with id {id} and path {path}")
+    logging.debug(f"Websocket resp with id {id} and path {path}")
 
     host = flow.request.pretty_host if flow.live else HOST_HTTPBIN
     if "signal" not in host:

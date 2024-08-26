@@ -163,34 +163,12 @@ class MitmUser(object):
     def encrypt(self, address: ProtocolAddress, plaintext: bytes):
         return session_cipher.message_encrypt(self.store, address, plaintext)
 
-    def decrypt(self, address: ProtocolAddress, ciphertext):
-
+    def decrypt(self, address: ProtocolAddress, ciphertext: bytes):
         try:
             ciphertext = protocol.PreKeySignalMessage.try_from(ciphertext)
         except SignalProtocolException as e:
             logging.warning(f"{e}")
             return
-
-        # try:
-        #     # ciphertext = protocol.SignalMessage.try_from(ciphertext)
-        #     ciphertext = ciphertext.message()
-        # except SignalProtocolException as e:
-        #     logging.warning(f"{e}")
-        #     return
-
-
-        # self.prekey = PreKeyRecord(self.pre_key_id, self.pre_key_pair)
-        # self.store.save_pre_key(self.pre_key_id, self.prekey)
-
-        # signed_prekey = SignedPreKeyRecord(
-        #     self.signed_pre_key_id,
-        #     42,
-        #     self.signed_pre_key_pair,
-        #     self.signed_pre_key_signature,
-        # )
-
-        # self.store.save_signed_pre_key(self.signed_pre_key_id, signed_prekey)
-
 
         ptxt = session_cipher.message_decrypt(self.store, address, ciphertext)
 
