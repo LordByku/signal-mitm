@@ -8,6 +8,10 @@ from signal_protocol.curve import KeyPair, PublicKey
 from signal_protocol.identity_key import IdentityKeyPair
 from signal_protocol.error import SignalProtocolException
 
+from protos.gen.SignalService_pb2 import Content
+
+import utils
+
 import json
 import base64
 
@@ -89,10 +93,10 @@ class MitmUser(object):
         )
 
         # self.last_resort_kyber: kem.KeyPair = kem.KeyPair.generate(kem.KeyType(0))
-        self.last_resort_kyber_pre_key_id = KyberPreKeyId(kwargs.get("kyber_pre_key_id", 25)) ## TODO: please please, please ^^
+        self.last_resort_kyber_pre_key_id = KyberPreKeyId(kwargs.get("last_resort_kyber_pre_key_id", 25)) ## TODO: please please, please ^^
 
         if "last_resort_kyber_record" in kwargs:
-            temp_last_resort: KyberPreKeyRecord = kwargs.get("kyber_record")
+            temp_last_resort: KyberPreKeyRecord = kwargs.get("last_resort_kyber_record")
             self.last_resort_kyber_pre_key_id = temp_last_resort.id()
         else:
             temp_last_resort = KyberPreKeyRecord.generate(kem_type, self.last_resort_kyber_pre_key_id, self.identity_key_pair.private_key())
@@ -187,9 +191,15 @@ class MitmUser(object):
 
         # self.store.save_signed_pre_key(self.signed_pre_key_id, signed_prekey)
 
-        print(base64.b64encode(self.signed_pre_key_signature).decode())
 
-        return session_cipher.message_decrypt(self.store, address, ciphertext)
+        ptxt = session_cipher.message_decrypt(self.store, address, ciphertext)
+
+        c = Content()
+
+        ptxt = utils.PushTransportDetails().get_stripped_padding_message_body(ptxt)
+        c.ParseFromString(ptxt)
+
+        return c            
 
 
 if __name__ == "__main__":

@@ -126,7 +126,7 @@ fakeUser = MitmUser(
     pre_key_id=args["pre_key_id"],
     pre_key=args["pre_key"],
     kyber_pre_key_id=args["kyber_pre_key_id"],
-    kyber_pre_key_record=args["kyber_record"],
+    kyber_record=args["kyber_record"],
 )
 
 assert fakeUser.registration_id == destination_reg
@@ -136,7 +136,14 @@ assert fakeUser.pre_key_id.get_id() == pk_id.get_id()
 assert fakeUser.identity_key_pair.serialize() == ik.serialize()
 assert fakeUser.signed_pre_key_pair.serialize() == spkr.key_pair().serialize()
 assert fakeUser.pre_key_pair.serialize() == pkr.key_pair().serialize()
-# assert fakeUser.store.get_kyber_pre_key() == args["kyber_record"].
+
+assert fakeUser.store.get_identity_key_pair().serialize()== ik.serialize()
+assert fakeUser.store.get_pre_key(pk_id).serialize() == pkr.serialize()
+assert fakeUser.store.get_signed_pre_key(spk_id).serialize() == spkr.serialize()
+print(fakeUser.store.get_kyber_pre_key(kyber_id).serialize().hex())
+print("++++++++++++++++++++++++++++++++++++++++++++")
+print(args["kyber_record"].serialize().hex())
+assert fakeUser.store.get_kyber_pre_key(kyber_id).serialize() == args["kyber_record"].serialize()
 
 
-session_cipher.message_decrypt(fakeUser.store, sender_addr, ctxt_data)
+print(fakeUser.decrypt(sender_addr, content))
