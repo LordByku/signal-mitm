@@ -382,7 +382,7 @@ def _v2_keys(flow: HTTPFlow):
                                                                   prekey_start_at=pre_keys[0]["keyId"],
                                                                   kyber_prekey_start_at=pq_pre_keys[0]["keyId"])
 
-    raise RuntimeError("store me up daddy")
+    #raise RuntimeError("store me up daddy")
     ## todo for later: Make sure all the keys we generate are stored in the database
 
     req.update(fake_pre_keys)

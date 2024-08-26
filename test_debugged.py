@@ -1,5 +1,6 @@
 import base64
 import utils
+import json
 from signal_protocol.address import ProtocolAddress
 from signal_protocol.state import (
     PreKeyId,
@@ -69,6 +70,27 @@ args = {
     ),
 }
 
+args ={
+    "identity_key": "Bedj0IADMGdj+RE2EU/xQXowidmcNdtUIykWvseZZhpn",
+    "signed_pre_key": json.dumps({
+        "keyId": 6026970,
+        "publicKey": "BYNvswv2Lxo5tHCR3tg7X8qeOpv8hGVNC2/3BwH/LMo3",
+        "signature": "7Ug2x9ZSSOGrYGeH2VxmVCmiV8nkc6gFVKPehqEGv+HoKRd+Qtn+O0mNUDjaviLd4wtO5p3cJIAG/6NOs5dVCw==",
+        "privateKey": "uN8x8dV6VQm32rO2QKVe3ZvrYSk68ht6ngK1hw8bJVg=",
+    }),
+    "pre_key": json.dumps({
+        "keyId": 10588852,
+        "publicKey": "BaFExFNFEZyy7S5N8+rkl5H/9Fr0vQ/HxOVW2tRYmWNG",
+        "privateKey": "CJWkUylAhEdq8udcBvrKci/aB8J/r/nclocY83oIYFg=",
+    }),
+    "kyber_record": json.dumps({
+        "keyId": 10004538,
+        "publicKey": "CJtUTPWKCKD3eCZLmlysqOp4xxilmbBpg7JsBDNAI0q6PLnXwqpVR65RqxLofPXDVWKAnH8FfACRgEXDd/PIAWiZnl4KdCf7FaJ4WQwylpdFsd5xHD8pCc/kd5WlQHWSj5BkC3TJhdb2OliyqQNEkfEFzuplIypJz+/LX+QCeJvyXR5pUJm0YaABcumnNHY4z7ynDnNxk2B2vcJDTLVzOljWH3o7KXZwmbvrobCiYUiWHVKqm0Vncevxlr0WhNTTLkKqbbnqWPLpGYCTH8AVhpqYzmbhDGRwuO8kw3PFyUPsXg3qy7UpuxZiYcZUPybLJnsVFbgBIIEmy08joiWwH07aPSrHE/DnKLeVGXFZVbnxAUQzpC9zbnXksk7Ah92UpfhCAMFiyINkJpAhP9JEJxpHwSfEHjMlaEy2MyhUmcdlWNOaYo1sQ6H5Wim1UJ0xdQDRMTCsTTtiBjI8sM8qAXV1c6dCWRwcgyCGzlcpnsUQjyLlGc8SdKVyENPhDC0cwI3oii64kG6bJRk0Gr1bWRBCrQbVfYzcwiMRbNAiKNEZago1RaA8TDXVL0xXPhtzD5WHu6riDloQSFFgyyjmEfwTF34ssBTMbG61d8tjxO7hMAViH6cslRYpQbGpagxyCLarOFxwh8nIN8gGYJNid61SSqnqTHIajQaZEHX8ZvyBZAjiul57cHIcCc3CixQ0vgUYVuuXDmtbl4SAM2RkfplImdcpa4RpJAznNAhHuuygGlWqNqByURXST9zEsCRXvMJVTa+0VU8zTqmjJy7VwD/VGXzLHP8gTCK8DZ25NRHEAfa0eCD3cAMDSIXBvQrTKZFHhtfqR+yYIO6GcEAUCJJrjO2wAnJGykkIKK28dZ8XJCVbtcurjhmDQFgKjqfxiAIygBkbmW6WBXhXEPwTIa4GG4PRF/4EE0jImpJRX0jYCR7qB+ZQRT38K4pjDqESuEpXB2+mRvnAojzwW+dqNr72En/gIH1pdk0oLTUqsDbayGtiqgdJe3Ogzjn3s6mGcRfVxS5GWkmHHcd2emBXeiryy+8HgQjUn1DHe3mTR9xLQCJLmMvBX1RAK0DgwtBKpCArmjSVe4GZC4qlPzZyyWdImhkXgN6KolOpJ3zne1GWBVxcWXhlJL4nf8GjhvGWJWNKM6poM0pgbdH4IDhlPJagw4BgYTlBN4Dbn9PhayC4Qx0HIamHpnM4nv2jc2yzAF6rU4fTVxqybgB7qqULoZrHqaRzO5H5v0xZApQbtALjkZZMPOU7qzASy1L7Uo8cyCVjhoU3tJXAtYF8netnH9p2vbJ8jtqIlmuppHH5kqPXJL7lCjwEP76Yal1mKVdByUtDP2Bpzi4IUpmWXpcrVpKyzQmBxkGoLTC2WEwig8KhFyrnH5jBJFJTlcgijjPUyP00AXUaQHnnFfe6STgbo51QfddEXWomq9HEtJqwtHGqRXKGgFRBcsuDZMjDoidKu8ucQH/6MgwycHKCkAt5p5WMHEmgMWl5xPFMAUCpv8UgFyqgm3UnzZHjzn4KEQWqv8yFGzXFuxXrI4K0eZnqFPumALWbtHhGoA4yM2xoakMFqULiXdhjuD1hcfRbRKcoHZ43PijIzRJhWzg4RWU2JvmzVEjqC2gBA7xwHc8Ib1NbWkogoP3iIUt3rAKFjXoKtGPElzxbSeDDITAENuS4QFIjX3JzTI8USmTbGVxbeUomIq8pbfymIAHicfeQmIlbYbboDA5mHYEcQKcIc8H0IRRAy1iJha/hiiXLgvYyP5c3oQ6GKiVLc/faACu6tS80wZFZtoDSsKuGLutzSktXsunbMItEMhkIiGnQo/skJ38HkTyyU645VM+rEf07MTsWojMERhmTpSkmozUMy+5BwBgSGb4QSIyChifCb2NBO+7hZ6Mxk/kQxqIUtxESfGL8I46xeWojJ5F4qMKIwcOZeD1aKU0gIOesGFWrkXeCRiC7WQ5zk7lAuIK1Z/9WQlunMgkqQ0/zGEQyKSyRAgXVcFzSqKnsOnncrn3sACfHKtfzF9Pqyro8OjD8E6ALHWEGQDxCilS4Tq1sooxkA6jYpyEawoPZoCqtN7lpjtlaXNB3",
+        "privateKey":"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",
+        "signature":"ffJqYf3RT653owvCVTuoMr8RbInjIp08D3qY8FHYfFuiocXPW9txJUcSmkM7XRCPZ2OwiI9Th+9CX5izBWqzDw==",
+    }),
+}
+
 sig = ik.private_key().calculate_signature(kp.get_public().serialize())  # .hex()
 
 temp_kyber = KyberPreKeyRecord.generate(
@@ -82,27 +104,27 @@ my_addr = ProtocolAddress("PNI:35762c93-ab19-4fdc-af8d-f21e6d1b52ef", destinatio
 store = InMemSignalProtocolStore(ik, destination_reg)
 print(store)
 
-spk_id = SignedPreKeyId(args["signed_pre_key_id"])
-spkr = SignedPreKeyRecord(
-    spk_id,
-    1724592884969,
-    args["signed_pre_key"],
-    base64.b64decode(
-        "7Ug2x9ZSSOGrYGeH2VxmVCmiV8nkc6gFVKPehqEGv+HoKRd+Qtn+O0mNUDjaviLd4wtO5p3cJIAG/6NOs5dVCw=="
-    ),
-)
-store.save_signed_pre_key(spk_id, spkr)
+# spk_id = SignedPreKeyId(args["signed_pre_key_id"])
+# spkr = SignedPreKeyRecord(
+#     spk_id,
+#     1724592884969,
+#     args["signed_pre_key"],
+#     base64.b64decode(
+#         "7Ug2x9ZSSOGrYGeH2VxmVCmiV8nkc6gFVKPehqEGv+HoKRd+Qtn+O0mNUDjaviLd4wtO5p3cJIAG/6NOs5dVCw=="
+#     ),
+# )
+# store.save_signed_pre_key(spk_id, spkr)
 
-pk_id = PreKeyId(args["pre_key_id"])
-pkr = PreKeyRecord(
-    pk_id,
-    args["pre_key"],
-)
+# pk_id = PreKeyId(args["pre_key_id"])
+# pkr = PreKeyRecord(
+#     pk_id,
+#     args["pre_key"],
+# )
 
-store.save_pre_key(pk_id, pkr)
+# store.save_pre_key(pk_id, pkr)
 
-kyber_id = KyberPreKeyId(args["kyber_pre_key_id"])
-store.save_kyber_pre_key(kyber_id, args["kyber_record"])
+# kyber_id = KyberPreKeyId(args["kyber_pre_key_id"])
+# store.save_kyber_pre_key(kyber_id, args["kyber_record"])
 
 sender_addr = ProtocolAddress("bob", 1)
 
@@ -110,33 +132,29 @@ ctxt_data = PreKeySignalMessage.try_from(content)
 
 c = Content()
 
+# fakeUser = MitmUser(
+#     address=my_addr,
+#     RID=destination_reg,
+#     identity_key=ik,
+#     signed_pre_key_id=args["signed_pre_key_id"],
+#     signed_pre_key=args["signed_pre_key"],
+#     pre_key_id=args["pre_key_id"],
+#     pre_key=args["pre_key"],
+#     kyber_pre_key_id=args["kyber_pre_key_id"],
+#     kyber_record=args["kyber_record"],
+# )
+
+print(args)
+
 fakeUser = MitmUser(
     address=my_addr,
     RID=destination_reg,
     identity_key=ik,
-    signed_pre_key_id=args["signed_pre_key_id"],
-    signed_pre_key=args["signed_pre_key"],
-    pre_key_id=args["pre_key_id"],
-    pre_key=args["pre_key"],
-    kyber_pre_key_id=args["kyber_pre_key_id"],
-    kyber_record=args["kyber_record"],
+    signed_pre_key = args["signed_pre_key"],
+    pre_key = args["pre_key"],
+    kyber_record = args["kyber_record"]
 )
 
-assert fakeUser.registration_id == destination_reg
-assert fakeUser.kyber_pre_key_id.get_id() == kyber_id.get_id()
-assert fakeUser.signed_pre_key_id.get_id() == spk_id.get_id()
-assert fakeUser.pre_key_id.get_id() == pk_id.get_id()
-assert fakeUser.identity_key_pair.serialize() == ik.serialize()
-assert fakeUser.signed_pre_key_pair.serialize() == spkr.key_pair().serialize()
-assert fakeUser.pre_key_pair.serialize() == pkr.key_pair().serialize()
-
-assert fakeUser.aci_store.get_identity_key_pair().serialize() == ik.serialize()
-assert fakeUser.aci_store.get_pre_key(pk_id).serialize() == pkr.serialize()
-assert fakeUser.aci_store.get_signed_pre_key(spk_id).serialize() == spkr.serialize()
-print(fakeUser.aci_store.get_kyber_pre_key(kyber_id).serialize().hex())
-print("++++++++++++++++++++++++++++++++++++++++++++")
-print(args["kyber_record"].serialize().hex())
-assert fakeUser.aci_store.get_kyber_pre_key(kyber_id).serialize() == args["kyber_record"].serialize()
 
 
 print(fakeUser.decrypt(sender_addr, content))
