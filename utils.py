@@ -9,7 +9,11 @@ from dataclasses import dataclass, fields, is_dataclass, asdict
 import json
 from signal_protocol import kem
 from signal_protocol.state import KyberPreKeyRecord
+from signal_protocol.curve import KeyPair
+from signal_protocol.identity_key import IdentityKeyPair
+import signal_protocol.helpers as helpers
 from protos.gen.storage_pb2 import SignedPreKeyRecordStructure
+import random
 
 def try_run(cmd: str):
     try:
@@ -135,6 +139,13 @@ def make_kyber_record(key_id: int, ts: int, kp: kem.KeyPair, signature: bytes):
     sss.timestamp = ts
     return KyberPreKeyRecord.deserialize(sss.SerializeToString())
 
+def generate_pre_key_json(alice_identity_key_pair: IdentityKeyPair):
+
+    pub_keys, priv_keys = helpers.create_keys_data(100, alice_identity_key_pair,
+                                                                  prekey_start_at=random.randint(1,2**16),
+                                                                  kyber_prekey_start_at=random.randint(1,2**16))
+    keys = json_join_public(pub_keys, priv_keys)
+    return keys
 
 class ColorHandler(logging.StreamHandler):
     # https://en.wikipedia.org/wiki/ANSI_escape_code#Colors
