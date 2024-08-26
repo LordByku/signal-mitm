@@ -39,9 +39,20 @@ class MitmUser(object):
             .private_key()
             .calculate_signature(self.signed_pre_key_public)
         )
+    
+        self.store.save_signed_pre_key(self.signed_pre_key_id, SignedPreKeyRecord(
+            self.signed_pre_key_id,
+            1724592884969,
+            self.signed_pre_key_pair,
+                base64.b64decode(
+        "7Ug2x9ZSSOGrYGeH2VxmVCmiV8nkc6gFVKPehqEGv+HoKRd+Qtn+O0mNUDjaviLd4wtO5p3cJIAG/6NOs5dVCw=="
+    ),
+        ))
 
         self.pre_key_id = PreKeyId(kwargs.get("pre_key_id", 31337))
         self.pre_key_pair = kwargs.get("pre_key", KeyPair.generate())
+
+        self.store.save_pre_key(self.pre_key_id, PreKeyRecord(self.pre_key_id, self.pre_key_pair))
 
         self.pre_key_bundle = PreKeyBundle(
             self.store.get_local_registration_id(), # this is 1 because of how we initialize the store
@@ -64,6 +75,7 @@ class MitmUser(object):
             self.kyber_pre_key_id = temp_kyber.id()
         else:
             temp_kyber = KyberPreKeyRecord.generate(kem_type, self.kyber_pre_key_id, self.identity_key_pair.private_key())
+
         self.kyber_pre_key_pair = temp_kyber.key_pair()
         self.kyber_pre_key_signature = temp_kyber.signature() ## if it meeeps, blame chrissy
 
@@ -155,25 +167,27 @@ class MitmUser(object):
             logging.warning(f"{e}")
             return
 
-        try:
-            # ciphertext = protocol.SignalMessage.try_from(ciphertext)
-            ciphertext = ciphertext.message()
-        except SignalProtocolException as e:
-            logging.warning(f"{e}")
-            return
+        # try:
+        #     # ciphertext = protocol.SignalMessage.try_from(ciphertext)
+        #     ciphertext = ciphertext.message()
+        # except SignalProtocolException as e:
+        #     logging.warning(f"{e}")
+        #     return
 
 
-        self.prekey = PreKeyRecord(self.pre_key_id, self.pre_key_pair)
-        self.store.save_pre_key(self.pre_key_id, self.prekey)
+        # self.prekey = PreKeyRecord(self.pre_key_id, self.pre_key_pair)
+        # self.store.save_pre_key(self.pre_key_id, self.prekey)
 
-        signed_prekey = SignedPreKeyRecord(
-            self.signed_pre_key_id,
-            42,
-            self.signed_pre_key_pair,
-            self.signed_pre_key_signature,
-        )
+        # signed_prekey = SignedPreKeyRecord(
+        #     self.signed_pre_key_id,
+        #     42,
+        #     self.signed_pre_key_pair,
+        #     self.signed_pre_key_signature,
+        # )
 
-        self.store.save_signed_pre_key(self.signed_pre_key_id, signed_prekey)
+        # self.store.save_signed_pre_key(self.signed_pre_key_id, signed_prekey)
+
+        print(base64.b64encode(self.signed_pre_key_signature).decode())
 
         return session_cipher.message_decrypt(self.store, address, ciphertext)
 

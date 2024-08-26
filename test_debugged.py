@@ -17,6 +17,8 @@ from signal_protocol import session_cipher
 from signal_protocol.protocol import PreKeySignalMessage
 from protos.gen.SignalService_pb2 import Content
 
+from mitm_interface import MitmUser
+
 content = "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"
 content = base64.b64decode(content)
 
@@ -75,7 +77,7 @@ temp_kyber = KyberPreKeyRecord.generate(
 
 target = temp_kyber.serialize().hex()
 
-my_addr = (ProtocolAddress("PNI:35762c93-ab19-4fdc-af8d-f21e6d1b52ef", destination_id),)
+my_addr = ProtocolAddress("PNI:35762c93-ab19-4fdc-af8d-f21e6d1b52ef", destination_id)
 
 store = InMemSignalProtocolStore(ik, destination_reg)
 print(store)
@@ -105,11 +107,36 @@ store.save_kyber_pre_key(kyber_id, args["kyber_record"])
 sender_addr = ProtocolAddress("bob", 1)
 
 ctxt_data = PreKeySignalMessage.try_from(content)
-ptxt = session_cipher.message_decrypt(store, sender_addr, ctxt_data)
-print(ptxt)
+# ptxt = session_cipher.message_decrypt(store, sender_addr, ctxt_data)
+# print(ptxt)
 
 c = Content()
 
-ptxt = utils.PushTransportDetails().get_stripped_padding_message_body(ptxt)
-c.ParseFromString(ptxt)
-print(c)
+# ptxt = utils.PushTransportDetails().get_stripped_padding_message_body(ptxt)
+# c.ParseFromString(ptxt)
+# print(c)
+
+
+fakeUser = MitmUser(
+    address=my_addr,
+    RID=destination_reg,
+    identity_key=ik,
+    signed_pre_key_id=args["signed_pre_key_id"],
+    signed_pre_key=args["signed_pre_key"],
+    pre_key_id=args["pre_key_id"],
+    pre_key=args["pre_key"],
+    kyber_pre_key_id=args["kyber_pre_key_id"],
+    kyber_pre_key_record=args["kyber_record"],
+)
+
+assert fakeUser.registration_id == destination_reg
+assert fakeUser.kyber_pre_key_id.get_id() == kyber_id.get_id()
+assert fakeUser.signed_pre_key_id.get_id() == spk_id.get_id()
+assert fakeUser.pre_key_id.get_id() == pk_id.get_id()
+assert fakeUser.identity_key_pair.serialize() == ik.serialize()
+assert fakeUser.signed_pre_key_pair.serialize() == spkr.key_pair().serialize()
+assert fakeUser.pre_key_pair.serialize() == pkr.key_pair().serialize()
+# assert fakeUser.store.get_kyber_pre_key() == args["kyber_record"].
+
+
+session_cipher.message_decrypt(fakeUser.store, sender_addr, ctxt_data)
