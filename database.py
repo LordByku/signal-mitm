@@ -162,6 +162,22 @@ class MitMBundle(BaseSqliteModel):
         primary_key = CompositeKey("type", "aci", "deviceId")
 
     @classmethod
+    def get_identity_keypair(cls, key_type: str, aci: str, device_id: int=1, with_private: bool=True)-> Union[dict, list[dict], None]:
+        try:
+            # Fetch the bundle using the primary key
+            bundle = cls.get(cls.type==key_type, cls.aci == aci, cls.deviceId == device_id)
+            # matching_keys = bundle.FakeIdenKey
+            keys = bundle.FakeIdenKey
+
+            if with_private:
+                return keys
+            else:
+                return {k:v for k,v in keys.items() if k != "privateKey"}
+
+        except DoesNotExist:
+            return None
+
+    @classmethod
     def get_pre_key(
         cls, aci: str, device_id: int, key_id: int, with_private=True
     ) -> Union[dict, list[dict], None]:
