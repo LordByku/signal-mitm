@@ -36,10 +36,10 @@
     - POSSIBLE USE: track which messages were dropped (if any)
 
 - `def drop(self) -> None`
-    - Drop this message, i.e., don't forward it to the peer.
-    - Original use case: drop each websocket message regarding Signal messages
-  <font color="burgundy">**CHRISSY**: I don't understand what is meant with the last line, is that something that was used? Why is it not listed in the previous chapter? Also what does it mean to 'drop each websocket message regarding Signal messages', please clarify.</font>
-    - POSSIBLE USE: drop messages that are not needed
+    - Drop this message, meaning do not forward it to the recipient.
+        During the PoC, the `drop()` function was used to drop any WebSocket message and the mitmproxy was (re-)creating the messages internally and _injecting_ them into the channel. The proxy was not relaying messages transparently but processing each of them.
+
+        - POSSIBLE USE: Discard unnecessary or bad status code response messages.
 
 ## [mitmproxy.proxy.context](https://docs.mitmproxy.org/stable/api/mitmproxy/proxy/context.html)
 

@@ -3,7 +3,6 @@ protobuf
 mitmproxy
 peewee
 jsonschema
-git+https://github.com/TheTechZone/xepor@feat-websocket
 black
 astor
 setuptools
@@ -11,3 +10,4 @@ setuptools-rust
 wheel
 pytest
 git+https://github.com/TheTechZone/signal-protocol.py.git@feat-kyber
+git+https://github.com/TheTechZone/xepor@feat-websocket
