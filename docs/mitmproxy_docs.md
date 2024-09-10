@@ -7,7 +7,7 @@
 
 ## [mimtproxy.websocket](https://docs.mitmproxy.org/stable/api/mitmproxy/websocket.html)
 
-### What we use so far
+## Used so far
 
 #### WebSocketMessage
 - `from_client`: `bool`
@@ -25,31 +25,32 @@
     - All WebSocketMessages transferred over this flow.
 
 
-## What is nice to look at
+## Looks interesting
 
 - `timestamp`: `float`
-    - The timestamp of when this message was received or created.
+    - The timestamp noting when this message was received or created.
     - POSSIBLE USE: order messages by timestamp
 
 - `dropped`: `bool`
-    - True if the message has not been forwarded by mitmproxy, False otherwise.
+    - True if the message was not forwarded by mitmproxy, False otherwise.
     - POSSIBLE USE: track which messages were dropped (if any)
 
 - `def drop(self) -> None`
-    - Drop this message, i.e. don't forward it to the other peer.
+    - Drop this message, i.e., don't forward it to the peer.
     - Original use case: drop each websocket message regarding Signal messages
+  <font color="burgundy">**CHRISSY**: I don't understand what is meant with the last line, is that something that was used? Why is it not listed in the previous chapter? Also what does it mean to 'drop each websocket message regarding Signal messages', please clarify.</font>
     - POSSIBLE USE: drop messages that are not needed
 
 ## [mitmproxy.proxy.context](https://docs.mitmproxy.org/stable/api/mitmproxy/proxy/context.html)
 
-### What is nice to look at
+## Looks interesting
 
 - `ctx`
     _The context object provided to each protocol layer in the proxy core._
 
 ## [ mitmproxy.http](https://docs.mitmproxy.org/stable/api/mitmproxy/http.html)
 
-### What we use so far
+## Used so far
 
 #### HTTPFlow
 
@@ -62,7 +63,7 @@
 - `websocket`: `WebSocketData`
     - The WebSocket connection.
 
-##### Message 
+#### Message 
 
 - `content`: `bytes`
     - The uncompressed HTTP message body as bytes. Accessing this attribute may raise a ValueError when the HTTP content-encoding is invalid. See also: `Message.raw_content`, `Message.text`
@@ -84,9 +85,9 @@
 - `status_code`: `int`
     - The HTTP status code.
 
-### What is nice to look at
+## Looks interesting
 
-##### Message 
+#### Message 
     Base class for Request and Response.
 
 - `stream`: `bool`
@@ -113,8 +114,9 @@
 #### Request
 
 - `query`: `dict[str, str]`
-    - The request query string as a mutable mapping view on the request's path. For the most part, this behaves like a dictionary. Modifications to the `MultiDictView` update `Request.path`, and vice versa.
+  
+  The request query string as a mutable mapping view on the request's path. For the most part, this behaves like a dictionary. Modifications to the `MultiDictView` update `Request.path`, and vice versa.
 
 #### Headers
 
-In general, this can be interesting to look at, as it provides a lot of information about the request/response headers.
+This provides a lot of information about the request/response headers.
