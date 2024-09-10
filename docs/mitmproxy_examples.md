@@ -2,9 +2,8 @@
 
 ## [Contentview-custom-grpc](https://docs.mitmproxy.org/stable/addons-examples/#contentview-custom-grpc)
 
-```python
-Add a custom version of the gRPC/protobuf content view, which parses protobuf messages based on a user defined rule set.
-```
+Adds a custom version of the gRPC/protobuf content view, which parses protobuf messages based on a user defined rule set.
+
 
 
 ## [commands-flows](https://docs.mitmproxy.org/stable/addons-examples/#commands-flows)
