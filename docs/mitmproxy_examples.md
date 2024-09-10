@@ -1,9 +1,8 @@
-# mitmproxy (nice to look at) examples
+# mitmproxy: useful examples
 
 ## [Contentview-custom-grpc](https://docs.mitmproxy.org/stable/addons-examples/#contentview-custom-grpc)
 
 Adds a custom version of the gRPC/protobuf content view, which parses protobuf messages based on a user defined rule set.
-
 
 
 ## [commands-flows](https://docs.mitmproxy.org/stable/addons-examples/#commands-flows)
@@ -255,7 +254,7 @@ addons = [Filter()]
             )
 ```
 
-# [Example from community]()
+# [Examples from the community]()
 
 
 ## [Error hook](https://github.com/mitmproxy/mitmproxy/blob/main/examples/contrib/suppress_error_responses.py )
