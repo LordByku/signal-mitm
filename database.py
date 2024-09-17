@@ -109,7 +109,7 @@ class LegitBundle(SQLModel, table=True):
     )
     # pre_key: Optional[dict] = Field(sa_column=Column(JSON), alias="preKey",
     #                                 schema_extra={"serialization_alias": "preKey", "validation_alias": "preKey"})
-    pre_key: Optional[PydanticPreKey] = Field(
+    pre_key: Optional[list[PydanticPreKey]] = Field(
         sa_column=Column(JSON),
         alias="preKey",
         schema_extra={"serialization_alias": "preKey", "validation_alias": "preKey"},
@@ -117,7 +117,7 @@ class LegitBundle(SQLModel, table=True):
 
     # kyber_key: Optional[dict] = Field(sa_column=Column(JSON), alias="pqPreKey",
     #                                   schema_extra={"serialization_alias": "pqPreKey", "validation_alias": "pqPreKey"})
-    kyber_key: Optional[PydanticPqKey] = Field(
+    kyber_key: Optional[list[PydanticPqKey]] = Field(
         sa_column=Column(JSON),
         alias="pqPreKey",
         schema_extra={
@@ -416,6 +416,8 @@ if __name__ == "__main__":
         bundle = bundle["devices"][0]
         bundle["aci"] = "test1"
         bundle["type"] = "aci"
+        bundle["preKey"] = [bundle["preKey"]]
+        bundle["pqPreKey"] = [bundle["pqPreKey"]]
         # bundle["identityKey"]
         lb = LegitBundle.model_validate(bundle)
         print(lb)
