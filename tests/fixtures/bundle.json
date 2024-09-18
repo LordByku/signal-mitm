@@ -1,0 +1,23 @@
+{
+    "devices": [
+        {
+            "deviceId": 1,
+            "pqPreKey": {
+                "keyId": 2968911,
+                "publicKey": "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",
+                "signature": "80WFKbNMAlDSDcrnEmk3sadGCNF83pnNgpihj01zYdjmaHSKjgm/UlxbZFctlFkYYPy2aRC8bA7Tetu08fOBjA"
+            },
+            "preKey": {
+                "keyId": 4893059,
+                "publicKey": "BUCjfW4mff++m7KHbbVqVPSPuDTGctwOukKd2ooVbipd"
+            },
+            "registrationId": 16317,
+            "signedPreKey": {
+                "keyId": 16270378,
+                "publicKey": "Bc5FsaN1vr5Zjom/Wp4tbjAEvW3KgrN7YyGDrjFFRzUs",
+                "signature": "B1wA3gQDRnetGPzwy1vhTBj12L5z0JowAYvt3pIuOZU7gEBZHZZwceh9GpTlmOGyTAfkqc2M3AaKnRyI0POEig"
+            }
+        }
+    ],
+    "identityKey": "BS7B2LBkYJn/siFtVxnEwtOlvOqpLLwf/eZXTEKXkl5+"
+}
