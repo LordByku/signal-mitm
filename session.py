@@ -5,6 +5,7 @@ from sqlalchemy import Engine
 from sqlalchemy.orm import Session
 from sqlmodel import SQLModel, create_engine
 
+
 class SingletonMeta(type):
     """
     The Singleton class can be implemented in different ways in Python. Some
@@ -54,7 +55,8 @@ class DatabaseSessionManager(metaclass=SingletonMeta):
     def get_session(self) -> Session:
         return Session(DatabaseSessionManager._engine)
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     s1 = DatabaseSessionManager()
 
     s2 = DatabaseSessionManager()

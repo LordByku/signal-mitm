@@ -13,6 +13,8 @@ from signal_protocol.kem import PublicKey as KemPublicKey
 from sqlalchemy import String
 from sqlmodel import SQLModel
 from sqlmodel._compat import SQLModelConfig  # noqa
+from pydantic_core import CoreSchema, core_schema
+from pydantic import GetCoreSchemaHandler
 
 #
 """
@@ -40,22 +42,18 @@ class SQLModelValidation(SQLModel):
     )
 
 
-from pydantic_core import CoreSchema, core_schema
-from pydantic import GetCoreSchemaHandler
-
-
 class _PubKeyRecord:
     key_id: int
     public_key: Union[PublicKey, KemPublicKey]
     signature: Optional[str]
 
     def __init__(
-            self,
-            key_id: int,
-            public_key: Union[PublicKey, KemPublicKey],
-            signature: Optional[str],
+        self,
+        key_id: int,
+        public_key: Union[PublicKey, KemPublicKey],
+        signature: Optional[str],
     ):
-        super().__init__() # useless
+        super().__init__()  # useless
         self.key_id = key_id
         self.public_key = public_key
         self.signature = signature
@@ -68,20 +66,9 @@ class _PubKeyRecord:
             data["signature"] = self.signature
         return data
 
+
 from sqlalchemy.types import TypeDecorator, JSON
 
-class IKDbAdapter(TypeDecorator):
-    impl = JSON
-
-    def process_bind_param(self, value: IdentityKey, dialect):
-        if value is not None:
-            value = value.to_base64()  # Assuming value is bytes
-        return value
-
-    def process_result_value(self, value: str, dialect):
-        if value is not None:
-            value = IdentityKey.from_base64(value.encode())  # Assuming Base64Str.b64decode() returns bytes
-        return value
 
 class _IdentityKeyAnnotation(TypeDecorator):
     impl = String
@@ -93,15 +80,18 @@ class _IdentityKeyAnnotation(TypeDecorator):
 
     def process_result_value(self, value: str, dialect):
         if value is not None:
-            value = IdentityKey.from_base64(value.encode())  # Assuming Base64Str.b64decode() returns bytes
+            value = IdentityKey.from_base64(
+                value.encode()
+            )  # Assuming Base64Str.b64decode() returns bytes
         return value
 
     """
     https://docs.pydantic.dev/2.9/concepts/types/#handling-third-party-types
     """
+
     @classmethod
     def __get_pydantic_core_schema__(
-            cls, _source_type: Type[Any], _handler: GetCoreSchemaHandler
+        cls, _source_type: Type[Any], _handler: GetCoreSchemaHandler
     ) -> CoreSchema:
         """
         We return a pydantic_core.CoreSchema that behaves in the following ways:
@@ -135,10 +125,37 @@ class _IdentityKeyAnnotation(TypeDecorator):
             ),
         )
 
-class _IdentityKeyPairAnnotation:
+
+class _IdentityKeyPairAnnotation(TypeDecorator):
+    impl = JSON
+
+    def process_bind_param(self, value: IdentityKeyPair, dialect) -> dict:
+        if value is not None:
+            value = self.to_dict(value) # Assuming value is bytes
+        return value
+
+    def process_result_value(self, value: dict, dialect) -> IdentityKeyPair:
+        if value is not None:
+            value = self.validate_from_dict(value)
+        return value
+
+    @staticmethod
+    def to_dict(value: IdentityKeyPair) -> dict:
+        return {
+            "publicKey": value.public_key().to_base64(),
+            "privateKey": value.private_key().to_base64(),
+        }
+
+    @staticmethod
+    def validate_from_dict(value: dict) -> IdentityKeyPair:
+        return IdentityKeyPair(
+            IdentityKey.from_base64(value.get("publicKey").encode()),
+            PrivateKey.from_base64(value.get("privateKey").encode()),
+        )
+
     @classmethod
     def __get_pydantic_core_schema__(
-            cls, _source_type: Type[Any], _handler: GetCoreSchemaHandler
+        cls, _source_type: Type[Any], _handler: GetCoreSchemaHandler
     ) -> CoreSchema:
         """
         We return a pydantic_core.CoreSchema that behaves in the following ways:
@@ -146,22 +163,10 @@ class _IdentityKeyPairAnnotation:
         TODO: document me :c
         """
 
-        def to_dict(value: IdentityKeyPair) -> dict:
-            return {
-                "publicKey": value.public_key().to_base64(),
-                "privateKey": value.private_key().to_base64(),
-            }
-
-        def validate_from_dict(value: dict) -> IdentityKeyPair:
-            return IdentityKeyPair(
-                IdentityKey.from_base64(value.get("publicKey").encode()),
-                PrivateKey.from_base64(value.get("privateKey").encode()),
-            )
-
         from_dict_schema = core_schema.chain_schema(
             [
                 core_schema.dict_schema(),
-                core_schema.no_info_plain_validator_function(validate_from_dict),
+                core_schema.no_info_plain_validator_function(_IdentityKeyPairAnnotation.validate_from_dict),
             ]
         )
 
@@ -175,9 +180,10 @@ class _IdentityKeyPairAnnotation:
                 ]
             ),
             serialization=core_schema.plain_serializer_function_ser_schema(
-                lambda instance: to_dict(instance)
+                lambda instance: _IdentityKeyPairAnnotation.to_dict(instance)
             ),
         )
+
 
 class _SignedECKeyAnnotation(TypeDecorator):
     impl = JSON
@@ -198,7 +204,6 @@ class _SignedECKeyAnnotation(TypeDecorator):
                 value = self.validate_from_dict(value)
         return value
 
-
     @staticmethod
     def validate_from_dict(value: dict) -> _PubKeyRecord:
         return _PubKeyRecord(
@@ -209,7 +214,7 @@ class _SignedECKeyAnnotation(TypeDecorator):
 
     @classmethod
     def __get_pydantic_core_schema__(
-            cls, _source_type: Type[Any], _handler: GetCoreSchemaHandler
+        cls, _source_type: Type[Any], _handler: GetCoreSchemaHandler
     ) -> CoreSchema:
         from_dict_schema = core_schema.chain_schema(
             [
@@ -261,9 +266,8 @@ further reading https://www.gauge.sh/blog/the-trouble-with-all & https://www.app
 __all__ = [
     "SQLModelValidation",
     "PydanticIdentityKey",
-    "IKDbAdapter",
     "PydanticSignedPreKey",
     "PydanticPreKey",
     "PydanticPqKey",
-    "PydanticIdentityKeyPair"
+    "PydanticIdentityKeyPair",
 ]

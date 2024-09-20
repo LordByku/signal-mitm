@@ -31,7 +31,8 @@ from dbhacks import (
     PydanticIdentityKey,
     PydanticSignedPreKey,
     PydanticPreKey,
-    PydanticPqKey, PydanticIdentityKeyPair, IKDbAdapter,
+    PydanticPqKey,
+    PydanticIdentityKeyPair,
 )
 from session import DatabaseSessionManager
 
@@ -158,17 +159,26 @@ class MitmBundle(SQLModelValidation, table=True):
         primary_key=True,
         default=1,
         alias="deviceId",
-        schema_extra={"serialization_alias": "deviceId", "validation_alias": "deviceId"},
+        schema_extra={
+            "serialization_alias": "deviceId",
+            "validation_alias": "deviceId",
+        },
     )
     fake_identity_key_pair: Optional[PydanticIdentityKeyPair] = Field(
-        sa_column=Column(JSON),
+        sa_column=Column(get_args(PydanticIdentityKeyPair)[1]),
         alias="identityKey",
-        schema_extra={"serialization_alias": "identityKey", "validation_alias": "identityKey"},
+        schema_extra={
+            "serialization_alias": "identityKey",
+            "validation_alias": "identityKey",
+        },
     )
     fake_signed_pre_key: Optional[dict] = Field(
         sa_column=Column(JSON),
         alias="signedPreKey",
-        schema_extra={"serialization_alias": "signedPreKey", "validation_alias": "signedPreKey"},
+        schema_extra={
+            "serialization_alias": "signedPreKey",
+            "validation_alias": "signedPreKey",
+        },
     )
     fake_pre_keys: Optional[list[dict]] = Field(
         sa_column=Column(JSON),
@@ -178,12 +188,18 @@ class MitmBundle(SQLModelValidation, table=True):
     fake_kyber_keys: Optional[list[dict]] = Field(
         sa_column=Column(JSON),
         alias="kyberKeys",
-        schema_extra={"serialization_alias": "pqPreKeys", "validation_alias": "pqPreKeys"},
+        schema_extra={
+            "serialization_alias": "pqPreKeys",
+            "validation_alias": "pqPreKeys",
+        },
     )
     fake_last_resort_kyber: Optional[dict] = Field(
         sa_column=Column(JSON),
         alias="lastResortKyber",
-        schema_extra={"serialization_alias": "pqLastResortPreKey", "validation_alias": "pqLastResortPreKey"},
+        schema_extra={
+            "serialization_alias": "pqLastResortPreKey",
+            "validation_alias": "pqLastResortPreKey",
+        },
     )
 
     # composite primary keys are not directly supported by SQLModel so relying on the internal
@@ -194,7 +210,7 @@ class MitmBundle(SQLModelValidation, table=True):
     having only to reinstate from a Database entry.
     """
 
-    @field_validator("type") # noqa
+    @field_validator("type")  # noqa
     @classmethod
     def aci_or_pni(cls, value: str) -> str:
         if value not in ("aci", "pni"):
@@ -210,13 +226,13 @@ class MitmBundle(SQLModelValidation, table=True):
 
     @classmethod
     def _get_key_pair(
-            cls,
-            _session: Session,
-            key_type: str,
-            aci: str,
-            device_id: int,
-            key_field: str,
-            with_private: bool = True,
+        cls,
+        _session: Session,
+        key_type: str,
+        aci: str,
+        device_id: int,
+        key_field: str,
+        with_private: bool = True,
     ) -> Union[Dict[str, str], None]:
         try:
             stmt = select(cls).where(
@@ -238,12 +254,12 @@ class MitmBundle(SQLModelValidation, table=True):
 
     @classmethod
     def get_identity_keypair(
-            cls,
-            _session: Session,
-            key_type: str,
-            aci: str,
-            device_id: int = 1,
-            with_private: bool = True,
+        cls,
+        _session: Session,
+        key_type: str,
+        aci: str,
+        device_id: int = 1,
+        with_private: bool = True,
     ) -> Union[Dict[str, str], None]:
         return cls._get_key_pair(
             _session, key_type, aci, device_id, "fake_identity_key", with_private
@@ -251,12 +267,12 @@ class MitmBundle(SQLModelValidation, table=True):
 
     @classmethod
     def get_signed_pre_key_pair(
-            cls,
-            _session: Session,
-            key_type: str,
-            aci: str,
-            device_id: int = 1,
-            with_private: bool = True,
+        cls,
+        _session: Session,
+        key_type: str,
+        aci: str,
+        device_id: int = 1,
+        with_private: bool = True,
     ) -> Union[Dict[str, str], None]:
         return cls._get_key_pair(
             _session, key_type, aci, device_id, "fake_signed_pre_key", with_private
@@ -264,12 +280,12 @@ class MitmBundle(SQLModelValidation, table=True):
 
     @classmethod
     def get_last_resort_kyber_key_pair(
-            cls,
-            _session: Session,
-            key_type: str,
-            aci: str,
-            device_id: int = 1,
-            with_private: bool = True,
+        cls,
+        _session: Session,
+        key_type: str,
+        aci: str,
+        device_id: int = 1,
+        with_private: bool = True,
     ) -> Union[Dict[str, str], None]:
         return cls._get_key_pair(
             _session, key_type, aci, device_id, "fake_last_resort_kyber", with_private
@@ -277,14 +293,14 @@ class MitmBundle(SQLModelValidation, table=True):
 
     @classmethod
     def _get_key_from_list(
-            cls,
-            _session: Session,
-            key_type: str,
-            aci: str,
-            device_id: int,
-            keys_attribute: str,
-            key_id: Optional[int],
-            with_private: bool,
+        cls,
+        _session: Session,
+        key_type: str,
+        aci: str,
+        device_id: int,
+        keys_attribute: str,
+        key_id: Optional[int],
+        with_private: bool,
     ) -> Optional[Dict[str, str]]:
         stmt = select(cls).where(
             cls.type == key_type, cls.aci == aci, cls.device_id == device_id
@@ -304,13 +320,13 @@ class MitmBundle(SQLModelValidation, table=True):
     # Previous method refactored to use the generic _get_key_from_bundle
     @classmethod
     def get_fake_pre_key(
-            cls,
-            _session: Session,
-            key_type: str,
-            aci: str,
-            device_id: int,
-            key_id: int,
-            with_private: bool = True,
+        cls,
+        _session: Session,
+        key_type: str,
+        aci: str,
+        device_id: int,
+        key_id: int,
+        with_private: bool = True,
     ) -> Optional[Dict[str, str]]:
         return cls._get_key_from_list(
             _session, key_type, aci, device_id, "fake_pre_keys", key_id, with_private
@@ -318,13 +334,13 @@ class MitmBundle(SQLModelValidation, table=True):
 
     @classmethod
     def get_fake_kyber_key(
-            cls,
-            _session: Session,
-            key_type: str,
-            aci: str,
-            device_id: int,
-            key_id: int,
-            with_private: bool = True,
+        cls,
+        _session: Session,
+        key_type: str,
+        aci: str,
+        device_id: int,
+        key_id: int,
+        with_private: bool = True,
     ) -> Optional[Dict[str, str]]:
         return cls._get_key_from_list(
             _session, key_type, aci, device_id, "fake_kyber_keys", key_id, with_private
@@ -363,7 +379,10 @@ class Messages(SQLModel, table=True):
 def create_tables():
     SQLModel.metadata.create_all(engine)
 
+
 import copy
+
+
 def json_join_public(data1: list[dict], data2: dict):
     result = copy.deepcopy(data1)
     for item in result:
@@ -371,6 +390,7 @@ def json_join_public(data1: list[dict], data2: dict):
         if key_id in data2:
             item["privateKey"] = data2[key_id]
     return result
+
 
 # Example usage (ensuring your environment supports async operations):
 if __name__ == "__main__":
@@ -451,52 +471,59 @@ if __name__ == "__main__":
             print(meep)
             print(meep.model_dump_json(indent=4, by_alias=True))
 
-    # """
-    # Test 3: Fake Bundle(s)
-    # """
-    # from signal_protocol import helpers
-    # from signal_protocol.identity_key import IdentityKeyPair
-    # from signal_protocol.curve import KeyPair
-    # from signal_protocol.state import SignedPreKeyRecord, SignedPreKeyId
-    #
-    # identity_keypair = IdentityKeyPair.generate()
-    # spk = KeyPair.generate()
-    # spk_record = SignedPreKeyRecord(
-    #     SignedPreKeyId(44),
-    #     int(time.time()),
-    #     spk,
-    #     identity_keypair.private_key().calculate_signature(spk.public_key().serialize()),
-    # )
-    # fake_pre_keys, fake_secret_pre_keys = helpers.create_keys_data(
-    #     1,
-    #     identity_keypair,
-    #     spk,
-    #     # last_kyber
-    #     prekey_start_at=76,
-    #     kyber_prekey_start_at=55055
-    #     # pq_pre_keys[0]["keyId"]
-    # )  ## spk is a string, wtf is the keyId?
-    #
-    # fake_pre_keys["preKeys"] = json_join_public(fake_pre_keys["preKeys"], fake_secret_pre_keys["preKeys"] )
-    # fake_pre_keys["pqPreKeys"] = json_join_public(fake_pre_keys["pqPreKeys"], fake_secret_pre_keys["pqPreKeys"] )
-    # fake_pre_keys["identityKey"] = {
-    #     "publicKey": identity_keypair.public_key().to_base64(),
-    #     "privateKey": identity_keypair.private_key().to_base64(),
-    # }
-    # fake_pre_keys["signedPreKey"] = {
-    #     "publicKey": spk.public_key().to_base64(),
-    #     "privateKey": spk.private_key().to_base64(),
-    #     "keyId": spk_record.id().get_id()
-    # }
-    # # data = json_join_public(fake_pre_keys["pre]"], fake_secret_pre_keys)
-    #
-    # print(fake_pre_keys)
-    # fake_pre_keys["type"] = "aci"
-    # fake_pre_keys["aci"] = "bobs"
-    # mitmb = MitmBundle.model_validate(fake_pre_keys)
-    # print(mitmb)
-    # print(mitmb.model_dump_json(indent=2, by_alias=True))
-    #
-    # # with DatabaseSessionManager().get_session() as session:
-    # #     session.merge(mitmb)
-    # #     session.commit()
+    """
+    Test 3: Fake Bundle(s)
+    """
+    from signal_protocol import helpers
+    from signal_protocol.identity_key import IdentityKeyPair
+    from signal_protocol.curve import KeyPair
+    from signal_protocol.state import SignedPreKeyRecord, SignedPreKeyId
+
+    identity_keypair = IdentityKeyPair.generate()
+    spk = KeyPair.generate()
+    spk_record = SignedPreKeyRecord(
+        SignedPreKeyId(44),
+        int(time.time()),
+        spk,
+        identity_keypair.private_key().calculate_signature(spk.public_key().serialize()),
+    )
+    fake_pre_keys, fake_secret_pre_keys = helpers.create_keys_data(
+        1,
+        identity_keypair,
+        spk,
+        # last_kyber
+        prekey_start_at=76,
+        kyber_prekey_start_at=55055
+        # pq_pre_keys[0]["keyId"]
+    )  ## spk is a string, wtf is the keyId?
+
+    fake_pre_keys["preKeys"] = json_join_public(fake_pre_keys["preKeys"], fake_secret_pre_keys["preKeys"] )
+    fake_pre_keys["pqPreKeys"] = json_join_public(fake_pre_keys["pqPreKeys"], fake_secret_pre_keys["pqPreKeys"] )
+    fake_pre_keys["identityKey"] = {
+        "publicKey": identity_keypair.public_key().to_base64(),
+        "privateKey": identity_keypair.private_key().to_base64(),
+    }
+    fake_pre_keys["signedPreKey"] = {
+        "publicKey": spk.public_key().to_base64(),
+        "privateKey": spk.private_key().to_base64(),
+        "keyId": spk_record.id().get_id()
+    }
+    # data = json_join_public(fake_pre_keys["pre]"], fake_secret_pre_keys)
+
+    print(fake_pre_keys)
+    fake_pre_keys["type"] = "aci"
+    fake_pre_keys["aci"] = "bobs"
+    mitmb = MitmBundle.model_validate(fake_pre_keys)
+    print(mitmb)
+    print(mitmb.model_dump_json(indent=2, by_alias=True))
+
+    with DatabaseSessionManager().get_session() as session:
+        session.merge(mitmb)
+        session.commit()
+
+    with DatabaseSessionManager().get_session() as session:
+            print("FRESH FROM DB! (MitmBundle)")
+            meep : MitmBundle = ses.exec(select(MitmBundle)).first()
+            print(meep)
+            print(meep.model_dump_json(indent=4, by_alias=True))
+            print(meep.fake_identity_key_pair)
