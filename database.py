@@ -9,20 +9,12 @@ from sqlmodel import (
     Field,
     SQLModel,
     Relationship,
-    JSON,
     create_engine,
     Session,
     select,
-    String,
 )
 from pydantic import (
-    BaseModel,
-    ValidationError,
-    validator,
     field_validator,
-    Base64Str,
-    PlainSerializer,
-    PlainValidator,
 )
 from sqlalchemy import PrimaryKeyConstraint, Column
 from sqlalchemy.exc import NoResultFound
@@ -32,7 +24,7 @@ from dbhacks import (
     PydanticSignedPreKey,
     PydanticPreKey,
     PydanticPqKey,
-    PydanticIdentityKeyPair, PydanticSignedPreKeyPair, PydanticPreKeyPair,
+    PydanticIdentityKeyPair, PydanticSignedPreKeyPair, PydanticPreKeyPair, PydanticPqKeyPair,
 )
 from session import DatabaseSessionManager
 
@@ -185,16 +177,16 @@ class MitmBundle(SQLModelValidation, table=True):
         alias="preKeys",
         schema_extra={"serialization_alias": "preKeys", "validation_alias": "preKeys"},
     )
-    fake_kyber_keys: Optional[list[dict]] = Field(
-        sa_column=Column(JSON),
+    fake_kyber_keys: Optional[list[PydanticPqKeyPair]] = Field(
+        sa_column=Column(get_args(PydanticPqKeyPair)[1]),
         alias="kyberKeys",
         schema_extra={
             "serialization_alias": "pqPreKeys",
             "validation_alias": "pqPreKeys",
         },
     )
-    fake_last_resort_kyber: Optional[dict] = Field(
-        sa_column=Column(JSON),
+    fake_last_resort_kyber: Optional[PydanticPqKeyPair] = Field(
+        sa_column=Column(get_args(PydanticPqKeyPair)[1]),
         alias="lastResortKyber",
         schema_extra={
             "serialization_alias": "pqLastResortPreKey",
@@ -470,7 +462,6 @@ if __name__ == "__main__":
             meep = ses.exec(select(LegitBundle)).first()
             print(meep)
             print(meep.model_dump_json(indent=4, by_alias=True))
-
     """
     Test 3: Fake Bundle(s)
     """
@@ -517,6 +508,7 @@ if __name__ == "__main__":
     mitmb = MitmBundle.model_validate(fake_pre_keys)
     print(mitmb)
     print(mitmb.model_dump_json(indent=2, by_alias=True))
+    print(mitmb.fake_kyber_keys)
 
     with DatabaseSessionManager().get_session() as session:
         session.merge(mitmb)
@@ -528,4 +520,4 @@ if __name__ == "__main__":
             print(meep.model_dump_json(indent=4, by_alias=True))
             print(meep.fake_identity_key_pair)
             print(meep.fake_signed_pre_key.id())
-            print(meep)
+            print(meep.fake_kyber_keys[0])

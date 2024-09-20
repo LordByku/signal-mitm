@@ -1,7 +1,5 @@
 import base64
-import json
 import time
-from json import JSONEncoder
 from typing import Annotated, Any, Union, Optional, Type
 
 from pydantic import (
@@ -49,17 +47,16 @@ class _KeyRecord:
     signature: Optional[str]
 
     def __init__(
-        self,
-        key_id: int,
-        public_key: Union[PublicKey, KemPublicKey],
-        signature: Optional[str],
-        # private_key: Optional[Union[PublicKey, KemPublicKey]]
+            self,
+            key_id: int,
+            public_key: Union[PublicKey, KemPublicKey],
+            signature: Optional[str],
+            # private_key: Optional[Union[PublicKey, KemPublicKey]]
     ):
         super().__init__()  # useless
         self.key_id = key_id
         self.public_key = public_key
         self.signature = signature
-        # self.private_key = private_key
 
     def serialize(self) -> dict:
         data = dict()
@@ -67,8 +64,6 @@ class _KeyRecord:
         data["publicKey"] = self.public_key.to_base64()
         if self.signature:
             data["signature"] = self.signature
-        # if self.private_key:
-        #     data["privateKey"] = self.private_key.to_base64()
         return data
 
 
@@ -78,12 +73,12 @@ from sqlalchemy.types import TypeDecorator, JSON
 class _IdentityKeyAnnotation(TypeDecorator):
     impl = String
 
-    def process_bind_param(self, value: IdentityKey, dialect):
+    def process_bind_param(self, value: IdentityKey, dialect) -> str:
         if value is not None:
             value = value.to_base64()  # Assuming value is bytes
         return value
 
-    def process_result_value(self, value: str, dialect):
+    def process_result_value(self, value: str, dialect) -> IdentityKey:
         if value is not None:
             value = IdentityKey.from_base64(
                 value.encode()
@@ -96,7 +91,7 @@ class _IdentityKeyAnnotation(TypeDecorator):
 
     @classmethod
     def __get_pydantic_core_schema__(
-        cls, _source_type: Type[Any], _handler: GetCoreSchemaHandler
+            cls, _source_type: Type[Any], _handler: GetCoreSchemaHandler
     ) -> CoreSchema:
         """
         We return a pydantic_core.CoreSchema that behaves in the following ways:
@@ -136,7 +131,7 @@ class _IdentityKeyPairAnnotation(TypeDecorator):
 
     def process_bind_param(self, value: IdentityKeyPair, dialect) -> dict:
         if value is not None:
-            value = self.to_dict(value) # Assuming value is bytes
+            value = self.to_dict(value)  # Assuming value is bytes
         return value
 
     def process_result_value(self, value: dict, dialect) -> IdentityKeyPair:
@@ -160,7 +155,7 @@ class _IdentityKeyPairAnnotation(TypeDecorator):
 
     @classmethod
     def __get_pydantic_core_schema__(
-        cls, _source_type: Type[Any], _handler: GetCoreSchemaHandler
+            cls, _source_type: Type[Any], _handler: GetCoreSchemaHandler
     ) -> CoreSchema:
         """
         We return a pydantic_core.CoreSchema that behaves in the following ways:
@@ -219,7 +214,7 @@ class _SignedECKeyAnnotation(TypeDecorator):
 
     @classmethod
     def __get_pydantic_core_schema__(
-        cls, _source_type: Type[Any], _handler: GetCoreSchemaHandler
+            cls, _source_type: Type[Any], _handler: GetCoreSchemaHandler
     ) -> CoreSchema:
         from_dict_schema = core_schema.chain_schema(
             [
@@ -233,7 +228,7 @@ class _SignedECKeyAnnotation(TypeDecorator):
             python_schema=core_schema.union_schema(
                 [
                     # check if it's an instance first before doing any further work
-                    core_schema.is_instance_schema(SignedPreKeyRecord), # todo: look at this
+                    core_schema.is_instance_schema(SignedPreKeyRecord),  # todo: look at this
                     from_dict_schema,
                 ]
             ),
@@ -241,6 +236,7 @@ class _SignedECKeyAnnotation(TypeDecorator):
                 lambda instance: instance.serialize()
             ),
         )
+
 
 from signal_protocol.state import SignedPreKeyRecord, SignedPreKeyId
 from signal_protocol.curve import KeyPair
@@ -251,7 +247,7 @@ class _SignedECKeyPairAnnotation(TypeDecorator):
 
     def process_bind_param(self, value: SignedPreKeyRecord, dialect) -> dict:
         if value is not None:
-            value = self.to_dict(value) # Assuming value is bytes
+            value = self.to_dict(value)  # Assuming value is bytes
         return value
 
     def process_result_value(self, value: dict, dialect) -> SignedPreKeyRecord:
@@ -284,7 +280,7 @@ class _SignedECKeyPairAnnotation(TypeDecorator):
 
     @classmethod
     def __get_pydantic_core_schema__(
-        cls, _source_type: Type[Any], _handler: GetCoreSchemaHandler
+            cls, _source_type: Type[Any], _handler: GetCoreSchemaHandler
     ) -> CoreSchema:
         from_dict_schema = core_schema.chain_schema(
             [
@@ -298,7 +294,7 @@ class _SignedECKeyPairAnnotation(TypeDecorator):
             python_schema=core_schema.union_schema(
                 [
                     # check if it's an instance first before doing any further work
-                    core_schema.is_instance_schema(SignedPreKeyRecord), # todo: look at this
+                    core_schema.is_instance_schema(SignedPreKeyRecord),  # todo: look at this
                     from_dict_schema,
                 ]
             ),
@@ -307,7 +303,9 @@ class _SignedECKeyPairAnnotation(TypeDecorator):
             ),
         )
 
+
 from signal_protocol.state import PreKeyRecord, PreKeyId
+
 
 class _PreKeyPair(TypeDecorator):
     impl = JSON
@@ -322,7 +320,6 @@ class _PreKeyPair(TypeDecorator):
 
     def process_result_value(self, value: dict, dialect) -> PreKeyRecord:
         if value is not None:
-            # value = self.validate_from_dict(value)
             if isinstance(value, list):
                 value = list(map(lambda x: self.validate_from_dict(x), value))
             else:
@@ -374,6 +371,7 @@ class _PreKeyPair(TypeDecorator):
             ),
         )
 
+
 class _SignedKyberKeyAnnotation(_SignedECKeyAnnotation):
     @staticmethod
     def validate_from_dict(value: dict) -> _KeyRecord:
@@ -381,6 +379,90 @@ class _SignedKyberKeyAnnotation(_SignedECKeyAnnotation):
             value.get("keyId"),
             KemPublicKey.from_base64(value.get("publicKey").encode()),
             value.get("signature"),
+        )
+
+
+from signal_protocol.kem import KeyPair as KemKeyPair
+from signal_protocol.state import KyberPreKeyRecord
+from protos.gen.storage_pb2 import SignedPreKeyRecordStructure
+
+
+def make_kyber_record(key_id: int, ts: int, kp: KemKeyPair, signature: bytes) -> KyberPreKeyRecord:
+    sss = SignedPreKeyRecordStructure()
+    sss.id = key_id
+    sss.public_key = kp.get_public().serialize()
+    sss.private_key = kp.get_private().serialize()
+    sss.signature = signature
+    sss.timestamp = ts
+    return KyberPreKeyRecord.deserialize(sss.SerializeToString())
+
+
+class _SignedKyberKeyPairAnnotation(TypeDecorator):
+    impl = JSON
+
+    def process_bind_param(self, value: KyberPreKeyRecord, dialect) -> dict:
+        if value is not None:
+            if isinstance(value, list):
+                value = list(map(lambda x: self.to_dict(x), value))
+            else:
+                value = self.to_dict(value)
+        return value
+
+    def process_result_value(self, value: dict, dialect) -> KyberPreKeyRecord:
+        if value is not None:
+            if isinstance(value, list):
+                value = list(map(lambda x: self.validate_from_dict(x), value))
+            else:
+                value = self.validate_from_dict(value)
+        return value
+
+    @staticmethod
+    def validate_from_dict(value: dict) -> KyberPreKeyRecord:
+        key = KemKeyPair.from_public_and_private(
+            base64.b64decode(value.get("publicKey")),
+            base64.b64decode(value.get("privateKey"))
+        )
+        record = make_kyber_record(
+            value.get("keyId"),
+            int(time.time()),
+            key,
+            base64.b64decode(value.get("signature")),
+        )
+
+        return record
+
+    @staticmethod
+    def to_dict(value: KyberPreKeyRecord) -> dict:
+        return {
+            "keyId": value.id().get_id(),
+            "publicKey": value.public_key().to_base64(),
+            "privateKey": value.secret_key().to_base64(),
+            "signature": base64.b64encode(value.signature()).decode()
+        }
+
+    @classmethod
+    def __get_pydantic_core_schema__(
+            cls, _source_type: Type[Any], _handler: GetCoreSchemaHandler
+    ) -> CoreSchema:
+        from_dict_schema = core_schema.chain_schema(
+            [
+                core_schema.dict_schema(),
+                core_schema.no_info_plain_validator_function(cls.validate_from_dict),
+            ]
+        )
+
+        return core_schema.json_or_python_schema(
+            json_schema=from_dict_schema,
+            python_schema=core_schema.union_schema(
+                [
+                    # check if it's an instance first before doing any further work
+                    core_schema.is_instance_schema(KyberPreKeyRecord),  # todo: look at this
+                    from_dict_schema,
+                ]
+            ),
+            serialization=core_schema.plain_serializer_function_ser_schema(
+                lambda instance: cls.to_dict(instance)
+            ),
         )
 
 
@@ -394,8 +476,7 @@ PydanticPreKey = Annotated[_KeyRecord, _SignedECKeyAnnotation]
 PydanticPreKeyPair = Annotated[_KeyRecord, _PreKeyPair]
 
 PydanticPqKey = Annotated[_KeyRecord, _SignedKyberKeyAnnotation]
-
-
+PydanticPqKeyPair = Annotated[KyberPreKeyRecord, _SignedKyberKeyPairAnnotation]
 """ TODO: also add redundant forms 
 https://github.com/microsoft/pylance-release/issues/2574#issuecomment-1100808934
 
@@ -404,10 +485,11 @@ further reading https://www.gauge.sh/blog/the-trouble-with-all & https://www.app
 __all__ = [
     "SQLModelValidation",
     "PydanticIdentityKey",
+    "PydanticIdentityKeyPair",
     "PydanticSignedPreKey",
     "PydanticSignedPreKeyPair",
     "PydanticPreKey",
     "PydanticPreKeyPair",
     "PydanticPqKey",
-    "PydanticIdentityKeyPair",
+    "PydanticPqKeyPair",
 ]
