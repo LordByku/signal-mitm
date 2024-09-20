@@ -1,5 +1,6 @@
 import base64
 import json
+import time
 from json import JSONEncoder
 from typing import Annotated, Any, Union, Optional, Type
 
@@ -42,7 +43,7 @@ class SQLModelValidation(SQLModel):
     )
 
 
-class _PubKeyRecord:
+class _KeyRecord:
     key_id: int
     public_key: Union[PublicKey, KemPublicKey]
     signature: Optional[str]
@@ -52,11 +53,13 @@ class _PubKeyRecord:
         key_id: int,
         public_key: Union[PublicKey, KemPublicKey],
         signature: Optional[str],
+        # private_key: Optional[Union[PublicKey, KemPublicKey]]
     ):
         super().__init__()  # useless
         self.key_id = key_id
         self.public_key = public_key
         self.signature = signature
+        # self.private_key = private_key
 
     def serialize(self) -> dict:
         data = dict()
@@ -64,6 +67,8 @@ class _PubKeyRecord:
         data["publicKey"] = self.public_key.to_base64()
         if self.signature:
             data["signature"] = self.signature
+        # if self.private_key:
+        #     data["privateKey"] = self.private_key.to_base64()
         return data
 
 
@@ -188,7 +193,7 @@ class _IdentityKeyPairAnnotation(TypeDecorator):
 class _SignedECKeyAnnotation(TypeDecorator):
     impl = JSON
 
-    def process_bind_param(self, value: _PubKeyRecord, dialect):
+    def process_bind_param(self, value: _KeyRecord, dialect):
         if value is not None:
             if isinstance(value, list):
                 value = list(map(lambda x: x.serialize(), value))
@@ -205,11 +210,11 @@ class _SignedECKeyAnnotation(TypeDecorator):
         return value
 
     @staticmethod
-    def validate_from_dict(value: dict) -> _PubKeyRecord:
-        return _PubKeyRecord(
+    def validate_from_dict(value: dict) -> _KeyRecord:
+        return _KeyRecord(
             value.get("keyId"),
             PublicKey.from_base64(value.get("publicKey").encode()),
-            value.get("signature"),
+            value.get("signature")
         )
 
     @classmethod
@@ -228,7 +233,7 @@ class _SignedECKeyAnnotation(TypeDecorator):
             python_schema=core_schema.union_schema(
                 [
                     # check if it's an instance first before doing any further work
-                    # core_schema.is_instance_schema(), # todo: look at this
+                    core_schema.is_instance_schema(SignedPreKeyRecord), # todo: look at this
                     from_dict_schema,
                 ]
             ),
@@ -237,11 +242,142 @@ class _SignedECKeyAnnotation(TypeDecorator):
             ),
         )
 
+from signal_protocol.state import SignedPreKeyRecord, SignedPreKeyId
+from signal_protocol.curve import KeyPair
+
+
+class _SignedECKeyPairAnnotation(TypeDecorator):
+    impl = JSON
+
+    def process_bind_param(self, value: SignedPreKeyRecord, dialect) -> dict:
+        if value is not None:
+            value = self.to_dict(value) # Assuming value is bytes
+        return value
+
+    def process_result_value(self, value: dict, dialect) -> SignedPreKeyRecord:
+        if value is not None:
+            value = self.validate_from_dict(value)
+        return value
+
+    @staticmethod
+    def validate_from_dict(value: dict) -> SignedPreKeyRecord:
+        key = KeyPair(
+            PublicKey.from_base64(value.get("publicKey").encode()),
+            PrivateKey.from_base64(value.get("privateKey").encode())
+        )
+        record = SignedPreKeyRecord(
+            SignedPreKeyId(value.get("keyId")),
+            int(time.time()),
+            key,
+            base64.b64decode(value.get("signature")),
+        )
+        return record
+
+    @staticmethod
+    def to_dict(value: SignedPreKeyRecord) -> dict:
+        return {
+            "keyId": value.id().get_id(),
+            "publicKey": value.public_key().to_base64(),
+            "privateKey": value.private_key().to_base64(),
+            "signature": base64.b64encode(value.signature()).decode()
+        }
+
+    @classmethod
+    def __get_pydantic_core_schema__(
+        cls, _source_type: Type[Any], _handler: GetCoreSchemaHandler
+    ) -> CoreSchema:
+        from_dict_schema = core_schema.chain_schema(
+            [
+                core_schema.dict_schema(),
+                core_schema.no_info_plain_validator_function(cls.validate_from_dict),
+            ]
+        )
+
+        return core_schema.json_or_python_schema(
+            json_schema=from_dict_schema,
+            python_schema=core_schema.union_schema(
+                [
+                    # check if it's an instance first before doing any further work
+                    core_schema.is_instance_schema(SignedPreKeyRecord), # todo: look at this
+                    from_dict_schema,
+                ]
+            ),
+            serialization=core_schema.plain_serializer_function_ser_schema(
+                lambda instance: cls.to_dict(instance)
+            ),
+        )
+
+from signal_protocol.state import PreKeyRecord, PreKeyId
+
+class _PreKeyPair(TypeDecorator):
+    impl = JSON
+
+    def process_bind_param(self, value: PreKeyRecord, dialect) -> dict:
+        if value is not None:
+            if isinstance(value, list):
+                value = list(map(lambda x: self.to_dict(x), value))
+            else:
+                value = self.to_dict(value)
+        return value
+
+    def process_result_value(self, value: dict, dialect) -> PreKeyRecord:
+        if value is not None:
+            # value = self.validate_from_dict(value)
+            if isinstance(value, list):
+                value = list(map(lambda x: self.validate_from_dict(x), value))
+            else:
+                value = self.validate_from_dict(value)
+        return value
+
+    @staticmethod
+    def validate_from_dict(value: dict) -> PreKeyRecord:
+        key = KeyPair(
+            PublicKey.from_base64(value.get("publicKey").encode()),
+            PrivateKey.from_base64(value.get("privateKey").encode())
+        )
+        record = PreKeyRecord(
+            PreKeyId(value.get("keyId")),
+            key,
+        )
+        return record
+
+    @staticmethod
+    def to_dict(value: PreKeyRecord) -> dict:
+        return {
+            "keyId": value.id().get_id(),
+            "publicKey": value.public_key().to_base64(),
+            "privateKey": value.private_key().to_base64(),
+        }
+
+    @classmethod
+    def __get_pydantic_core_schema__(
+            cls, _source_type: Type[Any], _handler: GetCoreSchemaHandler
+    ) -> CoreSchema:
+        from_dict_schema = core_schema.chain_schema(
+            [
+                core_schema.dict_schema(),
+                core_schema.no_info_plain_validator_function(cls.validate_from_dict),
+            ]
+        )
+
+        return core_schema.json_or_python_schema(
+            json_schema=from_dict_schema,
+            python_schema=core_schema.union_schema(
+                [
+                    # check if it's an instance first before doing any further work
+                    core_schema.is_instance_schema(PreKeyRecord),  # todo: look at this
+                    from_dict_schema,
+                ]
+            ),
+            serialization=core_schema.plain_serializer_function_ser_schema(
+                lambda instance: cls.to_dict(instance)
+            ),
+        )
 
 class _SignedKyberKeyAnnotation(_SignedECKeyAnnotation):
     @staticmethod
-    def validate_from_dict(value: dict) -> _PubKeyRecord:
-        return _PubKeyRecord(
+    def validate_from_dict(value: dict) -> _KeyRecord:
+        return _KeyRecord(
             value.get("keyId"),
             KemPublicKey.from_base64(value.get("publicKey").encode()),
             value.get("signature"),
@@ -251,11 +387,13 @@ class _SignedKyberKeyAnnotation(_SignedECKeyAnnotation):
 PydanticIdentityKey = Annotated[IdentityKey, _IdentityKeyAnnotation]
 PydanticIdentityKeyPair = Annotated[IdentityKeyPair, _IdentityKeyPairAnnotation]
 
-PydanticSignedPreKey = Annotated[_PubKeyRecord, _SignedECKeyAnnotation]
+PydanticSignedPreKey = Annotated[_KeyRecord, _SignedECKeyAnnotation]
+PydanticSignedPreKeyPair = Annotated[SignedPreKeyRecord, _SignedECKeyPairAnnotation]
 
-PydanticPreKey = Annotated[_PubKeyRecord, _SignedECKeyAnnotation]
+PydanticPreKey = Annotated[_KeyRecord, _SignedECKeyAnnotation]
+PydanticPreKeyPair = Annotated[_KeyRecord, _PreKeyPair]
 
-PydanticPqKey = Annotated[_PubKeyRecord, _SignedKyberKeyAnnotation]
+PydanticPqKey = Annotated[_KeyRecord, _SignedKyberKeyAnnotation]
 
 
 """ TODO: also add redundant forms 
@@ -267,7 +405,9 @@ __all__ = [
     "SQLModelValidation",
     "PydanticIdentityKey",
     "PydanticSignedPreKey",
+    "PydanticSignedPreKeyPair",
     "PydanticPreKey",
+    "PydanticPreKeyPair",
     "PydanticPqKey",
     "PydanticIdentityKeyPair",
 ]

@@ -32,7 +32,7 @@ from dbhacks import (
     PydanticSignedPreKey,
     PydanticPreKey,
     PydanticPqKey,
-    PydanticIdentityKeyPair,
+    PydanticIdentityKeyPair, PydanticSignedPreKeyPair, PydanticPreKeyPair,
 )
 from session import DatabaseSessionManager
 
@@ -172,16 +172,16 @@ class MitmBundle(SQLModelValidation, table=True):
             "validation_alias": "identityKey",
         },
     )
-    fake_signed_pre_key: Optional[dict] = Field(
-        sa_column=Column(JSON),
+    fake_signed_pre_key: Optional[PydanticSignedPreKeyPair] = Field(
+        sa_column=Column(get_args(PydanticSignedPreKeyPair)[1]),
         alias="signedPreKey",
         schema_extra={
             "serialization_alias": "signedPreKey",
             "validation_alias": "signedPreKey",
         },
     )
-    fake_pre_keys: Optional[list[dict]] = Field(
-        sa_column=Column(JSON),
+    fake_pre_keys: Optional[list[PydanticPreKeyPair]] = Field(
+        sa_column=Column(get_args(PydanticPreKeyPair)[1]),
         alias="preKeys",
         schema_extra={"serialization_alias": "preKeys", "validation_alias": "preKeys"},
     )
@@ -506,7 +506,8 @@ if __name__ == "__main__":
     fake_pre_keys["signedPreKey"] = {
         "publicKey": spk.public_key().to_base64(),
         "privateKey": spk.private_key().to_base64(),
-        "keyId": spk_record.id().get_id()
+        "keyId": spk_record.id().get_id(),
+        "signature": base64.b64encode(spk_record.signature()).decode(),
     }
     # data = json_join_public(fake_pre_keys["pre]"], fake_secret_pre_keys)
 
@@ -524,6 +525,7 @@ if __name__ == "__main__":
     with DatabaseSessionManager().get_session() as session:
             print("FRESH FROM DB! (MitmBundle)")
             meep : MitmBundle = ses.exec(select(MitmBundle)).first()
-            print(meep)
             print(meep.model_dump_json(indent=4, by_alias=True))
             print(meep.fake_identity_key_pair)
+            print(meep.fake_signed_pre_key.id())
+            print(meep)
