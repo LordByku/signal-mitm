@@ -41,7 +41,7 @@ sqlite_url = f"sqlite:///./{sqlite_file_name}"
 engine = create_engine(sqlite_url, echo=True)
 
 
-# Models:
+# Models, adapted from previous implementation:
 class User(SQLModel, table=True):
     aci: str = Field(default=None, primary_key=True)
     pni: Optional[str] = Field(default=None)
