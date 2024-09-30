@@ -245,7 +245,7 @@ class MitmBundle(SQLModelValidation, table=True):
         device_id: int = 1,
         with_private: bool = True,
     ) -> Union[Dict[str, str], None]:
-        return cls._get_key_pair(_session, key_type, aci, device_id, "fake_identity_key", with_private)
+        return cls._get_key_pair(_session, key_type, aci, device_id, "fake_identity_key_pair", with_private)
 
     @classmethod
     def get_signed_pre_key_pair(

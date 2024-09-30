@@ -2,8 +2,7 @@ from typing import Generator, Type
 
 # import database # noqaz
 from sqlalchemy import Engine
-from sqlalchemy.orm import Session
-from sqlmodel import SQLModel, create_engine
+from sqlmodel import SQLModel, Session, create_engine
 
 
 class SingletonMeta(type):

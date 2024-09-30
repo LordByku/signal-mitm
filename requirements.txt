@@ -2,3 +2,4 @@ pydantic~=2.9.0
 SQLAlchemy~=2.0.35
 sqlmodel~=0.0.22
 signal_protocol@git+https://github.com/TheTechZone/signal-protocol.py.git@feat-kyber
+protobuf
