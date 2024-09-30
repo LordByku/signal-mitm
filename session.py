@@ -1,4 +1,4 @@
-from typing import Generator
+from typing import Generator, Type
 
 # import database # noqaz
 from sqlalchemy import Engine
@@ -13,7 +13,7 @@ class SingletonMeta(type):
     metaclass because it is best suited for this purpose.
     """
 
-    _instances = {}
+    _instances: dict[Type, "SingletonMeta"] = {}
 
     def __call__(cls, *args, **kwargs):
         """
@@ -44,7 +44,7 @@ class DatabaseSessionManager(metaclass=SingletonMeta):
             print("This class in a Singleton!")
         else:
             DatabaseSessionManager._instance = self
-            DATABASE_URL = f"sqlite:///./mitm.db"
+            DATABASE_URL = "sqlite:///./mitm.db"
             DatabaseSessionManager._engine = create_engine(DATABASE_URL, echo=True)
             SQLModel.metadata.create_all(DatabaseSessionManager._engine)
 

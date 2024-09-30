@@ -1,0 +1,39 @@
+# .flake8 file
+# for config see: https://flake8.pycqa.org/en/latest/user/options.html
+
+# bugbear warnings: https://github.com/PyCQA/flake8-bugbear#list-of-warnings
+[flake8]
+ignore = E203, E266, E501, W503, F403, F401
+indent-size = 4
+max-line-length = 120
+max-complexity = 18
+select = B,C,E,F,W,T4,B9, I
+# B = bugbear
+# C = mccabe complexity
+# E = pycodestyle errors
+# F = pyflakes (default)
+# W = pycodestyle warnings
+# T4 = mypy (static typing)
+# B9 = bugbear opinions
+# I = import order
+exclude =
+    # No need to traverse our git directory
+    .git
+    # There's no value in checking cache directories
+    __pycache__
+    # Vendored code is not our problem, if it works
+    .venv
+    protos/gen
+# Count the number of occurrences of each error/warning code and print a report.
+statistics = True
+show-source = True
+
+# https://github.com/PyCQA/flake8-import-order#configuration
+application_import_names = minion
+
+[pylint]
+# https://www.codeac.io/documentation/pylint-configuration.html
+max-line-length=120
+disable=
+    C0330,  # Wrong hanging indentation before block
+    C0326,  # Exactly one space required around assignment

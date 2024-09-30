@@ -1,0 +1,36 @@
+# pyproject.toml file for Black settings
+[tool.black]
+line-length = 120 # most tools default to 80, but I find that too small (it's not the 80s anymore)
+target-version = ['py310', 'py311', 'py312', 'py313']
+include = '\.pyi?$'
+# check later: https://github.com/psf/black/blob/main/docs/guides/using_black_with_other_tools.md
+
+# isort
+[tool.isort]
+profile = "black"
+multi_line_output = 3
+line_length = 120
+balanced_wrapping = true
+skip_gitignore = true
+honor_noqa = true
+remove_redundant_aliases = true
+group_by_package = true
+use_parentheses = true
+color_output = true
+
+[tool.bandit]
+# https://bandit.readthedocs.io/en/latest/config.html
+# sadly it has to be run independently of flake8 :/
+# bandit -c pyproject.toml -r .
+exclude_dirs = ["tests", "protos/gen", ".venv"]
+tests = ["B201", "B301"]
+#skips = ["B101", "B601"]
+
+[mypy]
+disallow_untyped_defs = true
+disallow_any_unimported = true
+no_implicit_optional = true
+check_untyped_defs = true
+warn_return_any = true
+warn_unused_ignores = true
+show_error_codes = true

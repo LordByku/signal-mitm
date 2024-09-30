@@ -1,30 +1,25 @@
-import time
-from typing import List, Optional, Union, Dict, get_args
-
-from datetime import datetime, timezone
-import json
 import base64
+import copy
+import json
+import time
+from datetime import datetime, timezone
+from typing import Dict, List, Optional, Union, get_args
 
-from sqlmodel import (
-    Field,
-    SQLModel,
-    Relationship,
-    create_engine,
-    Session,
-    select,
-)
-from pydantic import (
-    field_validator,
-)
-from sqlalchemy import PrimaryKeyConstraint, Column
+from pydantic import field_validator
+from sqlalchemy import Column, PrimaryKeyConstraint
 from sqlalchemy.exc import NoResultFound
+from sqlmodel import Field, Relationship, Session, SQLModel, create_engine, select
+
 from dbhacks import (
-    SQLModelValidation,
     PydanticIdentityKey,
-    PydanticSignedPreKey,
-    PydanticPreKey,
+    PydanticIdentityKeyPair,
     PydanticPqKey,
-    PydanticIdentityKeyPair, PydanticSignedPreKeyPair, PydanticPreKeyPair, PydanticPqKeyPair,
+    PydanticPqKeyPair,
+    PydanticPreKey,
+    PydanticPreKeyPair,
+    PydanticSignedPreKey,
+    PydanticSignedPreKeyPair,
+    SQLModelValidation,
 )
 from session import DatabaseSessionManager
 
@@ -65,8 +60,8 @@ class Device(SQLModel, table=True):
     __table_args__ = (PrimaryKeyConstraint("aci", "device_id"),)
 
 
-## REFACTOR: instead of holding all the possible bundles together as one row, it might make sense to split them into distinct rows with one key each
-## for each possible bundle a user might expect. We have to first check how the server generates bundles
+# REFACTOR: instead of holding all the possible bundles together as one row, it might make sense to split them into distinct
+#  rows with one key each for each possible bundle a user might expect. We have to first check how the server generates bundles
 class LegitBundle(SQLModel, table=True):
     type: str = Field(
         primary_key=True, default="aci"
@@ -124,7 +119,8 @@ class LegitBundle(SQLModel, table=True):
         },
     )
 
-    # last_resort_kyber: Optional[dict] = Field(sa_column=Column(JSON), alias="lastResortKyber", schema_extra={"serialization_alias": "lastResortKyber"}) # not put on the wire?
+    # last_resort_kyber: Optional[dict] = Field(sa_column=Column(JSON),
+    # alias="lastResortKyber", schema_extra={"serialization_alias": "lastResortKyber"}) # not put on the wire?
 
     # composite primary keys are not directly supported by SQLModel so relying on the internal
     # SQLAlchemy support instead
@@ -197,7 +193,7 @@ class MitmBundle(SQLModelValidation, table=True):
     # composite primary keys are not directly supported by SQLModel so relying on the internal
     # SQLAlchemy support instead
     __table_args__ = (PrimaryKeyConstraint("type", "aci", "device_id"),)
-    """ TODO: for fake bundles it makes sense to tie the creation of the database entry with the creation 
+    """ TODO: for fake bundles it makes sense to tie the creation of the database entry with the creation
     of the keys. Instead of doing it at the level of `MitmUser`. This reduces the responsibility of the class.
     having only to reinstate from a Database entry.
     """
@@ -227,9 +223,7 @@ class MitmBundle(SQLModelValidation, table=True):
         with_private: bool = True,
     ) -> Union[Dict[str, str], None]:
         try:
-            stmt = select(cls).where(
-                cls.type == key_type, cls.aci == aci, cls.device_id == device_id
-            )
+            stmt = select(cls).where(cls.type == key_type, cls.aci == aci, cls.device_id == device_id)
             bundle = _session.exec(
                 stmt
             ).one()  # noqa: unexpected type here is a false warning, but I cannot typecase to suppess it
@@ -237,9 +231,7 @@ class MitmBundle(SQLModelValidation, table=True):
             key_data = getattr(bundle, key_field)
             if isinstance(key_data, dict) and not with_private:
                 # If with_private is False, remove the 'privateKey' from the returned dict
-                key_data.pop(
-                    "privateKey", None
-                )  # Safely attempting to remove privateKey if exists
+                key_data.pop("privateKey", None)  # Safely attempting to remove privateKey if exists
             return key_data
         except NoResultFound:
             return None
@@ -253,9 +245,7 @@ class MitmBundle(SQLModelValidation, table=True):
         device_id: int = 1,
         with_private: bool = True,
     ) -> Union[Dict[str, str], None]:
-        return cls._get_key_pair(
-            _session, key_type, aci, device_id, "fake_identity_key", with_private
-        )
+        return cls._get_key_pair(_session, key_type, aci, device_id, "fake_identity_key", with_private)
 
     @classmethod
     def get_signed_pre_key_pair(
@@ -266,9 +256,7 @@ class MitmBundle(SQLModelValidation, table=True):
         device_id: int = 1,
         with_private: bool = True,
     ) -> Union[Dict[str, str], None]:
-        return cls._get_key_pair(
-            _session, key_type, aci, device_id, "fake_signed_pre_key", with_private
-        )
+        return cls._get_key_pair(_session, key_type, aci, device_id, "fake_signed_pre_key", with_private)
 
     @classmethod
     def get_last_resort_kyber_key_pair(
@@ -279,9 +267,7 @@ class MitmBundle(SQLModelValidation, table=True):
         device_id: int = 1,
         with_private: bool = True,
     ) -> Union[Dict[str, str], None]:
-        return cls._get_key_pair(
-            _session, key_type, aci, device_id, "fake_last_resort_kyber", with_private
-        )
+        return cls._get_key_pair(_session, key_type, aci, device_id, "fake_last_resort_kyber", with_private)
 
     @classmethod
     def _get_key_from_list(
@@ -294,9 +280,7 @@ class MitmBundle(SQLModelValidation, table=True):
         key_id: Optional[int],
         with_private: bool,
     ) -> Optional[Dict[str, str]]:
-        stmt = select(cls).where(
-            cls.type == key_type, cls.aci == aci, cls.device_id == device_id
-        )
+        stmt = select(cls).where(cls.type == key_type, cls.aci == aci, cls.device_id == device_id)
         bundle = _session.exec(
             stmt
         ).one_or_none()  # noqa: unexpected type here is a false warning, but I cannot typecase to suppess it
@@ -320,9 +304,7 @@ class MitmBundle(SQLModelValidation, table=True):
         key_id: int,
         with_private: bool = True,
     ) -> Optional[Dict[str, str]]:
-        return cls._get_key_from_list(
-            _session, key_type, aci, device_id, "fake_pre_keys", key_id, with_private
-        )
+        return cls._get_key_from_list(_session, key_type, aci, device_id, "fake_pre_keys", key_id, with_private)
 
     @classmethod
     def get_fake_kyber_key(
@@ -334,15 +316,11 @@ class MitmBundle(SQLModelValidation, table=True):
         key_id: int,
         with_private: bool = True,
     ) -> Optional[Dict[str, str]]:
-        return cls._get_key_from_list(
-            _session, key_type, aci, device_id, "fake_kyber_keys", key_id, with_private
-        )
+        return cls._get_key_from_list(_session, key_type, aci, device_id, "fake_kyber_keys", key_id, with_private)
 
 
 class Conversation(SQLModel, table=True):
-    aci1: str = Field(
-        default=None, foreign_key="device.aci"
-    )  # Adjust based on the actual Device model's ID fields
+    aci1: str = Field(default=None, foreign_key="device.aci")  # Adjust based on the actual Device model's ID fields
     dev_id1: int = Field(default=None, foreign_key="device.device_id")
     aci2: str = Field(default=None, foreign_key="device.aci")
     dev_id2: int = Field(default=None, foreign_key="device.device_id")
@@ -358,21 +336,14 @@ class Messages(SQLModel, table=True):
     aci2: str = Field(default=None, foreign_key="device.aci")
     dev_id2: int = Field(default=None, foreign_key="device.device_id")
     message: str
-    timestamp: datetime = Field(
-        default_factory=lambda: datetime.now(timezone.utc)
-    )  # Use timezone-aware UTC now
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))  # Use timezone-aware UTC now
     counter: int
 
-    __table_args__ = (
-        PrimaryKeyConstraint("aci1", "dev_id1", "aci2", "dev_id2", "counter"),
-    )
+    __table_args__ = (PrimaryKeyConstraint("aci1", "dev_id1", "aci2", "dev_id2", "counter"),)
 
 
 def create_tables():
     SQLModel.metadata.create_all(engine)
-
-
-import copy
 
 
 def json_join_public(data1: list[dict], data2: dict):
@@ -466,9 +437,9 @@ if __name__ == "__main__":
     Test 3: Fake Bundle(s)
     """
     from signal_protocol import helpers
-    from signal_protocol.identity_key import IdentityKeyPair
     from signal_protocol.curve import KeyPair
-    from signal_protocol.state import SignedPreKeyRecord, SignedPreKeyId
+    from signal_protocol.identity_key import IdentityKeyPair
+    from signal_protocol.state import SignedPreKeyId, SignedPreKeyRecord
 
     identity_keypair = IdentityKeyPair.generate()
     spk = KeyPair.generate()
@@ -484,12 +455,12 @@ if __name__ == "__main__":
         spk,
         # last_kyber
         prekey_start_at=76,
-        kyber_prekey_start_at=55055
+        kyber_prekey_start_at=55055,
         # pq_pre_keys[0]["keyId"]
-    )  ## spk is a string, wtf is the keyId?
+    )  # spk is a string, wtf is the keyId?
 
-    fake_pre_keys["preKeys"] = json_join_public(fake_pre_keys["preKeys"], fake_secret_pre_keys["preKeys"] )
-    fake_pre_keys["pqPreKeys"] = json_join_public(fake_pre_keys["pqPreKeys"], fake_secret_pre_keys["pqPreKeys"] )
+    fake_pre_keys["preKeys"] = json_join_public(fake_pre_keys["preKeys"], fake_secret_pre_keys["preKeys"])
+    fake_pre_keys["pqPreKeys"] = json_join_public(fake_pre_keys["pqPreKeys"], fake_secret_pre_keys["pqPreKeys"])
     fake_pre_keys["identityKey"] = {
         "publicKey": identity_keypair.public_key().to_base64(),
         "privateKey": identity_keypair.private_key().to_base64(),
@@ -515,9 +486,9 @@ if __name__ == "__main__":
         session.commit()
 
     with DatabaseSessionManager().get_session() as session:
-            print("FRESH FROM DB! (MitmBundle)")
-            meep : MitmBundle = ses.exec(select(MitmBundle)).first()
-            print(meep.model_dump_json(indent=4, by_alias=True))
-            print(meep.fake_identity_key_pair)
-            print(meep.fake_signed_pre_key.id())
-            print(meep.fake_kyber_keys[0])
+        print("FRESH FROM DB! (MitmBundle)")
+        meep: MitmBundle = ses.exec(select(MitmBundle)).first()
+        print(meep.model_dump_json(indent=4, by_alias=True))
+        print(meep.fake_identity_key_pair)
+        print(meep.fake_signed_pre_key.id())
+        print(meep.fake_kyber_keys[0])
