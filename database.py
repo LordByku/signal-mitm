@@ -19,21 +19,15 @@ from dbhacks import (
     PydanticPreKeyPair,
     PydanticSignedPreKey,
     PydanticSignedPreKeyPair,
-    SQLModelValidation,
+    SQLModelValidation, PydanticSessionRecord,
 )
 from session import DatabaseSessionManager
 
-# IdentityKeyB = Annotated[
-#     IdentityKey,
-#     PlainValidator(lambda x: IdentityKey.from_base64(x)),
-#     PlainSerializer(lambda x: x.to_base64(), when_used='json')
-# ]
-# IdentityKey library placeholder
-
-# Database setup (engine creation is similar to the provided example):
+# Database setup (engine creation is similar to peewee):
 sqlite_file_name = "mitm.db"
 sqlite_url = f"sqlite:///./{sqlite_file_name}"
-engine = create_engine(sqlite_url, echo=True)
+# engine = create_engine(sqlite_url, echo=True)
+engine = create_engine(sqlite_url)
 
 
 # Models, adapted from previous implementation:
@@ -225,8 +219,8 @@ class MitmBundle(SQLModelValidation, table=True):
         try:
             stmt = select(cls).where(cls.type == key_type, cls.aci == aci, cls.device_id == device_id)
             bundle = _session.exec(
-                stmt
-            ).one()  # noqa: unexpected type here is a false warning, but I cannot typecase to suppess it
+                stmt  # noqa: unexpected type here is a false warning, but I cannot typecase to suppess it
+            ).one()
 
             key_data = getattr(bundle, key_field)
             if isinstance(key_data, dict) and not with_private:
@@ -282,8 +276,8 @@ class MitmBundle(SQLModelValidation, table=True):
     ) -> Optional[Dict[str, str]]:
         stmt = select(cls).where(cls.type == key_type, cls.aci == aci, cls.device_id == device_id)
         bundle = _session.exec(
-            stmt
-        ).one_or_none()  # noqa: unexpected type here is a false warning, but I cannot typecase to suppess it
+            stmt  # noqa: unexpected type here is a false warning, but I cannot typecase to suppess it
+        ).one_or_none()
         if bundle:
             keys = getattr(bundle, keys_attribute, [])
             for key in keys:
@@ -340,6 +334,17 @@ class Messages(SQLModel, table=True):
     counter: int
 
     __table_args__ = (PrimaryKeyConstraint("aci1", "dev_id1", "aci2", "dev_id2", "counter"),)
+
+
+class ConversationSession(SQLModelValidation, table=True):
+    store_aci: str = Field(default=None, foreign_key="device.aci")
+    store_device_id: int = Field(default=None, foreign_key="device.device_id")
+    others_service_id: str = Field(default=None)
+    other_device_id: int = Field(default=None)
+    session_record: PydanticSessionRecord = Field(
+        sa_column=Column(get_args(PydanticSessionRecord)[1]))
+
+    __table_args__ = (PrimaryKeyConstraint("store_aci", "store_device_id", "others_service_id", "other_device_id"),)
 
 
 def create_tables():
