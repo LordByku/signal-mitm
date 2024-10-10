@@ -25,9 +25,7 @@ from session import DatabaseSessionManager
 
 # Database setup (engine creation is similar to peewee):
 sqlite_file_name = "mitm.db"
-sqlite_url = f"sqlite:///./{sqlite_file_name}"
-# engine = create_engine(sqlite_url, echo=True)
-engine = create_engine(sqlite_url)
+
 
 
 # Models, adapted from previous implementation:
@@ -347,7 +345,9 @@ class ConversationSession(SQLModelValidation, table=True):
     __table_args__ = (PrimaryKeyConstraint("store_aci", "store_device_id", "others_service_id", "other_device_id"),)
 
 
-def create_tables():
+def create_tables(db_name: str = sqlite_file_name):
+    sqlite_url = f"sqlite:///./{db_name}"
+    engine = create_engine(sqlite_url, echo=True)
     SQLModel.metadata.create_all(engine)
 
 
