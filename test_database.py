@@ -1,85 +1,95 @@
+import unittest
+from unittest.mock import patch
 from database import VisitenKarte, User, Device, ConversationSession, StoreKeyRecord, LegitKeyRecord
 from session import DatabaseSessionManager
-
-import json
-
 from signal_protocol.identity_key import IdentityKeyPair
 from signal_protocol.state import SessionRecord
-# Example: Inserting a new MitM bundle and retrieving it
+import json
 
-with DatabaseSessionManager().get_session() as session:
-    aci_identity_key_pair = IdentityKeyPair.generate()
-    pni_identity_key_pair = IdentityKeyPair.generate()
+class TestDatabaseOperations(unittest.TestCase):
 
-    alice = User(
-        aci="aci",
-        pni="pni",
-        phone_number="+1234567890",
-        aci_identity_key=aci_identity_key_pair,
-        pni_identity_key=pni_identity_key_pair,
-        is_victim=True,
-        unidentified_access_key="unidentified_access_key",
-    )
+    def setUp(self):
+        # Mock database session manager
+        self.session_manager = DatabaseSessionManager()
+        self.session = self.session_manager.get_session()
 
-    alice_primary_device = Device(
-        aci ="aci",
-        pni="pni",
-        device_id=1,
-        user=alice,
-    )
+        # Setup identity keys
+        self.aci_identity_key_pair = IdentityKeyPair.generate()
+        self.pni_identity_key_pair = IdentityKeyPair.generate()
 
-    alice_vk = VisitenKarte(
-        type="aci",
-        registration_id=1,
-        uuid="alice",
-        device_id="1",
-        identityKey=aci_identity_key_pair,
-    )
+        # Setup user and devices
+        self.alice = User(
+            aci="aci",
+            pni="pni",
+            phone_number="+1234567890",
+            aci_identity_key=self.aci_identity_key_pair,
+            pni_identity_key=self.pni_identity_key_pair,
+            is_victim=True,
+            unidentified_access_key="unidentified_access_key",
+        )
 
-    alice_store_key_record = StoreKeyRecord(
-        uuid="aci",
-        deviceId=1,
-        identityKey=aci_identity_key_pair,
-        registrationId=1,
-    )
+        self.alice_primary_device = Device(
+            aci="aci",
+            pni="pni",
+            device_id=1,
+            user=self.alice,
+        )
 
-    session_record = SessionRecord.new_fresh()
+        self.alice_vk = VisitenKarte(
+            type="aci",
+            registration_id=1,
+            uuid="alice",
+            device_id="1",
+            identityKey=self.aci_identity_key_pair,
+        )
 
-    alice_convo = ConversationSession(
-        store_uuid="aci",
-        store_device_id=1,
-        other_service_id="bob",
-        other_device_id=1,
-        identityKey=aci_identity_key_pair.public_key(),
-        session_record=session_record,
-    )
+        self.alice_store_key_record = StoreKeyRecord(
+            uuid="aci",
+            deviceId=1,
+            identityKey=self.aci_identity_key_pair,
+            registrationId=1,
+        )
 
-    with open("debug/bundle.json") as f:
-        bundle = json.load(f)
-        bundle["devices"][0]["identityKey"] = bundle["identityKey"]
-        bundle = bundle["devices"][0]
-        bundle["uuid"] = "test1"
-        bundle["type"] = "aci"
-        bundle["preKey"] = [bundle["preKey"]]
-        bundle["pqPreKey"] = [bundle["pqPreKey"]]
+        self.session_record = SessionRecord.new_fresh()
 
-        print(bundle)
-        # bundle["identityKey"]
-        lb = LegitKeyRecord.model_validate(bundle)
-        print(lb)
-        print(lb.model_dump_json(indent=2, by_alias=True))
+        self.alice_convo = ConversationSession(
+            store_uuid="aci",
+            store_device_id=1,
+            other_service_id="bob",
+            other_device_id=1,
+            identityKey=self.aci_identity_key_pair.public_key(),
+            session_record=self.session_record,
+        )
 
-        print(lb.identity_key)
-        print(lb.signed_pre_key.public_key)
+        with open("debug/bundle.json") as f:
+            bundle = json.load(f)
+            bundle["devices"][0]["identityKey"] = bundle["identityKey"]
+            bundle = bundle["devices"][0]
+            bundle["uuid"] = "test1"
+            bundle["type"] = "aci"
+            bundle["preKey"] = [bundle["preKey"]]
+            bundle["pqPreKey"] = [bundle["pqPreKey"]]
 
-    session.merge(alice)
-    session.merge(alice_primary_device)
-    session.merge(alice_vk)
-    session.merge(alice_store_key_record)
-    session.merge(alice_convo)
-    session.merge(lb)
+            self.lb = LegitKeyRecord.model_validate(bundle)
 
-    session.commit()
+    def test_database_insertion_and_retrieval(self):
+        with self.session as session:
+            # Merge records into the session
+            session.merge(self.alice)
+            session.merge(self.alice_primary_device)
+            session.merge(self.alice_vk)
+            session.merge(self.alice_store_key_record)
+            session.merge(self.alice_convo)
+            session.merge(self.lb)
 
-    result = VisitenKarte.get_identity_keypair(session, "aci", "alice" , 1)
-    print(f"Query Result (identity keypair): {result}")
+            # Commit the session
+            session.commit()
+
+            # Verify retrieval of identity keypair
+            result = VisitenKarte.get_identity_keypair(session, "aci", "alice", 1)
+            print(f"RESULT {result}")
+            self.assertIsNotNone(result, "Failed to retrieve identity keypair")
+            self.assertEqual(result.private_key().serialize(), self.aci_identity_key_pair.private_key().serialize(), "Retrieved identity keypair does not match")
+
+if __name__ == '__main__':
+    unittest.main()
