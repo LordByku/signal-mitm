@@ -123,7 +123,7 @@ class ConversationSession(SQLModel, table=True):
             get_args(PydanticIdentityKey)[1],
             # foreign_key="device.aci_identity_key" # throws some warning... we'll deal with it when we get there
         ),
-        alias="identityKey",
+        alias="otherIdentityKey",
         schema_extra={
             "serialization_alias": "identityKey",
             "validation_alias": "identityKey",

@@ -20,7 +20,9 @@ from sqlmodel import select
 from database import ConversationSession
 from session import DatabaseSessionManager
 
-from impl import MitmUser, MitmVisitenKarte, VisitenKarteType
+from mitm_interface import MitmUser, MitmVisitenKarte, VisitenKarteType
+
+from signal_protocol.identity_key import IdentityKey
 
 DEVICE_ID = 1
 alice_address = ProtocolAddress("+14151111111", DEVICE_ID)
@@ -97,19 +99,21 @@ print(bob_with_alice_sesh.to_base64())
 
 print("[x] Creating db session")
 alice_chat_sesh = ConversationSession(
-    store_aci=alice_address.name(),
+    store_uuid=alice_address.name(),
     store_device_id=alice_address.device_id(),
-    others_service_id=bob_address.name(),
+    other_service_id=bob_address.name(),
     other_device_id=bob_address.device_id(),
+    otherIdentityKey=IdentityKey(bob_with_alice_sesh.remote_identity_key_bytes()),
     session_record=alice_with_bob_sesh,
 )
 
 bob_chat_sesh = ConversationSession(
-    store_aci=bob_address.name(),
-    store_device_id=bob_address.device_id(),
-    others_service_id=alice_address.name(),
-    other_device_id=alice_address.device_id(),
-    session_record=bob_with_alice_sesh,
+    store_uuid = bob_address.name(),
+    store_device_id = bob_address.device_id(),
+    other_service_id = alice_address.name(),
+    other_device_id = alice_address.device_id(),
+    otherIdentityKey = IdentityKey(alice_with_bob_sesh.remote_identity_key_bytes()),
+    session_record = bob_with_alice_sesh,
 )
 
 print(alice_chat_sesh)
@@ -142,10 +146,10 @@ alice_chat_sesh, bob_chat_sesh = None, None
 
 with DatabaseSessionManager().get_session() as session:
     alice_chat_sesh: Optional[ConversationSession] = session.exec(
-        select(ConversationSession).where(ConversationSession.store_aci == alice_address.name())
+        select(ConversationSession).where(ConversationSession.store_uuid == alice_address.name())
     ).first()
     bob_chat_sesh: Optional[ConversationSession] = session.exec(
-        select(ConversationSession).where(ConversationSession.store_aci == bob_address.name())
+        select(ConversationSession).where(ConversationSession.store_uuid == bob_address.name())
     ).first()
 
 assert alice_chat_sesh is not None
