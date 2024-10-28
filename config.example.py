@@ -1,4 +1,4 @@
-DB_NAME = "mitm.db"
+DB_NAME = "mitm_test.db"
 
 # Names of Network Interfaces - These will vary depending on the machine and network setup
 INTERNET_IFACE = (
