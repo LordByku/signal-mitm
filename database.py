@@ -314,7 +314,6 @@ class LegitKeyRecord(SQLModel, table=True):
     uuid: str = Field(foreign_key="visitenkarte.uuid")
     device_id: int = Field(
         foreign_key="device.device_id",
-        primary_key=True,
         default=1,
         alias="deviceId",
         schema_extra={"serialization_alias": "deviceId"},
@@ -435,36 +434,36 @@ if __name__ == "__main__":
     #     data = new_entry.model_dump_json(indent=2, by_alias=True)
     #     print(f"ENTRY v\n{data}")
 
-    """
-    Test 2: load a bundle and make it happy ^^
-    """
-    with open("tests/fixtures/bundle.json") as f:
-        bundle = json.load(f)
-        bundle["devices"][0]["identityKey"] = bundle["identityKey"]
-        bundle = bundle["devices"][0]
-        bundle["aci"] = "test1"
-        bundle["type"] = "aci"
-        bundle["preKey"] = [bundle["preKey"]]
-        bundle["pqPreKey"] = [bundle["pqPreKey"]]
-        # bundle["identityKey"]
-        lb = LegitBundle.model_validate(bundle)
-        print(lb)
-        print(lb.model_dump_json(indent=2, by_alias=True))
+    # """
+    # Test 2: load a bundle and make it happy ^^
+    # """
+    # with open("tests/fixtures/bundle.json") as f:
+    #     bundle = json.load(f)
+    #     bundle["devices"][0]["identityKey"] = bundle["identityKey"]
+    #     bundle = bundle["devices"][0]
+    #     bundle["aci"] = "test1"
+    #     bundle["type"] = "aci"
+    #     bundle["preKey"] = [bundle["preKey"]]
+    #     bundle["pqPreKey"] = [bundle["pqPreKey"]]
+    #     # bundle["identityKey"]
+    #     lb = LegitBundle.model_validate(bundle)
+    #     print(lb)
+    #     print(lb.model_dump_json(indent=2, by_alias=True))
 
-        print(lb.identity_key)
-        print(lb.signed_pre_key.public_key)
+    #     print(lb.identity_key)
+    #     print(lb.signed_pre_key.public_key)
 
-        with Session(engine) as ses:
-            ses.merge(lb)
-            ses.commit()
+    #     with Session(engine) as ses:
+    #         ses.merge(lb)
+    #         ses.commit()
 
-        del lb
+    #     del lb
 
-        with Session(engine) as ses:
-            print("FRESH FROM DB!")
-            meep = ses.exec(select(LegitBundle)).first()
-            print(meep)
-            print(meep.model_dump_json(indent=4, by_alias=True))
+    #     with Session(engine) as ses:
+    #         print("FRESH FROM DB!")
+    #         meep = ses.exec(select(LegitBundle)).first()
+    #         print(meep)
+    #         print(meep.model_dump_json(indent=4, by_alias=True))
     """
     Test 3: Fake Bundle(s)
     """

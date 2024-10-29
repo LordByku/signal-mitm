@@ -56,9 +56,7 @@ class CallLinkUpdateSendJobData(_message.Message):
     class Type(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
         __slots__ = ()
         UPDATE: _ClassVar[CallLinkUpdateSendJobData.Type]
-        DELETE: _ClassVar[CallLinkUpdateSendJobData.Type]
     UPDATE: CallLinkUpdateSendJobData.Type
-    DELETE: CallLinkUpdateSendJobData.Type
     CALLLINKROOMID_FIELD_NUMBER: _ClassVar[int]
     TYPE_FIELD_NUMBER: _ClassVar[int]
     callLinkRoomId: str
@@ -78,24 +76,6 @@ class PreKeysSyncJobData(_message.Message):
     FORCEREFRESHREQUESTED_FIELD_NUMBER: _ClassVar[int]
     forceRefreshRequested: bool
     def __init__(self, forceRefreshRequested: bool = ...) -> None: ...
-
-class ArchiveAttachmentJobData(_message.Message):
-    __slots__ = ("attachmentId",)
-    ATTACHMENTID_FIELD_NUMBER: _ClassVar[int]
-    attachmentId: int
-    def __init__(self, attachmentId: _Optional[int] = ...) -> None: ...
-
-class ArchiveAttachmentBackfillJobData(_message.Message):
-    __slots__ = ("attachmentId", "uploadSpec", "count", "totalCount")
-    ATTACHMENTID_FIELD_NUMBER: _ClassVar[int]
-    UPLOADSPEC_FIELD_NUMBER: _ClassVar[int]
-    COUNT_FIELD_NUMBER: _ClassVar[int]
-    TOTALCOUNT_FIELD_NUMBER: _ClassVar[int]
-    attachmentId: int
-    uploadSpec: _ResumableUploads_pb2.ResumableUpload
-    count: int
-    totalCount: int
-    def __init__(self, attachmentId: _Optional[int] = ..., uploadSpec: _Optional[_Union[_ResumableUploads_pb2.ResumableUpload, _Mapping]] = ..., count: _Optional[int] = ..., totalCount: _Optional[int] = ...) -> None: ...
 
 class ArchiveThumbnailUploadJobData(_message.Message):
     __slots__ = ("attachmentId",)
@@ -171,3 +151,51 @@ class GroupCallPeekJobData(_message.Message):
     senderRecipientId: int
     serverTimestamp: int
     def __init__(self, groupRecipientId: _Optional[int] = ..., senderRecipientId: _Optional[int] = ..., serverTimestamp: _Optional[int] = ...) -> None: ...
+
+class RestoreLocalAttachmentJobData(_message.Message):
+    __slots__ = ("attachmentId", "messageId", "fileUri", "fileSize")
+    ATTACHMENTID_FIELD_NUMBER: _ClassVar[int]
+    MESSAGEID_FIELD_NUMBER: _ClassVar[int]
+    FILEURI_FIELD_NUMBER: _ClassVar[int]
+    FILESIZE_FIELD_NUMBER: _ClassVar[int]
+    attachmentId: int
+    messageId: int
+    fileUri: str
+    fileSize: int
+    def __init__(self, attachmentId: _Optional[int] = ..., messageId: _Optional[int] = ..., fileUri: _Optional[str] = ..., fileSize: _Optional[int] = ...) -> None: ...
+
+class BackfillDigestJobData(_message.Message):
+    __slots__ = ("attachmentId",)
+    ATTACHMENTID_FIELD_NUMBER: _ClassVar[int]
+    attachmentId: int
+    def __init__(self, attachmentId: _Optional[int] = ...) -> None: ...
+
+class BackfillDigestsForDataFileJobData(_message.Message):
+    __slots__ = ("dataFile",)
+    DATAFILE_FIELD_NUMBER: _ClassVar[int]
+    dataFile: str
+    def __init__(self, dataFile: _Optional[str] = ...) -> None: ...
+
+class RestoreAttachmentJobData(_message.Message):
+    __slots__ = ("messageId", "attachmentId", "manual")
+    MESSAGEID_FIELD_NUMBER: _ClassVar[int]
+    ATTACHMENTID_FIELD_NUMBER: _ClassVar[int]
+    MANUAL_FIELD_NUMBER: _ClassVar[int]
+    messageId: int
+    attachmentId: int
+    manual: bool
+    def __init__(self, messageId: _Optional[int] = ..., attachmentId: _Optional[int] = ..., manual: bool = ...) -> None: ...
+
+class CopyAttachmentToArchiveJobData(_message.Message):
+    __slots__ = ("attachmentId",)
+    ATTACHMENTID_FIELD_NUMBER: _ClassVar[int]
+    attachmentId: int
+    def __init__(self, attachmentId: _Optional[int] = ...) -> None: ...
+
+class UploadAttachmentToArchiveJobData(_message.Message):
+    __slots__ = ("attachmentId", "uploadSpec")
+    ATTACHMENTID_FIELD_NUMBER: _ClassVar[int]
+    UPLOADSPEC_FIELD_NUMBER: _ClassVar[int]
+    attachmentId: int
+    uploadSpec: _ResumableUploads_pb2.ResumableUpload
+    def __init__(self, attachmentId: _Optional[int] = ..., uploadSpec: _Optional[_Union[_ResumableUploads_pb2.ResumableUpload, _Mapping]] = ...) -> None: ...

@@ -24,7 +24,7 @@ _sym_db = _symbol_database.Default()
 
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x0eKeyValue.proto\x12\x06signal\"D\n\x17LeastActiveLinkedDevice\x12\x0c\n\x04name\x18\x01 \x01(\t\x12\x1b\n\x13lastActiveTimestamp\x18\x02 \x01(\x04\x42,\n*org.thoughtcrime.securesms.keyvalue.protosb\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x0eKeyValue.proto\x12\x06signal\"D\n\x17LeastActiveLinkedDevice\x12\x0c\n\x04name\x18\x01 \x01(\t\x12\x1b\n\x13lastActiveTimestamp\x18\x02 \x01(\x04\"\xe8\x01\n\x1a\x41rchiveUploadProgressState\x12\x37\n\x05state\x18\x01 \x01(\x0e\x32(.signal.ArchiveUploadProgressState.State\x12\x1c\n\x14\x63ompletedAttachments\x18\x02 \x01(\x04\x12\x18\n\x10totalAttachments\x18\x03 \x01(\x04\"Y\n\x05State\x12\x08\n\x04None\x10\x00\x12\x15\n\x11\x42\x61\x63kingUpMessages\x10\x01\x12\x15\n\x11UploadingMessages\x10\x02\x12\x18\n\x14UploadingAttachments\x10\x03\x42,\n*org.thoughtcrime.securesms.keyvalue.protosb\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -34,4 +34,8 @@ if not _descriptor._USE_C_DESCRIPTORS:
   _globals['DESCRIPTOR']._serialized_options = b'\n*org.thoughtcrime.securesms.keyvalue.protos'
   _globals['_LEASTACTIVELINKEDDEVICE']._serialized_start=26
   _globals['_LEASTACTIVELINKEDDEVICE']._serialized_end=94
+  _globals['_ARCHIVEUPLOADPROGRESSSTATE']._serialized_start=97
+  _globals['_ARCHIVEUPLOADPROGRESSSTATE']._serialized_end=329
+  _globals['_ARCHIVEUPLOADPROGRESSSTATE_STATE']._serialized_start=240
+  _globals['_ARCHIVEUPLOADPROGRESSSTATE_STATE']._serialized_end=329
 # @@protoc_insertion_point(module_scope)

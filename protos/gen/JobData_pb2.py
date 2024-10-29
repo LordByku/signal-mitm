@@ -25,7 +25,7 @@ _sym_db = _symbol_database.Default()
 import ResumableUploads_pb2 as ResumableUploads__pb2
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\rJobData.proto\x12\x06signal\x1a\x16ResumableUploads.proto\"\xff\x01\n\x16\x43\x61llSyncEventJobRecord\x12\x13\n\x0brecipientId\x18\x01 \x01(\x04\x12\x0e\n\x06\x63\x61llId\x18\x03 \x01(\x04\x12\x11\n\tdirection\x18\x04 \x01(\r\x12\x17\n\x0f\x64\x65precatedEvent\x18\x05 \x01(\r\x12\x37\n\tcallEvent\x18\x06 \x01(\x0e\x32$.signal.CallSyncEventJobRecord.Event\"U\n\x05\x45vent\x12\x12\n\x0eUNKNOWN_ACTION\x10\x00\x12\x0c\n\x08\x41\x43\x43\x45PTED\x10\x01\x12\x10\n\x0cNOT_ACCEPTED\x10\x02\x12\n\n\x06\x44\x45LETE\x10\x03\x12\x0c\n\x08OBSERVED\x10\x04J\x04\x08\x02\x10\x03\"G\n\x14\x43\x61llSyncEventJobData\x12/\n\x07records\x18\x01 \x03(\x0b\x32\x1e.signal.CallSyncEventJobRecord\"9\n$CallLinkRefreshSinceTimestampJobData\x12\x11\n\ttimestamp\x18\x01 \x01(\x04\"/\n\x17\x43\x61llLogEventSendJobData\x12\x14\n\x0c\x63\x61llLogEvent\x18\x01 \x01(\x0c\"\x97\x01\n\x19\x43\x61llLinkUpdateSendJobData\x12\x16\n\x0e\x63\x61llLinkRoomId\x18\x01 \x01(\t\x12\x39\n\x04type\x18\x02 \x01(\x0e\x32&.signal.CallLinkUpdateSendJobData.TypeH\x00\x88\x01\x01\"\x1e\n\x04Type\x12\n\n\x06UPDATE\x10\x00\x12\n\n\x06\x44\x45LETE\x10\x01\x42\x07\n\x05_type\"o\n\x17\x41ttachmentUploadJobData\x12\x14\n\x0c\x61ttachmentId\x18\x01 \x01(\x04\x12)\n\nuploadSpec\x18\x03 \x01(\x0b\x32\x10.ResumableUploadH\x00\x88\x01\x01\x42\r\n\x0b_uploadSpecJ\x04\x08\x02\x10\x03\"3\n\x12PreKeysSyncJobData\x12\x1d\n\x15\x66orceRefreshRequested\x18\x01 \x01(\x08\"0\n\x18\x41rchiveAttachmentJobData\x12\x14\n\x0c\x61ttachmentId\x18\x01 \x01(\x04\"\xba\x01\n ArchiveAttachmentBackfillJobData\x12\x19\n\x0c\x61ttachmentId\x18\x01 \x01(\x04H\x00\x88\x01\x01\x12$\n\nuploadSpec\x18\x02 \x01(\x0b\x32\x10.ResumableUpload\x12\x12\n\x05\x63ount\x18\x03 \x01(\rH\x01\x88\x01\x01\x12\x17\n\ntotalCount\x18\x04 \x01(\rH\x02\x88\x01\x01\x42\x0f\n\r_attachmentIdB\x08\n\x06_countB\r\n\x0b_totalCount\"5\n\x1d\x41rchiveThumbnailUploadJobData\x12\x14\n\x0c\x61ttachmentId\x18\x01 \x01(\x04\"m\n\x1dInAppPaymentRedemptionJobData\x12\x18\n\x0einAppPaymentId\x18\x01 \x01(\x04H\x00\x12\x17\n\rgiftMessageId\x18\x02 \x01(\x04H\x00\x12\x13\n\x0bmakePrimary\x18\x03 \x01(\x08\x42\x04\n\x02id\"\x9b\x06\n\x11\x44\x65leteSyncJobData\x12\x44\n\x0emessageDeletes\x18\x01 \x03(\x0b\x32,.signal.DeleteSyncJobData.AddressableMessage\x12=\n\rthreadDeletes\x18\x02 \x03(\x0b\x32&.signal.DeleteSyncJobData.ThreadDelete\x12\x46\n\x16localOnlyThreadDeletes\x18\x03 \x03(\x0b\x32&.signal.DeleteSyncJobData.ThreadDelete\x12\x45\n\x11\x61ttachmentDeletes\x18\x04 \x03(\x0b\x32*.signal.DeleteSyncJobData.AttachmentDelete\x1a\x61\n\x12\x41\x64\x64ressableMessage\x12\x19\n\x11threadRecipientId\x18\x01 \x01(\x04\x12\x15\n\rsentTimestamp\x18\x02 \x01(\x04\x12\x19\n\x11\x61uthorRecipientId\x18\x03 \x01(\x04\x1a\xc1\x01\n\x10\x41ttachmentDelete\x12\x43\n\rtargetMessage\x18\x01 \x01(\x0b\x32,.signal.DeleteSyncJobData.AddressableMessage\x12\x11\n\x04uuid\x18\x02 \x01(\x0cH\x00\x88\x01\x01\x12\x13\n\x06\x64igest\x18\x03 \x01(\x0cH\x01\x88\x01\x01\x12\x1a\n\rplaintextHash\x18\x04 \x01(\x0cH\x02\x88\x01\x01\x42\x07\n\x05_uuidB\t\n\x07_digestB\x10\n\x0e_plaintextHash\x1a\xca\x01\n\x0cThreadDelete\x12\x19\n\x11threadRecipientId\x18\x01 \x01(\x04\x12>\n\x08messages\x18\x02 \x03(\x0b\x32,.signal.DeleteSyncJobData.AddressableMessage\x12\x14\n\x0cisFullDelete\x18\x03 \x01(\x08\x12I\n\x13nonExpiringMessages\x18\x04 \x03(\x0b\x32,.signal.DeleteSyncJobData.AddressableMessage\"U\n\x11Svr3MirrorJobData\x12$\n\x17serializedChangeSession\x18\x01 \x01(\tH\x00\x88\x01\x01\x42\x1a\n\x18_serializedChangeSession\"d\n\x14GroupCallPeekJobData\x12\x18\n\x10groupRecipientId\x18\x01 \x01(\x04\x12\x19\n\x11senderRecipientId\x18\x02 \x01(\x04\x12\x17\n\x0fserverTimestamp\x18\x03 \x01(\x04\x42*\n&org.thoughtcrime.securesms.jobs.protosP\x01\x62\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\rJobData.proto\x12\x06signal\x1a\x16ResumableUploads.proto\"\xff\x01\n\x16\x43\x61llSyncEventJobRecord\x12\x13\n\x0brecipientId\x18\x01 \x01(\x04\x12\x0e\n\x06\x63\x61llId\x18\x03 \x01(\x04\x12\x11\n\tdirection\x18\x04 \x01(\r\x12\x17\n\x0f\x64\x65precatedEvent\x18\x05 \x01(\r\x12\x37\n\tcallEvent\x18\x06 \x01(\x0e\x32$.signal.CallSyncEventJobRecord.Event\"U\n\x05\x45vent\x12\x12\n\x0eUNKNOWN_ACTION\x10\x00\x12\x0c\n\x08\x41\x43\x43\x45PTED\x10\x01\x12\x10\n\x0cNOT_ACCEPTED\x10\x02\x12\n\n\x06\x44\x45LETE\x10\x03\x12\x0c\n\x08OBSERVED\x10\x04J\x04\x08\x02\x10\x03\"G\n\x14\x43\x61llSyncEventJobData\x12/\n\x07records\x18\x01 \x03(\x0b\x32\x1e.signal.CallSyncEventJobRecord\"9\n$CallLinkRefreshSinceTimestampJobData\x12\x11\n\ttimestamp\x18\x01 \x01(\x04\"/\n\x17\x43\x61llLogEventSendJobData\x12\x14\n\x0c\x63\x61llLogEvent\x18\x01 \x01(\x0c\"\x91\x01\n\x19\x43\x61llLinkUpdateSendJobData\x12\x16\n\x0e\x63\x61llLinkRoomId\x18\x01 \x01(\t\x12\x39\n\x04type\x18\x02 \x01(\x0e\x32&.signal.CallLinkUpdateSendJobData.TypeH\x00\x88\x01\x01\"\x18\n\x04Type\x12\n\n\x06UPDATE\x10\x00\"\x04\x08\x01\x10\x01\x42\x07\n\x05_type\"o\n\x17\x41ttachmentUploadJobData\x12\x14\n\x0c\x61ttachmentId\x18\x01 \x01(\x04\x12)\n\nuploadSpec\x18\x03 \x01(\x0b\x32\x10.ResumableUploadH\x00\x88\x01\x01\x42\r\n\x0b_uploadSpecJ\x04\x08\x02\x10\x03\"3\n\x12PreKeysSyncJobData\x12\x1d\n\x15\x66orceRefreshRequested\x18\x01 \x01(\x08\"5\n\x1d\x41rchiveThumbnailUploadJobData\x12\x14\n\x0c\x61ttachmentId\x18\x01 \x01(\x04\"m\n\x1dInAppPaymentRedemptionJobData\x12\x18\n\x0einAppPaymentId\x18\x01 \x01(\x04H\x00\x12\x17\n\rgiftMessageId\x18\x02 \x01(\x04H\x00\x12\x13\n\x0bmakePrimary\x18\x03 \x01(\x08\x42\x04\n\x02id\"\x9b\x06\n\x11\x44\x65leteSyncJobData\x12\x44\n\x0emessageDeletes\x18\x01 \x03(\x0b\x32,.signal.DeleteSyncJobData.AddressableMessage\x12=\n\rthreadDeletes\x18\x02 \x03(\x0b\x32&.signal.DeleteSyncJobData.ThreadDelete\x12\x46\n\x16localOnlyThreadDeletes\x18\x03 \x03(\x0b\x32&.signal.DeleteSyncJobData.ThreadDelete\x12\x45\n\x11\x61ttachmentDeletes\x18\x04 \x03(\x0b\x32*.signal.DeleteSyncJobData.AttachmentDelete\x1a\x61\n\x12\x41\x64\x64ressableMessage\x12\x19\n\x11threadRecipientId\x18\x01 \x01(\x04\x12\x15\n\rsentTimestamp\x18\x02 \x01(\x04\x12\x19\n\x11\x61uthorRecipientId\x18\x03 \x01(\x04\x1a\xc1\x01\n\x10\x41ttachmentDelete\x12\x43\n\rtargetMessage\x18\x01 \x01(\x0b\x32,.signal.DeleteSyncJobData.AddressableMessage\x12\x11\n\x04uuid\x18\x02 \x01(\x0cH\x00\x88\x01\x01\x12\x13\n\x06\x64igest\x18\x03 \x01(\x0cH\x01\x88\x01\x01\x12\x1a\n\rplaintextHash\x18\x04 \x01(\x0cH\x02\x88\x01\x01\x42\x07\n\x05_uuidB\t\n\x07_digestB\x10\n\x0e_plaintextHash\x1a\xca\x01\n\x0cThreadDelete\x12\x19\n\x11threadRecipientId\x18\x01 \x01(\x04\x12>\n\x08messages\x18\x02 \x03(\x0b\x32,.signal.DeleteSyncJobData.AddressableMessage\x12\x14\n\x0cisFullDelete\x18\x03 \x01(\x08\x12I\n\x13nonExpiringMessages\x18\x04 \x03(\x0b\x32,.signal.DeleteSyncJobData.AddressableMessage\"U\n\x11Svr3MirrorJobData\x12$\n\x17serializedChangeSession\x18\x01 \x01(\tH\x00\x88\x01\x01\x42\x1a\n\x18_serializedChangeSession\"d\n\x14GroupCallPeekJobData\x12\x18\n\x10groupRecipientId\x18\x01 \x01(\x04\x12\x19\n\x11senderRecipientId\x18\x02 \x01(\x04\x12\x17\n\x0fserverTimestamp\x18\x03 \x01(\x04\"k\n\x1dRestoreLocalAttachmentJobData\x12\x14\n\x0c\x61ttachmentId\x18\x01 \x01(\x04\x12\x11\n\tmessageId\x18\x02 \x01(\x04\x12\x0f\n\x07\x66ileUri\x18\x03 \x01(\t\x12\x10\n\x08\x66ileSize\x18\x04 \x01(\x04\"-\n\x15\x42\x61\x63kfillDigestJobData\x12\x14\n\x0c\x61ttachmentId\x18\x01 \x01(\x04\"5\n!BackfillDigestsForDataFileJobData\x12\x10\n\x08\x64\x61taFile\x18\x01 \x01(\t\"S\n\x18RestoreAttachmentJobData\x12\x11\n\tmessageId\x18\x01 \x01(\x04\x12\x14\n\x0c\x61ttachmentId\x18\x02 \x01(\x04\x12\x0e\n\x06manual\x18\x03 \x01(\x08\"6\n\x1e\x43opyAttachmentToArchiveJobData\x12\x14\n\x0c\x61ttachmentId\x18\x01 \x01(\x04\"^\n UploadAttachmentToArchiveJobData\x12\x14\n\x0c\x61ttachmentId\x18\x01 \x01(\x04\x12$\n\nuploadSpec\x18\x02 \x01(\x0b\x32\x10.ResumableUploadB*\n&org.thoughtcrime.securesms.jobs.protosP\x01\x62\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -44,31 +44,39 @@ if not _descriptor._USE_C_DESCRIPTORS:
   _globals['_CALLLOGEVENTSENDJOBDATA']._serialized_start=439
   _globals['_CALLLOGEVENTSENDJOBDATA']._serialized_end=486
   _globals['_CALLLINKUPDATESENDJOBDATA']._serialized_start=489
-  _globals['_CALLLINKUPDATESENDJOBDATA']._serialized_end=640
+  _globals['_CALLLINKUPDATESENDJOBDATA']._serialized_end=634
   _globals['_CALLLINKUPDATESENDJOBDATA_TYPE']._serialized_start=601
-  _globals['_CALLLINKUPDATESENDJOBDATA_TYPE']._serialized_end=631
-  _globals['_ATTACHMENTUPLOADJOBDATA']._serialized_start=642
-  _globals['_ATTACHMENTUPLOADJOBDATA']._serialized_end=753
-  _globals['_PREKEYSSYNCJOBDATA']._serialized_start=755
-  _globals['_PREKEYSSYNCJOBDATA']._serialized_end=806
-  _globals['_ARCHIVEATTACHMENTJOBDATA']._serialized_start=808
-  _globals['_ARCHIVEATTACHMENTJOBDATA']._serialized_end=856
-  _globals['_ARCHIVEATTACHMENTBACKFILLJOBDATA']._serialized_start=859
-  _globals['_ARCHIVEATTACHMENTBACKFILLJOBDATA']._serialized_end=1045
-  _globals['_ARCHIVETHUMBNAILUPLOADJOBDATA']._serialized_start=1047
-  _globals['_ARCHIVETHUMBNAILUPLOADJOBDATA']._serialized_end=1100
-  _globals['_INAPPPAYMENTREDEMPTIONJOBDATA']._serialized_start=1102
-  _globals['_INAPPPAYMENTREDEMPTIONJOBDATA']._serialized_end=1211
-  _globals['_DELETESYNCJOBDATA']._serialized_start=1214
-  _globals['_DELETESYNCJOBDATA']._serialized_end=2009
-  _globals['_DELETESYNCJOBDATA_ADDRESSABLEMESSAGE']._serialized_start=1511
-  _globals['_DELETESYNCJOBDATA_ADDRESSABLEMESSAGE']._serialized_end=1608
-  _globals['_DELETESYNCJOBDATA_ATTACHMENTDELETE']._serialized_start=1611
-  _globals['_DELETESYNCJOBDATA_ATTACHMENTDELETE']._serialized_end=1804
-  _globals['_DELETESYNCJOBDATA_THREADDELETE']._serialized_start=1807
-  _globals['_DELETESYNCJOBDATA_THREADDELETE']._serialized_end=2009
-  _globals['_SVR3MIRRORJOBDATA']._serialized_start=2011
-  _globals['_SVR3MIRRORJOBDATA']._serialized_end=2096
-  _globals['_GROUPCALLPEEKJOBDATA']._serialized_start=2098
-  _globals['_GROUPCALLPEEKJOBDATA']._serialized_end=2198
+  _globals['_CALLLINKUPDATESENDJOBDATA_TYPE']._serialized_end=625
+  _globals['_ATTACHMENTUPLOADJOBDATA']._serialized_start=636
+  _globals['_ATTACHMENTUPLOADJOBDATA']._serialized_end=747
+  _globals['_PREKEYSSYNCJOBDATA']._serialized_start=749
+  _globals['_PREKEYSSYNCJOBDATA']._serialized_end=800
+  _globals['_ARCHIVETHUMBNAILUPLOADJOBDATA']._serialized_start=802
+  _globals['_ARCHIVETHUMBNAILUPLOADJOBDATA']._serialized_end=855
+  _globals['_INAPPPAYMENTREDEMPTIONJOBDATA']._serialized_start=857
+  _globals['_INAPPPAYMENTREDEMPTIONJOBDATA']._serialized_end=966
+  _globals['_DELETESYNCJOBDATA']._serialized_start=969
+  _globals['_DELETESYNCJOBDATA']._serialized_end=1764
+  _globals['_DELETESYNCJOBDATA_ADDRESSABLEMESSAGE']._serialized_start=1266
+  _globals['_DELETESYNCJOBDATA_ADDRESSABLEMESSAGE']._serialized_end=1363
+  _globals['_DELETESYNCJOBDATA_ATTACHMENTDELETE']._serialized_start=1366
+  _globals['_DELETESYNCJOBDATA_ATTACHMENTDELETE']._serialized_end=1559
+  _globals['_DELETESYNCJOBDATA_THREADDELETE']._serialized_start=1562
+  _globals['_DELETESYNCJOBDATA_THREADDELETE']._serialized_end=1764
+  _globals['_SVR3MIRRORJOBDATA']._serialized_start=1766
+  _globals['_SVR3MIRRORJOBDATA']._serialized_end=1851
+  _globals['_GROUPCALLPEEKJOBDATA']._serialized_start=1853
+  _globals['_GROUPCALLPEEKJOBDATA']._serialized_end=1953
+  _globals['_RESTORELOCALATTACHMENTJOBDATA']._serialized_start=1955
+  _globals['_RESTORELOCALATTACHMENTJOBDATA']._serialized_end=2062
+  _globals['_BACKFILLDIGESTJOBDATA']._serialized_start=2064
+  _globals['_BACKFILLDIGESTJOBDATA']._serialized_end=2109
+  _globals['_BACKFILLDIGESTSFORDATAFILEJOBDATA']._serialized_start=2111
+  _globals['_BACKFILLDIGESTSFORDATAFILEJOBDATA']._serialized_end=2164
+  _globals['_RESTOREATTACHMENTJOBDATA']._serialized_start=2166
+  _globals['_RESTOREATTACHMENTJOBDATA']._serialized_end=2249
+  _globals['_COPYATTACHMENTTOARCHIVEJOBDATA']._serialized_start=2251
+  _globals['_COPYATTACHMENTTOARCHIVEJOBDATA']._serialized_end=2305
+  _globals['_UPLOADATTACHMENTTOARCHIVEJOBDATA']._serialized_start=2307
+  _globals['_UPLOADATTACHMENTTOARCHIVEJOBDATA']._serialized_end=2401
 # @@protoc_insertion_point(module_scope)

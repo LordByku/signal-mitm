@@ -323,12 +323,13 @@ message DonationErrorValue {
 message InAppPaymentData {
 
     enum PaymentMethodType {
-        UNKNOWN    = 0;
-        GOOGLE_PAY = 1;
-        CARD       = 2;
-        SEPA_DEBIT = 3;
-        IDEAL      = 4;
-        PAYPAL     = 5;
+        UNKNOWN             = 0;
+        GOOGLE_PAY          = 1;
+        CARD                = 2;
+        SEPA_DEBIT          = 3;
+        IDEAL               = 4;
+        PAYPAL              = 5;
+        GOOGLE_PLAY_BILLING = 6;
     }
 
     /**
@@ -375,6 +376,7 @@ message InAppPaymentData {
         optional bool   keepAlive                       = 3; // Only present for recurring donations, specifies this redemption started from a keep-alive
         optional bytes  receiptCredentialRequestContext = 4; // Reusable context for retrieving a presentation
         optional bytes  receiptCredentialPresentation   = 5; // Redeemable presentation
+        optional string googlePlayBillingPurchaseToken  = 6; // Only present for backups
     }
 
     message Error {
@@ -405,7 +407,7 @@ message InAppPaymentData {
     optional Error             error             = 3; // An error, if present.
              int64             level             = 4; // The transaction "level" given to us by the server
     optional Cancellation      cancellation      = 5; // The transaction was cancelled. This notes why.
-             string            label             = 6; // Descriptive text about the token
+             reserved                              6; // removed: Descriptive text about the token
     optional string            recipientId       = 7; // The target recipient the token is to be sent to (only used for gifts)
     optional string            additionalMessage = 8; // The additional message to send the target recipient (only used for gifts)
              PaymentMethodType paymentMethodType = 9; // The method through which this in app payment was made
@@ -482,7 +484,7 @@ message ExternalLaunchTransactionState {
 
         InAppPaymentType inAppPaymentType  = 1;
         BadgeList.Badge  badge             = 2;
-        string           label             = 3;
+        reserved                             3; // removed field label
         DecimalValue     price             = 4;
         string           currencyCode      = 5;
         int64            level             = 6;
@@ -516,10 +518,10 @@ message PaymentTombstone {
 }
 
 message LocalRegistrationMetadata {
-    bytes aciIdentityKey = 1;
+    bytes aciIdentityKeyPair = 1;
     bytes aciSignedPreKey = 2;
     bytes aciLastRestoreKyberPreKey = 3;
-    bytes pniIdentityKey = 4;
+    bytes pniIdentityKeyPair = 4;
     bytes pniSignedPreKey = 5;
     bytes pniLastRestoreKyberPreKey = 6;
     string aci = 7;
