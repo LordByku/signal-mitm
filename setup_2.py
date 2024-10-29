@@ -7,14 +7,13 @@ import time
 import signal
 from itertools import product
 
-import utils
-from database import *
+import src.utils as utils
+from db.database import create_tables()
 from pathlib import Path
 
 import config
 
-from utils import *
-
+from src.utils import *
 
 class NetworkHandler:
     def __init__(self):
@@ -56,6 +55,7 @@ class NetworkHandler:
 
 
 def setup_db():
+    # TODO: just create_tables()
     database = SqliteDatabase(config.DB_NAME)
     database.connect()
     create_tables()

@@ -1,8 +1,8 @@
 from random import random, randint
 
-from database import VisitenKarte, User, Device, ConversationSession, StoreKeyRecord, LegitKeyRecord
-from session import DatabaseSessionManager
-from database import create_tables
+from db.database import VisitenKarte, User, Device, ConversationSession, StoreKeyRecord, LegitKeyRecord
+from db.session import DatabaseSessionManager
+from db.database import create_tables
 
 from signal_protocol import (
     identity_key,
@@ -36,10 +36,10 @@ from signal_protocol.protocol import CiphertextMessage
 from protos.gen.SignalService_pb2 import Content
 
 
-from dbhacks import PydanticIdentityKeyPair
+from db.dbhacks import PydanticIdentityKeyPair
 
 from time import time
-import utils
+import src.utils as utils
 
 from enum import Enum
 import logging
