@@ -1,13 +1,22 @@
+# Serialization
 In general, data that we receive from the external world (client/server) consists in a "matrioska" of different serialization layers. 
-
-![[matrioska.excalidraw | center]]
-<center><i>Matrioska</i> layers </center>
+<center>
+	<figure>
+		<img src="images/matrioska.excalidraw.svg" alt="drawing" width="400"/>
+		<figcaption><i>Matrioska</i> layers </figcaption>
+	</figure>
+</center>
 
 ## Transport layer
 
 This covers how data is passed on the wire
 
-![[transport.excalidraw| center]]
+<center>
+	<figure>
+		<img src="images/transport.excalidraw.svg" alt="drawing" width="400"/>
+		<figcaption> Transport mechanism </figcaption>
+	</figure>
+</center>
 
 The first (optional) layer is a WebSocket layer, where the data is protobuf serialized in bytes. The schema followed is defined in ```WebSocketResourceProto```.
 
@@ -29,6 +38,7 @@ The fourth layer is the Internal Serialization layer which is handled by the `Or
 
 Part of the data is transmitted over the wire through [Websockets](https://developer.mozilla.org/en-US/docs/Web/API/WebSockets_API). 
 Before transmission, data is serialized with the following outer protobuf schema [WebSocketMessage](https://github.com/signalapp/Signal-Android/blob/69e1146e2c5bbd6f2773dfe12f723e7cc88064be/libsignal-service/src/main/protowire/WebSocketResources.proto#L4) :
+
 ```protobuf
 message WebSocketMessage {
 	enum Type {
@@ -69,6 +79,8 @@ Each request and response is serialized with pre-defined JSON schemas. The relev
 ##### ```v1/registration```:
 
 ###### Request
+
+<center>
 
 | Field                 | Type     |
 | --------------------- | -------- |
@@ -128,19 +140,30 @@ Each request and response is serialized with pre-defined JSON schemas. The relev
 | **deviceId**       |                | `int`    |
 | **registrationId** |                | `int`    |
 
+</center>
+
 ### Websocket Protobuf Content
-This HTTP request is the result of deserializing `WebsocketRequestMessage` and `WebsocketResponseMessage` (see ref. [[#Websocket ([_protobuf_](https //protobuf.dev/))|here]]). Relevant content wrapped in this protobuf schema includes user profile info and exchanged Signal messages.
+This HTTP request is the result of deserializing `WebsocketRequestMessage` and `WebsocketResponseMessage` (see [here](#websocket-protobuf)). Relevant content wrapped in this protobuf schema includes user profile info and exchanged Signal messages.
 #### Profile info
 A client interacts with the server to fetch information about the other users and themselves. This information is related to the profile of the user. Such as name, bio, identity key, payment, etc. Note that this information is encrypted with the profile key. 
 
-![[profile_response.svg|center]]
+<center>
+	<figure>
+		<img src="images/profile_response.svg" alt="drawing" width="400"/>
+		<figcaption>Profile response schema</figcaption>
+	</figure>
+</center>
+
 #### Signal Messages
 Users exchange different kinds of messages, which follow a predefined nested serialization schema:
+<center>
+	<figure>
+		<img src="images/general_message.svg" alt="drawing" width="400"/>
+		<figcaption> Structure of a serialized message on the wire  </figcaption>
+	</figure>
+</center>
 
-![[general_message.svg|center|500]]
-<left> <i>Structure of a serialized message on the wire </i></left>
-
-This structure consists of several layers of serialization. The outer layers are HTTP requests over WebSocket, which define the transport mechanism with which the message is sent over the wire. Then, the first layer of serialization is `WebSocketMessage` as a request (see [[#Websocket ([_protobuf_](https //protobuf.dev/))| here]]). The ```body``` field of this protobuf schema contains either a JSON or `Envelope` protobuf depending on if the message was sent to or received by the server. In the innermost layer we have *Message* which contains the message, serialized according to its type as defined by the Signal messanger
+This structure consists of several layers of serialization. The outer layers are HTTP requests over WebSocket, which define the transport mechanism with which the message is sent over the wire. Then, the first layer of serialization is `WebSocketMessage` as a request (see [here](#websocket-protobuf)). The ```body``` field of this protobuf schema contains either a JSON or `Envelope` protobuf depending on if the message was sent to or received by the server. In the innermost layer we have *Message* which contains the message, serialized according to its type as defined by the Signal messanger
 ##### Client initiated message
 Client initiated messages represent messages sent by the user (client) on the wire to the ```v1/messages/{uuid}``` as a PUT request. 
 
@@ -169,12 +192,11 @@ The relevant protobuf schemas are `PreKeySignalMessage` (type 3) and `Unidentife
 
 `UnidentifiedSenderMessage` serializes the sealed sender message.
 ##### Server initiated message
-Server initiated messages represents messages delivered by the server after a successful interaction with another client (e.g. another sending a message, see [[#Client initiated message| here]]).
+Server initiated messages represents messages delivered by the server after a successful interaction with another client (e.g. another sending a message, see [here](#client-initiated-message)).
 
 The relevant endpoint is ```api/v1/message```.
 
-> TODO: Check if all Server initiated messaged are using /api/...
-
+[//]: <> (TODO: Check if all Server initiated messaged are using /api/...)
 
 ```protobuf
 message Envelope {
@@ -207,16 +229,20 @@ message Envelope {
 	// NEXT ID: 19
 }
 ```
-Similar to [[#Client-to-Server Message| sent messages]], the Message is contained in ```content```.
-An [[message_received_server_request.svg| example]] shows all the layers of a PreKeySignalMessage received from another user.
+Similar to [here](#client-initiated-message), the Message is contained in ```content```.
+An [example](images/message_received_server_request.svg) shows all the layers of a PreKeySignalMessage received from another user.
 ##### Message (protobuf)
 `Message (protobuf)` refers to Signal's schemas for encoding payloads based on their type. For example, when sending a message to an unknown user, the client includes the ciphertext of a "Hello" message and keys for session establishment. The message type guides the receiver in selecting the correct protobuf schema for deserialization.
 
 In the following sections, we list the relevant structure that wraps the content of the message.
 ###### PreKeySignalMessage | type: 3
 
-![[internal_message.svg]] 
-
+<center>
+	<figure>
+		<img src="images/internal_message.svg" alt="drawing" width="400"/>
+		<figcaption> Structure of a serialized message on the wire  </figcaption>
+	</figure>
+</center>
 
 ```protobuf
 message PreKeySignalMessage {
@@ -241,10 +267,14 @@ message SignalMessage {
 }
 ```
 
-`UnidentifiedSenderMessage` represents a [[Sealed Sender]] message.
+`UnidentifiedSenderMessage` represents a [Sealed Sender](./sealed-sender.md) message.
 ###### UnidentifiedSenderMessage | type: 6
-
-![[sealed_sender_content.svg]]
+<center>
+	<figure>
+		<img src="images/sealed_sender_content.svg" alt="drawing" width="400"/>
+		<figcaption> Structure of a serialized message on the wire  </figcaption>
+	</figure>
+</center>
 
 ```protobuf
 message UnidentifiedSenderMessage {

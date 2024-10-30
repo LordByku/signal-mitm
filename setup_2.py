@@ -8,7 +8,7 @@ import signal
 from itertools import product
 
 import src.utils as utils
-from db.database import create_tables()
+from db.database import create_tables
 from pathlib import Path
 
 import config
@@ -56,8 +56,8 @@ class NetworkHandler:
 
 def setup_db():
     # TODO: just create_tables()
-    database = SqliteDatabase(config.DB_NAME)
-    database.connect()
+    # database = SqliteDatabase(config.DB_NAME)
+    # database.connect()
     create_tables()
 
 
