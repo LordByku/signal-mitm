@@ -4,8 +4,8 @@ import time
 import signal
 from itertools import product
 
-from setup.network import network_setup, signal_handler
-from setup.shell import execute, get_term, ColorHandler
+from conf import network_setup, signal_handler
+from conf import ColorHandler
 from db.database import create_tables
 
 import config

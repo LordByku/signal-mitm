@@ -1,0 +1,10 @@
+# Name of your interface which connects to the internet, e.g., "eth0" for Ethernet or "wlan0" for Wi-Fi.
+internet_iface: TODO
+# Interface facing the victim
+ap_iface: TODO
+# Access Point SSID
+ap_ssid: TODO
+# Access Point PW
+ap_pw: TODO
+# List of hosts (python regex) whose traffic the proxy should pass through.
+ignore_hosts_list: [ TODO, TODO, ... ]

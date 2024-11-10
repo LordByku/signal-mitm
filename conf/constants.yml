@@ -1,0 +1,3 @@
+db_name: mitm_test.db
+# The port MITMProxy listens on. Change if necessary.
+mitmproxy_listen_port: 8080
