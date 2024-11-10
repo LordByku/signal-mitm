@@ -3,7 +3,7 @@ import logging
 import shutil
 import sys
 import os
-from plumbum import cmd as command
+from plumbum import local
 
 run_command_counter = 0
 
@@ -31,10 +31,10 @@ def execute(cmd, retcodes: tuple[int, ...] = None, sudo=False ,log=True):
             # https://docs.python.org/3/library/inspect.html#the-interpreter-stack
             logging.info(f"function:{inspect.currentframe().f_back.f_back.f_code.co_name} \nline: {inspect.currentframe().f_back.f_back.f_lineno} \n{cmd} {formatstring_stdout(stdout)}")
 
-    logging.debug(f"Command nr: {run_command_counter} \n{cmd}\nRetcodes: {retcodes}")
+    #logging.debug(f"Command nr: {run_command_counter} \n{cmd}\nRetcodes: {retcodes}")
     run_command_counter = run_command_counter + 1
     if sudo:
-        (rc, stdout, stderr) = command.sudo(cmd, retcode=retcodes)
+        (rc, stdout, stderr) = local["sudo"][cmd].run(retcode=retcodes)
     else:
         (rc, stdout, stderr) = cmd.run(retcode=retcodes)
     if retcodes is None and rc != 0:

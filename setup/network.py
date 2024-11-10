@@ -1,16 +1,15 @@
 import sys
 from itertools import product
 
-from shell import execute
+from .shell import execute
 from plumbum import local
-from ..conf.configuration import const
 
 sysctl = local['sysctl']
 iptables = local["iptables"]
 ip6tables = local["ip6tables"]
 
 
-def network_setup(verbose=False):
+def network_setup(const, verbose=False):
     allow_forward = [
         sysctl["-w", "net.ipv4.ip_forward=1"],
         sysctl["-w", "net.ipv6.conf.all.forwarding=1"],
