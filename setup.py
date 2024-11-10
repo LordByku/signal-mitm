@@ -1,19 +1,16 @@
 import logging
 import shutil
-import subprocess
-import os
 import sys
 import time
 import signal
 from itertools import product
 
 import src.utils as utils
+from setup.network import network_setup, teardown, signal_handler
+from setup.shell import execute, get_term
 from db.database import create_tables
-from pathlib import Path
 
 import config
-
-from src.utils import *
 
 class NetworkHandler:
     def __init__(self):
@@ -55,47 +52,12 @@ class NetworkHandler:
 
 
 def setup_db():
-    # TODO: just create_tables()
-    # database = SqliteDatabase(config.DB_NAME)
-    # database.connect()
     create_tables()
 
 
-def teardown():
-    NetworkHandler().shutdown()
-    try_run_sudo("pkill mitmproxy")
-
-
-def signal_handler(sig, frame):
-    print("You pressed Ctrl+C!")
-    teardown()  # kill this mess
-    sys.exit(0)
-
-
-def __get_term():
-    """get the preferred terminal to enhance portability
-
-    todo: actually find a way to do this. there is gsettings but that only works on gnome and $TERM is a bit
-    useless since everyone pretends to be `xterm-256color`
-    """
-
-    terminals = [
-        "gnome-terminal",
-        "konsole",
-        "xfce4-terminal",
-        "xterm",
-        "terminator",
-        "lxterminal",
-    ]
-    for terminal in terminals:
-        if shutil.which(terminal):
-            return terminal
-    return "gnome-terminal"
-
-
 def setup():
-    NetworkHandler().setup()
-    logging.info("Network is up.")
+    network_setup()
+    logging.info("Network is up.\n")
     setup_db()
     logging.info("DB is up.\n")
     args = ' '.join(sys.argv[1:])
@@ -106,7 +68,6 @@ def setup():
         mitm += rf" -w {flow_name}"
     logging.warning(f"Starting mitmproxy as: {mitm}")
     logging.warning("mitmproxy started in another window. Press (CTRL+C) in this terminal to stop it.")
-    #os.system(f"{__get_term()} -- {mitm} &")
 
 
 if __name__ == "__main__":
@@ -116,6 +77,6 @@ if __name__ == "__main__":
 
     signal.signal(signal.SIGINT, signal_handler)
     # handler  receives signal number and stack frame
-    logging.debug("beginning setup")
+    logging.debug("Running setup...")
     setup()
     signal.pause()

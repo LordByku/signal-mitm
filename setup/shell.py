@@ -1,9 +1,10 @@
 import inspect
 import logging
+import shutil
 
 run_command_counter = 0
 
-def execute(cmd, retcodes: tuple[int, ...] = None, do_log=True):
+def execute(cmd, retcodes: tuple[int, ...] = None, log=True):
     """
     Executes and logs a plumbum command.
     See: https://plumbum.readthedocs.io/en/latest/local_commands.html
@@ -13,12 +14,12 @@ def execute(cmd, retcodes: tuple[int, ...] = None, do_log=True):
         stdout
     :param cmd: the plumbum command to execute
     :param retcodes: None or a tuple of accepted return codes
-    :param do_log: Flag to turn logging of the command on or off.
+    :param log: turn logging of the command on or off
     :return: retcode, stdout, stderr (if retcode is not None) OR stdout
     """
     global run_command_counter
     def log_command():
-        if do_log:
+        if log:
             def formatstring_stdout(stdout_arg):
                 # Empty strings are 'falsy'
                 return f"\nOutput:\n {stdout_arg}" if stdout_arg.strip() else ""
@@ -38,3 +39,24 @@ def execute(cmd, retcodes: tuple[int, ...] = None, do_log=True):
         return stdout
     else:
         return rc, stdout, stderr
+
+
+def get_term():
+    """get the preferred terminal to enhance portability
+
+    todo: actually find a way to do this. there is gsettings but that only works on gnome and $TERM is a bit
+    useless since everyone pretends to be `xterm-256color`
+    """
+
+    terminals = [
+        "gnome-terminal",
+        "konsole",
+        "xfce4-terminal",
+        "xterm",
+        "terminator",
+        "lxterminal",
+    ]
+    for terminal in terminals:
+        if shutil.which(terminal):
+            return terminal
+    return "gnome-terminal"
