@@ -1,16 +1,15 @@
 import logging
-import shutil
 import sys
 import time
 import signal
 from itertools import product
 
-import src.utils as utils
-from setup.network import network_setup, teardown, signal_handler
-from setup.shell import execute, get_term
+from setup.network import network_setup, signal_handler
+from setup.shell import execute, get_term, ColorHandler
 from db.database import create_tables
 
 import config
+
 
 class NetworkHandler:
     def __init__(self):
@@ -73,7 +72,7 @@ def setup():
 if __name__ == "__main__":
     logger = logging.getLogger()
     logger.setLevel(logging.DEBUG)
-    logger.addHandler(utils.ColorHandler())
+    logger.addHandler(ColorHandler())
 
     signal.signal(signal.SIGINT, signal_handler)
     # handler  receives signal number and stack frame

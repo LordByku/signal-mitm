@@ -3,10 +3,11 @@ import logging
 import shutil
 import sys
 import os
+from plumbum import cmd as command
 
 run_command_counter = 0
 
-def execute(cmd, retcodes: tuple[int, ...] = None, log=True):
+def execute(cmd, retcodes: tuple[int, ...] = None, sudo=False ,log=True):
     """
     Executes and logs a plumbum command.
     See: https://plumbum.readthedocs.io/en/latest/local_commands.html
@@ -16,6 +17,7 @@ def execute(cmd, retcodes: tuple[int, ...] = None, log=True):
         stdout
     :param cmd: the plumbum command to execute
     :param retcodes: None or a tuple of accepted return codes
+    :param sudo: Execute as superuser
     :param log: turn logging of the command on or off
     :return: retcode, stdout, stderr (if retcode is not None) OR stdout
     """
@@ -31,7 +33,10 @@ def execute(cmd, retcodes: tuple[int, ...] = None, log=True):
 
     logging.debug(f"Command nr: {run_command_counter} \n{cmd}\nRetcodes: {retcodes}")
     run_command_counter = run_command_counter + 1
-    (rc, stdout, stderr) = cmd.run(retcode=retcodes)
+    if sudo:
+        (rc, stdout, stderr) = command.sudo(cmd, retcode=retcodes)
+    else:
+        (rc, stdout, stderr) = cmd.run(retcode=retcodes)
     if retcodes is None and rc != 0:
         log_command()
         logging.critical(f"UNEXPECTED ERROR:\nrc: {rc}\nstdout: {stdout}\nstderr: {stderr}\n")
