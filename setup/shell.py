@@ -7,7 +7,8 @@ from plumbum import local
 
 run_command_counter = 0
 
-def execute(cmd, retcodes: tuple[int, ...] = None, sudo=False ,log=True):
+
+def execute(cmd, retcodes: tuple[int, ...] = None, sudo=False, log=True):
     """
     Executes and logs a plumbum command.
     See: https://plumbum.readthedocs.io/en/latest/local_commands.html
@@ -22,16 +23,21 @@ def execute(cmd, retcodes: tuple[int, ...] = None, sudo=False ,log=True):
     :return: retcode, stdout, stderr (if retcode is not None) OR stdout
     """
     global run_command_counter
+
     def log_command():
         if log:
+
             def formatstring_stdout(stdout_arg):
                 # Empty strings are 'falsy'
                 return f"\nOutput:\n {stdout_arg}" if stdout_arg.strip() else ""
+
             # inspect.stack()[1][3] is the name of the calling function
             # https://docs.python.org/3/library/inspect.html#the-interpreter-stack
-            logging.info(f"function:{inspect.currentframe().f_back.f_back.f_code.co_name} \nline: {inspect.currentframe().f_back.f_back.f_lineno} \n{cmd} {formatstring_stdout(stdout)}")
+            logging.info(
+                f"function:{inspect.currentframe().f_back.f_back.f_code.co_name} \nline: {inspect.currentframe().f_back.f_back.f_lineno} \n{cmd} {formatstring_stdout(stdout)}"
+            )
 
-    #logging.debug(f"Command nr: {run_command_counter} \n{cmd}\nRetcodes: {retcodes}")
+    # logging.debug(f"Command nr: {run_command_counter} \n{cmd}\nRetcodes: {retcodes}")
     run_command_counter = run_command_counter + 1
     if sudo:
         (rc, stdout, stderr) = local["sudo"][cmd].run(retcode=retcodes)
@@ -39,7 +45,9 @@ def execute(cmd, retcodes: tuple[int, ...] = None, sudo=False ,log=True):
         (rc, stdout, stderr) = cmd.run(retcode=retcodes)
     if retcodes is None and rc != 0:
         log_command()
-        logging.critical(f"UNEXPECTED ERROR:\nrc: {rc}\nstdout: {stdout}\nstderr: {stderr}\n")
+        logging.critical(
+            f"UNEXPECTED ERROR:\nrc: {rc}\nstdout: {stdout}\nstderr: {stderr}\n"
+        )
         exit(1)
     log_command()
     if retcodes is None:
