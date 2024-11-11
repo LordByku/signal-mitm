@@ -11,7 +11,8 @@ ip6tables = local["ip6tables"]
 def create_kea_dhcp_config(const, conf, verbose=False):
     """
         Creates the kea-dhcp config file with the entries configured in the constants
-        and config file and copies it to '/etc/kea'
+        and config file and copies it to '/etc/kea'.
+        Assumes cwd = root (./conf/kea-dhcp4.conf, exists)
     :param const:
     :param conf:
     :param verbose:
@@ -19,7 +20,13 @@ def create_kea_dhcp_config(const, conf, verbose=False):
     """
     sed = local['sed']
     cp = local['cp']
-    execute(cp[])
+    mv = local['mv']
+    execute(cp['./conf/kea-dhcp4.conf', "."])
+    execute(sed["-i" ,f"s/{const["dhcp_interface_placeholder"]}/{conf["ap_iface"]}", "kea-dhcp4.conf"])
+    execute(sed["-i" ,f"s/{const["dhcp_subnet_placeholder"]}/{const["ap_subnet"]}", "kea-dhcp4.conf"])
+    execute(sed["-i", f"s/{const["dhcp_pool_placeholder"]}/{const["dhcp_pool_format_string"].format(const["dhcp_pool_lower"], const["dhcp_pool_upper"])}", "kea-dhcp4.conf"])
+    execute(sed["-i" ,f"s/{const["dhcp_server_ip_placeholder"]}/{const["dhcp_server_ip"]}", "kea-dhcp4.conf"])
+    execute(mv["kea-dhcp4.conf", "/etc/kea/."], sudo=True)
 
 def network_setup(const, verbose=False):
     allow_forward = [
