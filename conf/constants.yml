@@ -1,3 +1,21 @@
 db_name: mitm_test.db
 # The port MITMProxy listens on. Change if necessary.
 mitmproxy_listen_port: 8080
+# dhcp interface placeholder @see kea-dhcp.conf, will be replaced by 'ap_iface' @see configuration.yml
+dhcp_interface_placeholder: <ap_interface>
+# dhcp subnet placeholder @see kea-dhcp.conf, will be replaced by 'ap_subnet'
+dhcp_subnet_placeholder: <ap_subnet>
+# Which subnet to assign to the AP
+ap_subnet: 10.8.8.0/24
+# dhcp pool placeholder string @see kea-dhcp.conf, will be replaced by formatted lower (dhcp_pool_lower) and upper (dhcp_pool_upper) bounds
+dhcp_pool_placeholder: <dhcp_pool_range>
+# Lower bound of dhcp pool, must be contained in 'ap_subnet'
+dhcp_pool_lower: 10.8.8.80
+# Upper bound of dhcp pool, must be > 'dhcp_pool_lower' and contained in 'ap_subnet'
+dhcp_pool_upper: 10.8.8.88
+# Format expected by the kea config file for the dhcp pool
+dhcp_pool_format_string: "%s - %s"
+# dhcp server ip placeholder @see kea-dhcp.conf, will be replaced by 'dhcp_server_ip'
+dhcp_server_ip_placeholder: <dhcp_server_ip>
+# dhcp server ip, must be contained in ap_subnet and be outside of pool range
+dhcp_server_ip: 10.8.8.1
