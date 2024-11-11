@@ -1,2 +1,3 @@
 config.py
 conf/configuration.yml
+*__pycache__*
