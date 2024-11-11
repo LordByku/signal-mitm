@@ -8,6 +8,18 @@ sysctl = local["sysctl"]
 iptables = local["iptables"]
 ip6tables = local["ip6tables"]
 
+def create_kea_dhcp_config(const, conf, verbose=False):
+    """
+        Creates the kea-dhcp config file with the entries configured in the constants
+        and config file and copies it to '/etc/kea'
+    :param const:
+    :param conf:
+    :param verbose:
+    :return:
+    """
+    sed = local['sed']
+    cp = local['cp']
+    execute(cp[])
 
 def network_setup(const, verbose=False):
     allow_forward = [

@@ -6,5 +6,7 @@ ap_iface: TODO
 ap_ssid: TODO
 # Access Point PW
 ap_pw: TODO
+# The password for the kea client, choose whatever you want
+kea_api_pw: TODO
 # List of hosts (python regex) whose traffic the proxy should pass through.
 ignore_hosts_list: [ TODO, TODO, ... ]
