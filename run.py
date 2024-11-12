@@ -2,7 +2,7 @@ import logging
 import sys
 import time
 import signal
-from setup.network import network_setup, signal_handler
+from setup.network import network_setup, signal_handler, install_kea, configure_kea
 from setup.shell import ColorHandler, get_term, execute
 
 # from db.database import create_tables
@@ -47,12 +47,16 @@ def setup(verbose_logging, script="implementation.py"):
 
 
 if __name__ == "__main__":
-    logger = logging.getLogger()
-    logger.setLevel(logging.DEBUG)
-    logger.addHandler(ColorHandler())
-    signal.signal(signal.SIGINT, signal_handler)
-    # handler  receives signal number and stack frame
-    logging.debug("Running setup...")
-    # TODO: propagate logging from cli arg or configs
-    setup(True, "tcp-simple.py")
-    signal.pause()
+    install_kea()
+    #verbose = True
+    #configure_kea(const, config, verbose)
+    # logger = logging.getLogger()
+    # logger.setLevel(logging.DEBUG)
+    # logger.addHandler(ColorHandler())
+    # signal.signal(signal.SIGINT, signal_handler)
+    # # handler  receives signal number and stack frame
+    # logging.debug("Running setup...")
+    # # TODO: propagate logging from cli arg or configs
+    # setup(True, "tcp-simple.py")
+    # signal.pause()
+

@@ -1,6 +1,8 @@
 import sys
+import logging
 from itertools import product
 
+from conf.configuration import config
 from .shell import execute
 from plumbum import local
 
@@ -8,10 +10,22 @@ sysctl = local["sysctl"]
 iptables = local["iptables"]
 ip6tables = local["ip6tables"]
 
-def create_kea_dhcp_config(const, conf, verbose=False):
+
+def install_kea():
+    """
+    Installs kea if not found by 'apt' (assumes apt)
+    :return:
+    """
+    apt = local["apt"]
+    stdout = execute(apt["list", "isc-kea"])
+    if 'installed' not in stdout:
+        execute(apt['install', 'isc-kea'], sudo=True, log=True)
+
+
+def configure_kea(const, conf, verbose=False):
     """
         Creates the kea-dhcp config file with the entries configured in the constants
-        and config file and copies it to '/etc/kea'.
+        and config file and copies it to '/etc/kea', binds the server addr to the ap interface.
         Assumes cwd = root (./conf/kea-dhcp4.conf, exists)
     :param const:
     :param conf:
@@ -21,12 +35,24 @@ def create_kea_dhcp_config(const, conf, verbose=False):
     sed = local['sed']
     cp = local['cp']
     mv = local['mv']
+    ip = local['ip']
+    systemctl = local['systemctl']
+
+    #Create kea config
+    logging.info("Creating kea-dhcp4-server configuration...")
     execute(cp['./conf/kea-dhcp4.conf', "."])
     execute(sed["-i" ,f"s/{const["dhcp_interface_placeholder"]}/{conf["ap_iface"]}", "kea-dhcp4.conf"])
     execute(sed["-i" ,f"s/{const["dhcp_subnet_placeholder"]}/{const["ap_subnet"]}", "kea-dhcp4.conf"])
     execute(sed["-i", f"s/{const["dhcp_pool_placeholder"]}/{const["dhcp_pool_format_string"].format(const["dhcp_pool_lower"], const["dhcp_pool_upper"])}", "kea-dhcp4.conf"])
     execute(sed["-i" ,f"s/{const["dhcp_server_ip_placeholder"]}/{const["dhcp_server_ip"]}", "kea-dhcp4.conf"])
     execute(mv["kea-dhcp4.conf", "/etc/kea/."], sudo=True)
+
+    #Set up the router ip on the ap interface
+    execute(ip["addr", "add", f"{const["dhcp_server_ip"]}/{const["ap_subnet"].split("/")[-1]}", "dev", config["ap_iface"]], sudo=True, log=verbose)
+
+    #reload kea-server
+    execute(systemctl["reload", "kea-dhcp4-server"], sudo=True, log=verbose)
+
 
 def network_setup(const, verbose=False):
     allow_forward = [
