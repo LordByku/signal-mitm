@@ -11,15 +11,22 @@ iptables = local["iptables"]
 ip6tables = local["ip6tables"]
 
 
-def install_kea():
+def install_kea(verbose=False):
     """
     Installs kea if not found by 'apt' (assumes apt)
     :return:
     """
     apt = local["apt"]
-    stdout = execute(apt["list", "isc-kea"])
+    apt_get = local["apt-get"]
+    # do an update to fetch packages if necessary
+    execute(apt_get["update"], sudo=True, log=verbose)
+    logging.info("Checking if kea is installed...")
+    stdout = execute(apt["list", "kea"], log=verbose, retcodes=(0,1))
     if 'installed' not in stdout:
-        execute(apt['install', 'isc-kea'], sudo=True, log=True)
+        logging.info("Installing kea...")
+        execute(apt['-y', 'install', 'kea', 'kea-doc'], sudo=True, log=verbose)
+    else:
+        logging.info("Kea installed, skipping.")
 
 
 def configure_kea(const, conf, verbose=False):
