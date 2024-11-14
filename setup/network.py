@@ -93,16 +93,16 @@ def configure_kea(conf, verbose=False):
     )
     #
 
-    (local["sudo"]["tee"][conf["kea_pw_filepath"]] << conf["kea_api_pw"]).run()
+    (local["sudo"]["tee"][conf["kea"]["pw_filepath"]] << conf["kea"]["api_pw"]).run()
     # Set the ownership
     # local['sudo']['chown', 'root:_kea', '/etc/kea/kea-api-password'].run()
     # Set the permissions
-    local["sudo"]["chmod", "0640", conf["kea_pw_filepath"]].run()
+    local["sudo"]["chmod", "0640", conf["kea"]["pw_filepath"]].run()
 
     # reload kea-server
-    execute(systemctl["enable", conf["kea_systemd_service"]], as_sudo=True, log=verbose)
+    execute(systemctl["enable", conf["kea"]["systemd_service"]], as_sudo=True, log=verbose)
     execute(
-        systemctl["restart", conf["kea_systemd_service"]], as_sudo=True, log=verbose
+        systemctl["restart", conf["kea"]["systemd_service"]], as_sudo=True, log=verbose
     )
 
 

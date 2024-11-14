@@ -9,8 +9,6 @@ mitmproxy:
   listen_port: !!int 8080
 # Which subnet to assign to the AP
 #ap_subnet: !!str 10.8.8.0/24
-ap:
-  subnet:  !!str 10.8.8.0/24
 # dhcp interface placeholder @see kea-dhcp.conf, will be replaced by 'ap_iface' @see configuration.yml
 #dhcp_interface_placeholder: !!str <ap_interface>
 # dhcp subnet placeholder @see kea-dhcp.conf, will be replaced by 'ap_subnet'
@@ -35,5 +33,7 @@ signal:
   prod-server: "chat.signal.org"
   stage-server: "chat.staging.signal.org"
   version: !!int "42"
-kea_pw_filepath: /etc/kea/kea-api-password
-kea_systemd_service:  kea-dhcp4 # kea-dhcp4-server for UwuBuntu
+kea:
+  pw_filepath: /etc/kea/kea-api-password
+  systemd_service:  kea-dhcp4 # kea-dhcp4-server for UwuBuntu
+  subnet: !!str 10.8.8.0/24

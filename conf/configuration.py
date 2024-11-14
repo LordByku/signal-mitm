@@ -35,9 +35,10 @@ def load_and_merge_configurations() -> dict:
             raise AssertionError("Empty configuration provided!!")
 
     updated_config = merge_dicts(config, const)
-    updated_config["IGNORE_HOSTS"] = (
-        rf'"{r"|".join(config.get("ignore_hosts_list", []))}"'
-    )
+
+    # updated_config["IGNORE_HOSTS"] = (
+    #     rf'"{r"|".join(config.get("ignore_hosts_list", []))}"'
+    # )
     config_validator(updated_config)
     return updated_config
 
@@ -76,20 +77,21 @@ def create_config_template(template_path) -> None:
         return annotated
 
     def annotate_type(value):
-        if isinstance(value, str):
-            return f"!!str {value}"
-        elif isinstance(value, int):
-            return f"!!int {value}"
-        elif isinstance(value, float):
-            return f"!!float {value}"
-        elif isinstance(value, list):
-            return [f"{v}" for v in value]
-        elif isinstance(value, dict):
-            return merge_and_annotate(value, {})
-        elif isinstance(value, bool):
-            return f"!!bool {value}"
-        else:
-            return f"!!unknown {value}"
+        return value
+        # if isinstance(value, str):
+        #     return f"!!str {value}"
+        # elif isinstance(value, int):
+        #     return f"!!int {value}"
+        # elif isinstance(value, float):
+        #     return f"!!float {value}"
+        # elif isinstance(value, list):
+        #     return [f"{v}" for v in value]
+        # elif isinstance(value, dict):
+        #     return merge_and_annotate(value, {})
+        # elif isinstance(value, bool):
+        #     return f"!!bool {value}"
+        # else:
+        #     return f"!!unknown {value}"
 
     # Create the annotated configuration
     annotated_template = merge_and_annotate(config_template, const)
@@ -104,10 +106,10 @@ def create_config_template(template_path) -> None:
 if __name__ == "__main__":
     # Example usage within this file if needed (not relying on __main__, can be commented out)
     config = load_and_merge_configurations()
+    import json
+    print(f"Updated Config:\n{json.dumps(config, indent=4)}")
+    # print(f"Ignore Hosts: {config['IGNORE_HOSTS']}")
 
-    print(f"Updated Config: {config}")
-    print(f"Ignore Hosts: {config['IGNORE_HOSTS']}")
-
-    # create_config_template(__conf_dir / "configuration.example.yml")
+    create_config_template(__conf_dir / "configuration.example.yml")
 
 __all__ = ["load_and_merge_configurations", "create_config_template"]
