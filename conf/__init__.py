@@ -1,7 +1,7 @@
-# from  . configuration import load_and_merge_configurations
-from .configuration import load_and_merge_configurations
+from .configuration import create_config
+from .config_spec import Config
 
 # Make config available as part of the conf package
-config = load_and_merge_configurations()
+config = create_config()
 
-__all__ = ["config"]
+__all__ = ["config", "Config"]

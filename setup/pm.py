@@ -1,5 +1,5 @@
 import platform
-from abc import abstractclassmethod, abstractmethod, ABCMeta
+from abc import abstractmethod, ABCMeta
 
 from plumbum import local, CommandNotFound
 
@@ -199,7 +199,3 @@ def main():
         print(pm.is_installed("lolcat"))
     except UnsupportedPlatformError as e:
         print(e)
-
-
-# if __name__ == "__main__":
-#     main()

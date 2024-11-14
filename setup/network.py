@@ -4,7 +4,7 @@ import logging
 from itertools import product
 from pathlib import Path
 
-from conf import config
+from conf import Config
 from setup.shell import execute
 from setup.pm import get_package_manager
 from plumbum import local
@@ -27,7 +27,7 @@ def install_kea(verbose=False):
         print("kea is already installed, skipping reinstall...")
 
 
-def configure_kea(conf, verbose=False):
+def configure_kea(conf: Config, verbose=False):
     """
         Creates the kea-dhcp config file with the entries configured in the constants
         and config file and copies it to '/etc/kea', binds the server addr to the ap interface.
@@ -53,18 +53,16 @@ def configure_kea(conf, verbose=False):
 
     config_template = string.Template(config_data)
     substitutions = {
-        "ap_interface": conf["ap"]["iface"],
-        "ap4_subnet": conf["ap"]["subnet"],
-        "dhcp_pool_range": conf["dhcp"].get(
-            "pool_range", f"{conf['dhcp']['pool_lower']} - {conf['dhcp']['pool_upper']}"
-        ),  ## todo: COMPUTE THIS in config
-        "dhcp_server_ip": conf["dhcp"]["server_ip"],
+        "ap_interface": conf.ap.iface,
+        "ap4_subnet": conf.dhcp.subnet,
+        "dhcp_pool_range": f"{conf.dhcp.pool_lower} - {conf.dhcp.pool_upper}",
+        # "dhcp_pool_range": conf["dhcp"].get(
+        #     "pool_range", f"{conf['dhcp']['pool_lower']} - {conf['dhcp']['pool_upper']}"
+        # ),  ## todo: COMPUTE THIS in config
+        "dhcp_server_ip": conf.dhcp.server_ip,
     }
 
     config_data = config_template.safe_substitute(substitutions)
-    # config_data = config_template
-    # for placeholder, actual_value in substitutions.items():
-    #     config_data = config_data.safe_substitute(**{placeholder: actual_value})
 
     remaining_tokens = list(config_template.pattern.finditer(config_data))
     for match in remaining_tokens:
@@ -83,9 +81,10 @@ def configure_kea(conf, verbose=False):
         ip[
             "addr",
             "add",
-            f"{conf['dhcp']['server_ip']}/{conf['ap']['subnet'].split("/")[-1]}",
+            # f"{conf['dhcp']['server_ip']}/{conf['ap']['subnet'].split("/")[-1]}",
+            f"{conf.dhcp.server_ip}/{str(conf.dhcp.subnet).split("/")[-1]}",
             "dev",
-            config["ap"]["iface"],
+            conf.ap.iface,
         ],
         as_sudo=True,
         log=verbose,
@@ -93,16 +92,17 @@ def configure_kea(conf, verbose=False):
     )
     #
 
-    (local["sudo"]["tee"][conf["kea"]["pw_filepath"]] << conf["kea"]["api_pw"]).run()
+    # (local["sudo"]["tee"][conf["kea"]["pw_filepath"]] << conf["kea"]["api_pw"]).run()
+    (local["sudo"]["tee"][conf.kea.pw_filepath] << conf.kea.api_pw).run()
     # Set the ownership
     # local['sudo']['chown', 'root:_kea', '/etc/kea/kea-api-password'].run()
     # Set the permissions
-    local["sudo"]["chmod", "0640", conf["kea"]["pw_filepath"]].run()
+    local["sudo"]["chmod", "0640", conf.kea.pw_filepath].run()
 
     # reload kea-server
-    execute(systemctl["enable", conf["kea"]["systemd_service"]], as_sudo=True, log=verbose)
+    execute(systemctl["enable", conf.kea.systemd_service], as_sudo=True, log=verbose)
     execute(
-        systemctl["restart", conf["kea"]["systemd_service"]], as_sudo=True, log=verbose
+        systemctl["restart", conf.kea.systemd_service], as_sudo=True, log=verbose
     )
 
 

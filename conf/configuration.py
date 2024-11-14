@@ -1,6 +1,9 @@
 from pathlib import Path
-
+from typing import Any
 import yaml
+from pydantic import BaseModel
+
+from conf.config_spec import Config
 
 __conf_dir = Path(__file__).resolve().parent
 
@@ -16,7 +19,7 @@ def load_and_merge_configurations() -> dict:
         const = yaml.safe_load(f)
 
     with open(__configuration_path, "r") as f:
-        config = yaml.safe_load(f)
+        conf = yaml.safe_load(f)
 
     # Merge function for dictionaries.
     # If not specified by config, use the value present in constants
@@ -34,82 +37,33 @@ def load_and_merge_configurations() -> dict:
         if len(conf.keys()) == 0:
             raise AssertionError("Empty configuration provided!!")
 
-    updated_config = merge_dicts(config, const)
+    updated_config = merge_dicts(conf, const)
 
-    # updated_config["IGNORE_HOSTS"] = (
-    #     rf'"{r"|".join(config.get("ignore_hosts_list", []))}"'
-    # )
     config_validator(updated_config)
     return updated_config
 
 
-def create_config_template(template_path) -> None:
+def create_config_template(conf: BaseModel, filename: str) -> None:
+    with open(filename, "w") as file:
+        yaml.dump(yaml.safe_load(conf.model_dump_json()), file)
+
+
+def create_config() -> Config:
     """
-    Export a full configuration template (with all the variables and constants) into a yml file.
-    Args:
-        template_path: where to output the file
+    Helper function to create the Config object using external configurations.
 
     Returns:
+        Config: The main configuration object.
     """
-    with open(__constants_path, "r") as f:
-        const = yaml.safe_load(f)
-
-    with open(__config_template_path, "r") as f:
-        config_template = yaml.safe_load(f)
-
-    # Function to merge with annotations
-    def merge_and_annotate(base, defaults):
-        annotated = {}
-        for key, value in defaults.items():
-            if key in base:
-                # Use the type from base if it's there
-                annotated[key] = annotate_type(base[key])
-            else:
-                # Use the value from defaults but annotate it
-                annotated[key] = (
-                    annotate_type(value)
-                    if not isinstance(value, dict)
-                    else merge_and_annotate({}, value)
-                )
-        for key in base:
-            if key not in annotated:
-                annotated[key] = annotate_type(base[key])
-        return annotated
-
-    def annotate_type(value):
-        return value
-        # if isinstance(value, str):
-        #     return f"!!str {value}"
-        # elif isinstance(value, int):
-        #     return f"!!int {value}"
-        # elif isinstance(value, float):
-        #     return f"!!float {value}"
-        # elif isinstance(value, list):
-        #     return [f"{v}" for v in value]
-        # elif isinstance(value, dict):
-        #     return merge_and_annotate(value, {})
-        # elif isinstance(value, bool):
-        #     return f"!!bool {value}"
-        # else:
-        #     return f"!!unknown {value}"
-
-    # Create the annotated configuration
-    annotated_template = merge_and_annotate(config_template, const)
-
-    # Write annotated configuration to the specified path
-    with open(template_path, "w") as f:
-        yaml.safe_dump(annotated_template, f, default_flow_style=False, version=(1, 2))
-
-    print(f"Template configuration file created at: {template_path}")
+    # Assuming load_and_merge_configurations returns a dictionary of configuration data
+    config_data: dict[str, Any] = load_and_merge_configurations()
+    return Config(**config_data)
 
 
 if __name__ == "__main__":
-    # Example usage within this file if needed (not relying on __main__, can be commented out)
-    config = load_and_merge_configurations()
-    import json
-    print(f"Updated Config:\n{json.dumps(config, indent=4)}")
-    # print(f"Ignore Hosts: {config['IGNORE_HOSTS']}")
+    config = create_config()
+    # create_config_template(config, str(__conf_dir / "configuration.example2.yml"))
+    print(config.model_dump_json(indent=4))
+    print(config.dhcp.model_json_schema())
 
-    create_config_template(__conf_dir / "configuration.example.yml")
-
-__all__ = ["load_and_merge_configurations", "create_config_template"]
+__all__ = ["create_config", "load_and_merge_configurations", "create_config_template"]
