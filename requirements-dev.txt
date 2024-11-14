@@ -1,0 +1,1 @@
+-r requirements.txt # install deps needed to run the project requirements.txt

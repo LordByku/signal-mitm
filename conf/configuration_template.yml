@@ -1,3 +1,5 @@
+%YAML 1.2
+---
 # Name of your interface which connects to the internet, e.g., "eth0" for Ethernet or "wlan0" for Wi-Fi.
 internet_iface: TODO
 # Interface facing the victim

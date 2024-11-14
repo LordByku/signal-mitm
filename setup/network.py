@@ -1,9 +1,12 @@
+import string
 import sys
 import logging
 from itertools import product
+from pathlib import Path
 
-from conf.configuration import config
-from .shell import execute
+from conf import config
+from setup.shell import execute
+from setup.pm import get_package_manager
 from plumbum import local
 
 sysctl = local["sysctl"]
@@ -16,49 +19,91 @@ def install_kea(verbose=False):
     Installs kea if not found by 'apt' (assumes apt)
     :return:
     """
-    apt = local["apt"]
-    apt_get = local["apt-get"]
-    # do an update to fetch packages if necessary
-    execute(apt_get["update"], sudo=True, log=verbose)
-    logging.info("Checking if kea is installed...")
-    stdout = execute(apt["list", "kea"], log=verbose, retcodes=(0,1))
-    if 'installed' not in stdout:
-        logging.info("Installing kea...")
-        execute(apt['-y', 'install', 'kea', 'kea-doc'], sudo=True, log=verbose)
+    pm = get_package_manager()
+    if not pm.is_installed("kea"):
+        pm.update()
+        pm.install_kea()
     else:
-        logging.info("Kea installed, skipping.")
+        print("kea is already installed, skipping reinstall...")
 
 
-def configure_kea(const, conf, verbose=False):
+def configure_kea(conf, verbose=False):
     """
         Creates the kea-dhcp config file with the entries configured in the constants
         and config file and copies it to '/etc/kea', binds the server addr to the ap interface.
-        Assumes cwd = root (./conf/kea-dhcp4.conf, exists)
-    :param const:
+        Assumes cwd = root (./conf/kea-dhcp4.conf.tpl, exists)
     :param conf:
     :param verbose:
     :return:
     """
-    sed = local['sed']
-    cp = local['cp']
-    mv = local['mv']
-    ip = local['ip']
-    systemctl = local['systemctl']
+    mv = local["mv"]
+    ip = local["ip"]
+    systemctl = local["systemctl"]
 
-    #Create kea config
+    # Create kea config
     logging.info("Creating kea-dhcp4-server configuration...")
-    execute(cp['./conf/kea-dhcp4.conf', "."])
-    execute(sed["-i" ,f"s/{const["dhcp_interface_placeholder"]}/{conf["ap_iface"]}", "kea-dhcp4.conf"])
-    execute(sed["-i" ,f"s/{const["dhcp_subnet_placeholder"]}/{const["ap_subnet"]}", "kea-dhcp4.conf"])
-    execute(sed["-i", f"s/{const["dhcp_pool_placeholder"]}/{const["dhcp_pool_format_string"].format(const["dhcp_pool_lower"], const["dhcp_pool_upper"])}", "kea-dhcp4.conf"])
-    execute(sed["-i" ,f"s/{const["dhcp_server_ip_placeholder"]}/{const["dhcp_server_ip"]}", "kea-dhcp4.conf"])
-    execute(mv["kea-dhcp4.conf", "/etc/kea/."], sudo=True)
 
-    #Set up the router ip on the ap interface
-    execute(ip["addr", "add", f"{const["dhcp_server_ip"]}/{const["ap_subnet"].split("/")[-1]}", "dev", config["ap_iface"]], sudo=True, log=verbose)
+    conf_dir = Path(__file__).resolve().parent.parent / "conf"
+    print(conf_dir)
+    kea_template = conf_dir / "kea-dhcp4.conf.tpl"
+    kea_conf = conf_dir / "kea-dhcp4.conf"
 
-    #reload kea-server
-    execute(systemctl["reload", "kea-dhcp4-server"], sudo=True, log=verbose)
+    with kea_template.open("r") as file:
+        config_data = file.read()
+
+    config_template = string.Template(config_data)
+    substitutions = {
+        "ap_interface": conf["ap"]["iface"],
+        "ap4_subnet": conf["ap"]["subnet"],
+        "dhcp_pool_range": conf["dhcp"].get(
+            "pool_range", f"{conf['dhcp']['pool_lower']} - {conf['dhcp']['pool_upper']}"
+        ),  ## todo: COMPUTE THIS in config
+        "dhcp_server_ip": conf["dhcp"]["server_ip"],
+    }
+
+    config_data = config_template.safe_substitute(substitutions)
+    # config_data = config_template
+    # for placeholder, actual_value in substitutions.items():
+    #     config_data = config_data.safe_substitute(**{placeholder: actual_value})
+
+    remaining_tokens = list(config_template.pattern.finditer(config_data))
+    for match in remaining_tokens:
+        token = match.group(0)
+        if token in config_data:
+            raise AttributeError(f"Config missing value for {token}")
+
+    with kea_conf.open("w") as file:
+        file.write(config_data)
+        print("wrote data")
+
+    execute(mv[str(kea_conf), "/etc/kea/."], as_sudo=True)
+
+    # # Set up the router ip on the ap interface
+    execute(
+        ip[
+            "addr",
+            "add",
+            f"{conf['dhcp']['server_ip']}/{conf['ap']['subnet'].split("/")[-1]}",
+            "dev",
+            config["ap"]["iface"],
+        ],
+        as_sudo=True,
+        log=verbose,
+        retcodes=(0, 2),
+    )
+    #
+
+    (local["sudo"]["tee"][conf["kea_pw_filepath"]] << conf["kea_api_pw"]).run()
+    # Set the ownership
+    # local['sudo']['chown', 'root:_kea', '/etc/kea/kea-api-password'].run()
+    # Set the permissions
+    local["sudo"]["chmod", "0640", conf["kea_pw_filepath"]].run()
+
+    # reload kea-server
+    execute(systemctl["enable", conf["kea_systemd_service"]], as_sudo=True, log=verbose)
+    execute(
+        systemctl["restart", conf["kea_systemd_service"]], as_sudo=True, log=verbose
+    )
 
 
 def network_setup(const, verbose=False):
@@ -67,7 +112,7 @@ def network_setup(const, verbose=False):
         sysctl["-w", "net.ipv6.conf.all.forwarding=1"],
         sysctl["-w", "net.ipv4.conf.all.send_redirects=0"],
     ]
-    [execute(cmd, retcodes=None, sudo=True, log=verbose) for cmd in allow_forward]
+    [execute(cmd, retcodes=None, as_sudo=True, log=verbose) for cmd in allow_forward]
     [
         execute(
             cmd[
@@ -87,7 +132,7 @@ def network_setup(const, verbose=False):
                 const["mitmproxy_listen_port"],
             ],
             retcodes=None,
-            sudo=True,
+            as_sudo=True,
             log=verbose,
         )
         for (cmd, port) in product([iptables, ip6tables], [80, 443])
@@ -101,11 +146,13 @@ def shutdown(verbose_logging):
         sysctl["-w", "net.ipv4.conf.all.send_redirects=1"],
     ]
     [
-        execute(cmd, retcodes=None, sudo=True, log=verbose_logging)
+        execute(cmd, retcodes=None, as_sudo=True, log=verbose_logging)
         for cmd in remove_forward
     ]
     [
-        execute(cmd["-t", "nat", "-F"], retcodes=None, sudo=True, log=verbose_logging)
+        execute(
+            cmd["-t", "nat", "-F"], retcodes=None, as_sudo=True, log=verbose_logging
+        )
         for cmd in (iptables, ip6tables)
     ]
 
@@ -113,10 +160,10 @@ def shutdown(verbose_logging):
 def teardown(verbose_logging):
     shutdown(verbose_logging)
     pkill = local["pkill"]
-    execute(pkill["mitmproxy"], retcodes=(0, 1), sudo=True, log=verbose_logging)
+    execute(pkill["mitmproxy"], retcodes=(0, 1), as_sudo=True, log=verbose_logging)
 
 
-def signal_handler(sig, frame):
+def signal_handler(_sig, _frame):
     print("You pressed Ctrl+C!")
     # TODO: propagate verbose logging from cli arg, or configs
     teardown(True)  # kill this mess
