@@ -2,6 +2,7 @@ import logging
 import signal
 import sys
 import time
+from optparse import SUPPRESS_HELP
 
 from plumbum import local
 
@@ -59,6 +60,7 @@ if __name__ == "__main__":
     # configure_kea(config, verbose)
     install_kea(verbose)
     configure_kea(config, verbose)
+    network_setup(config, verbose)
     # # handler  receives signal number and stack frame
     # logging.debug("Running setup...")
     # # TODO: propagate logging from cli arg or configs

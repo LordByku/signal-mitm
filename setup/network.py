@@ -39,7 +39,6 @@ def configure_kea(conf: Config, verbose=False):
     mv = local["mv"]
     ip = local["ip"]
     systemctl = local["systemctl"]
-
     # Create kea config
     logging.info("Creating kea-dhcp4-server configuration...")
 
@@ -81,7 +80,6 @@ def configure_kea(conf: Config, verbose=False):
         ip[
             "addr",
             "add",
-            # f"{conf['dhcp']['server_ip']}/{conf['ap']['subnet'].split("/")[-1]}",
             f"{conf.dhcp.server_ip}/{str(conf.dhcp.subnet).split("/")[-1]}",
             "dev",
             conf.ap.iface,
@@ -91,13 +89,10 @@ def configure_kea(conf: Config, verbose=False):
         retcodes=(0, 2),
     )
     #
-
-    # (local["sudo"]["tee"][conf["kea"]["pw_filepath"]] << conf["kea"]["api_pw"]).run()
-    (local["sudo"]["tee"][conf.kea.pw_filepath] << conf.kea.api_pw).run()
-    # Set the ownership
-    # local['sudo']['chown', 'root:_kea', '/etc/kea/kea-api-password'].run()
-    # Set the permissions
-    local["sudo"]["chmod", "0640", conf.kea.pw_filepath].run()
+    with open(f"/tmp/meep.ag", "w") as file:
+        file.write(conf.kea.api_pw)
+    execute(mv["/tmp/meep.ag", conf.kea.pw_filepath], as_sudo=True, log=verbose)
+    execute(local["chmod"][ "0640", conf.kea.pw_filepath], as_sudo=True, log=verbose)
 
     # reload kea-server
     execute(systemctl["enable", conf.kea.systemd_service], as_sudo=True, log=verbose)

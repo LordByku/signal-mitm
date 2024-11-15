@@ -32,14 +32,7 @@ def load_and_merge_configurations() -> dict:
                 base[key] = value
         return base
 
-    def config_validator(conf: dict):
-        # TODO: validate the conf file. if something is wrong, error out
-        if len(conf.keys()) == 0:
-            raise AssertionError("Empty configuration provided!!")
-
     updated_config = merge_dicts(conf, const)
-
-    config_validator(updated_config)
     return updated_config
 
 

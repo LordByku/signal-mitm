@@ -68,14 +68,16 @@ class AptPackageManager(PackageManager):
         if isinstance(package_names, str):
             package_names = [package_names]
 
-        print(f"Installing {', '.join(package_names)} using dnf...")
+        print(f"Installing {', '.join(package_names)} using {self.__class__.__name__}...")
         try:
-            # self.package_manager("install", "-y", package_name)
-            execute(
-                self.package_manager["install", "-y", package_names],
-                as_sudo=True,
-                log=True,
-            )
+                    # self.package_manager("install", "-y", package_name)
+            with local.env(DEBIAN_FRONTEND="noninteractive"):
+                execute(
+                    self.package_manager["install", "-y", package_names],
+                    as_sudo=True,
+                    log=True,
+                    retcodes=(0,1)
+                )
         except CommandNotFound:
             print(
                 "apt-get command not found. Are you sure you're on a compatible platform?"
@@ -91,9 +93,7 @@ class AptPackageManager(PackageManager):
 
     def is_installed(self, package_name) -> bool:
         result = execute(self.dpkg_query["-l", package_name], log=True, retcodes=(0, 1))
-        print(f"{package_name} is {'not installed' if result else 'installed'}.")
-        # TODO: exercise for the annoying windows users to fix this
-        return result == 0
+        return result.retcode == 0
 
     def search(self, package_name) -> str:
         result = execute(self.cache["search", package_name], log=True, retcodes=(0, 1))
