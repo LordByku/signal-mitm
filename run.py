@@ -6,7 +6,7 @@ from optparse import SUPPRESS_HELP
 
 from plumbum import local
 
-from conf import config
+from conf import config, Config
 from setup.network import network_setup, signal_handler, install_kea, configure_kea
 from setup.shell import ColorHandler, get_term
 
@@ -16,7 +16,10 @@ def setup_db():
     pass
 
 
-def setup(verbose_logging=False, script="implementation.py"):
+def setup(config: Config, verbose_logging=False, script="implementation.py"):
+    install_kea(verbose)
+    configure_kea(config, verbose)
+    logging.info("DHCP running.\n")
     network_setup(config, verbose_logging)
     logging.info("Network is up.\n")
     setup_db()
@@ -40,7 +43,7 @@ def setup(verbose_logging=False, script="implementation.py"):
     logging.warning(
         "mitmproxy started in another window. Press (CTRL+C) in this terminal to stop it."
     )
-    mitm = rf"mitmproxy --mode transparent --showhost --ssl-insecure --ignore-hosts {config['IGNORE_HOSTS']} {args}  -s {script}"
+    mitm = rf"mitmproxy --mode transparent --showhost --ssl-insecure --ignore-hosts {config.mitmproxy.ignore_hosts} --tcp-hosts \".*\" {args}  -s {script}"
     import os
 
     os.system(f"{get_term()} -- {mitm} &")
@@ -56,12 +59,9 @@ if __name__ == "__main__":
     logger.addHandler(ColorHandler(sh))
     signal.signal(signal.SIGINT, signal_handler)
     verbose = True
-
-    install_kea(verbose)
-    configure_kea(config, verbose)
     network_setup(config, verbose)
     # # handler  receives signal number and stack frame
-    # logging.debug("Running setup...")
+    logging.debug("Running setup...")
     # # TODO: propagate logging from cli arg or configs
-    # setup(True, "tcp-simple.py")
-    # signal.pause()
+    setup(config,True, "tcp-simple.py")
+    signal.pause()

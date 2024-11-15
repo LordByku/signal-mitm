@@ -101,7 +101,7 @@ def configure_kea(conf: Config, verbose=False):
     )
 
 
-def network_setup(const, verbose=False):
+def network_setup(config: Config, verbose=False):
     allow_forward = [
         sysctl["-w", "net.ipv4.ip_forward=1"],
         sysctl["-w", "net.ipv6.conf.all.forwarding=1"],
@@ -116,7 +116,7 @@ def network_setup(const, verbose=False):
                 "-A",
                 "PREROUTING",
                 "-i",
-                "ap0",
+                config.ap.iface,
                 "-p",
                 "tcp",
                 "--dport",
@@ -124,7 +124,7 @@ def network_setup(const, verbose=False):
                 "-j",
                 "REDIRECT",
                 "--to-port",
-                const["mitmproxy_listen_port"],
+                config.mitmproxy.listen_port,
             ],
             retcodes=None,
             as_sudo=True,
