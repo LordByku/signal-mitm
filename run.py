@@ -57,7 +57,6 @@ if __name__ == "__main__":
     signal.signal(signal.SIGINT, signal_handler)
     verbose = True
 
-    # configure_kea(config, verbose)
     install_kea(verbose)
     configure_kea(config, verbose)
     network_setup(config, verbose)
