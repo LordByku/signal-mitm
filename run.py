@@ -63,5 +63,5 @@ if __name__ == "__main__":
     # # handler  receives signal number and stack frame
     logging.debug("Running setup...")
     # # TODO: propagate logging from cli arg or configs
-    setup(config,True, "tcp-simple.py")
+    setup(config, True, "tcp-simple.py")
     signal.pause()

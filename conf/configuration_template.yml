@@ -1,7 +1,5 @@
 %YAML 1.2
 ---
-# Name of your interface which connects to the internet, e.g., "eth0" for Ethernet or "wlan0" for Wi-Fi.
-internet_iface: TODO
 # Interface facing the victim
 ap:
   iface: TODO
@@ -9,7 +7,11 @@ ap:
   ssid: TODO
 # Access Point PW
   pw: good-password
+  # Name of your interface which connects to the internet, e.g., "eth0" for Ethernet or "wlan0" for Wi-Fi.
+  internet_iface: TODO
 # The password for the kea client, choose whatever you want
-kea_api_pw: TODO
+kea:
+  api_pw: TODO
 # List of hosts (python regex) whose traffic the proxy should pass through.
-ignore_hosts_list: [ TODO, TODO, ... ]
+mitmproxy:
+  ignore_hosts_list: [ TODO, TODO, ... ]

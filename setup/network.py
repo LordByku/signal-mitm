@@ -92,13 +92,11 @@ def configure_kea(conf: Config, verbose=False):
     with open(f"/tmp/meep.ag", "w") as file:
         file.write(conf.kea.api_pw)
     execute(mv["/tmp/meep.ag", conf.kea.pw_filepath], as_sudo=True, log=verbose)
-    execute(local["chmod"][ "0640", conf.kea.pw_filepath], as_sudo=True, log=verbose)
+    execute(local["chmod"]["0640", conf.kea.pw_filepath], as_sudo=True, log=verbose)
 
     # reload kea-server
     execute(systemctl["enable", conf.kea.systemd_service], as_sudo=True, log=verbose)
-    execute(
-        systemctl["restart", conf.kea.systemd_service], as_sudo=True, log=verbose
-    )
+    execute(systemctl["restart", conf.kea.systemd_service], as_sudo=True, log=verbose)
 
 
 def network_setup(config: Config, verbose=False):
@@ -131,6 +129,25 @@ def network_setup(config: Config, verbose=False):
             log=verbose,
         )
         for (cmd, port) in product([iptables, ip6tables], [80, 443])
+    ]
+
+    [
+        execute(
+            cmd[
+                "-t",
+                "nat",
+                "-A",
+                "POSTROUTING",
+                "-o",
+                config.ap.internet_iface,
+                "-j",
+                "MASQUERADE",
+            ],
+            retcodes=None,
+            as_sudo=True,
+            log=verbose,
+        )
+        for cmd in [iptables, ip6tables]
     ]
 
 

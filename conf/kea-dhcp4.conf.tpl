@@ -29,7 +29,8 @@
           },
           {
             "name": "domain-name-servers",
-            "data": "192.168.1.1, 192.168.1.2"
+            # in principle, this could be using the local dns resolver but let's keep it simple for now
+            "data": "9.9.9.9, 1.1.1.1, 8.8.8.8"
           },
           {
             "name": "domain-name",

@@ -68,15 +68,17 @@ class AptPackageManager(PackageManager):
         if isinstance(package_names, str):
             package_names = [package_names]
 
-        print(f"Installing {', '.join(package_names)} using {self.__class__.__name__}...")
+        print(
+            f"Installing {', '.join(package_names)} using {self.__class__.__name__}..."
+        )
         try:
-                    # self.package_manager("install", "-y", package_name)
+            # self.package_manager("install", "-y", package_name)
             with local.env(DEBIAN_FRONTEND="noninteractive"):
                 execute(
                     self.package_manager["install", "-y", package_names],
                     as_sudo=True,
                     log=True,
-                    retcodes=(0,1)
+                    retcodes=(0, 1),
                 )
         except CommandNotFound:
             print(
