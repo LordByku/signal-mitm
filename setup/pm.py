@@ -75,7 +75,7 @@ class AptPackageManager(PackageManager):
             # self.package_manager("install", "-y", package_name)
             with local.env(DEBIAN_FRONTEND="noninteractive"):
                 execute(
-                    self.package_manager["install", "-y", package_names],
+                    self.package_manager["install", "-y", "--show-progress", package_names],
                     as_sudo=True,
                     log=True,
                     retcodes=(0, 1),

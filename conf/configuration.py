@@ -55,7 +55,7 @@ def create_config() -> Config:
 
 if __name__ == "__main__":
     config = create_config()
-    # create_config_template(config, str(__conf_dir / "configuration.example2.yml"))
+    # create_config_template(config, str(__conf_dir / "configuration.example.yml"))
     print(config.model_dump_json(indent=4))
     print(config.dhcp.model_json_schema())
 

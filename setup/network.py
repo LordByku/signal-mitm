@@ -98,6 +98,10 @@ def configure_kea(conf: Config, verbose=False):
     execute(systemctl["enable", conf.kea.systemd_service], as_sudo=True, log=verbose)
     execute(systemctl["restart", conf.kea.systemd_service], as_sudo=True, log=verbose)
 
+    # turn off ipv6 server
+    execute(systemctl["stop", conf.kea.systemd_service.replace("4", "6")], as_sudo=True, log=verbose)
+    execute(systemctl["disable", conf.kea.systemd_service.replace("4", "6")], as_sudo=True, log=verbose)
+
 
 def network_setup(config: Config, verbose=False):
     allow_forward = [
