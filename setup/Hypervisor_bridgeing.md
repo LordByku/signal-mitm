@@ -1,6 +1,24 @@
-If you are a stubborn Windows user ...
+If you are a stubborn Windows use running an Ubuntu VM in some hypervisor -- yes Chrissy we mean you :) -- here are some docs to help you out of the obvious conundrums:
 
-## Windows + VMware Setup
+This applies to the Ethernet adapter + AP hardware setup.
+
+### Beware that a disconnected adapter is likely to lead to a silent failure on the AP interface, and that unplugging the adapter may necessitate that you to follow these steps again.
+
+## Hyper-V setup:
+
+You must connect the ethernet adapter to a virtual switch in the hyper-v network manager.
+
+1. Plug in the netowork adapter and check that Windows detects it correctly.
+2. Navigate to the "Virtual Switch Manager..." in Hyper-V (right hand side under "Actions")
+3. Create a new virtual switch of type "External"
+4. Name it something recognizable 
+5. Choose the ethernet adapter from the drop-down menu under "External Network".
+5. Navigate to your VM settings (right click on the VM > settings) and under "Add Hardware" add an additional Network adapter
+6. Choose the adapter you named before from the drop-down menu and apply
+
+***Note: You may only need to repeat step 5 after setting it up once.***
+
+## VMware Setup
 
 See: https://knowledge.broadcom.com/external/article/307369/using-a-network-adapter-only-with-the-vm.html
 
@@ -23,12 +41,3 @@ https://knowledge.broadcom.com/external/article/339372/workstation-fails-to-brid
 6. In your virtual machine setting, add another network adapter and select the custom network you just added.
 
 Now you can boot into your guest and check the configuration.
-
-
-## Windows + Hyper-V setup:
-
-Add a virtual switch in the network manager
-
-it needs to be an external one that is connected to the ethernet adapter
-
-Then add the additional network adapter to the VM and configure the DHCP server in your guest (automagically done by install and configure kea)
