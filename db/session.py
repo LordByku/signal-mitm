@@ -43,7 +43,7 @@ class DatabaseSessionManager(metaclass=SingletonMeta):
         else:
             DatabaseSessionManager._instance = self
             DATABASE_URL = "sqlite:///./mitm.db"
-            DatabaseSessionManager._engine = create_engine(DATABASE_URL, echo=True)
+            DatabaseSessionManager._engine = create_engine(DATABASE_URL, echo=False)
             SQLModel.metadata.create_all(DatabaseSessionManager._engine)
 
     def get_session_fastapi(self) -> Generator:

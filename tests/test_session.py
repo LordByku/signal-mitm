@@ -22,7 +22,7 @@ from sqlmodel import select
 from db.database import ConversationSession
 from db.session import DatabaseSessionManager
 
-from src.mitm_interface import MitmUser, MitmVisitenKarte, VisitenKarteType
+from src.mitm_interface import MitmUser, MitmVisitenKarte, VisitenKarteType, MitmSession
 
 from signal_protocol.identity_key import IdentityKey
 
@@ -32,7 +32,6 @@ class TestSessionOperations(unittest.TestCase):
         DEVICE_ID = 1
         alice_address = ProtocolAddress("+14151111111", DEVICE_ID)
         bob_address = ProtocolAddress("+14151111112", DEVICE_ID)
-
 
         def alice_bob_chat_session(alice_address: ProtocolAddress, bob_address: ProtocolAddress) -> tuple[SessionRecord, SessionRecord, InMemSignalProtocolStore, InMemSignalProtocolStore]:
 
@@ -172,6 +171,15 @@ class TestSessionOperations(unittest.TestCase):
 
         assert alice_store.load_session(bob_address).to_base64() == alice_with_bob_sesh.to_base64()
         assert bob_store.load_session(alice_address).to_base64() == bob_with_alice_sesh.to_base64()
+
+    def test_session(self):
+
+        def test_session_mitm(self, alice_address: ProtocolAddress, bob_address: ProtocolAddress):
+            
+            alice = MitmUser(protocol_address=alice_address, aci_uuid="alice_aci", pni_uuid="alice_pni")
+            bob = MitmUser(protocol_address=bob_address, aci_uuid="bob_aci", pni_uuid="bob_pni")
+
+            session = MitmSession(alice, bob)
 
 if __name__ == '__main__':
     unittest.main()

@@ -6,6 +6,10 @@ from signal_protocol.identity_key import IdentityKeyPair
 from signal_protocol.state import SessionRecord
 import json
 
+import logging
+
+LOGGER = logging.getLogger(__name__)
+
 @pytest.fixture
 def setup_database() -> dict[Session, User, Device, VisitenKarte, StoreKeyRecord, ConversationSession, LegitKeyRecord, IdentityKeyPair]:
     # Mock database session manager
@@ -46,7 +50,7 @@ def setup_database() -> dict[Session, User, Device, VisitenKarte, StoreKeyRecord
         uuid="aci",
         deviceId=1,
         identityKey=aci_identity_key_pair,
-        registrationId=1,
+        registrationId=1,    
     )
 
     session_record = SessionRecord.new_fresh()
@@ -66,10 +70,12 @@ def setup_database() -> dict[Session, User, Device, VisitenKarte, StoreKeyRecord
         bundle = bundle["devices"][0]
         bundle["uuid"] = "test1"
         bundle["type"] = "aci"
+        bundle["signedPreKey"] = bundle["signedPreKey"]
         bundle["preKey"] = [bundle["preKey"]]
         bundle["pqPreKey"] = [bundle["pqPreKey"]]
         bundle["PqLastResortPreKey"] = None
 
+        LOGGER.debug(f"Bundle: {bundle}")
         lb = LegitKeyRecord.model_validate(bundle)
 
     return {
