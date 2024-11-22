@@ -9,7 +9,6 @@ __conf_dir = Path(__file__).resolve().parent
 
 __constants_path = __conf_dir / "constants.yml"
 __configuration_path = __conf_dir / "configuration.yml"
-__config_template_path = __conf_dir / "configuration_template.yml"
 
 
 def load_and_merge_configurations() -> dict:
