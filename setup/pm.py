@@ -72,7 +72,6 @@ class AptPackageManager(PackageManager):
             f"Installing {', '.join(package_names)} using {self.__class__.__name__}..."
         )
         try:
-            # self.package_manager("install", "-y", package_name)
             with local.env(DEBIAN_FRONTEND="noninteractive"):
                 execute(
                     self.package_manager["install", "-y", "--show-progress", package_names],
@@ -87,7 +86,6 @@ class AptPackageManager(PackageManager):
 
     def update(self) -> None:
         print("Updating package list with apt...")
-        # self.package_manager("update")
         execute(self.package_manager["update"], as_sudo=True, log=True)
 
     def __repr__(self):

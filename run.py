@@ -2,9 +2,6 @@ import logging
 import signal
 import sys
 import time
-from optparse import SUPPRESS_HELP
-
-from plumbum import local
 
 from conf import config, Config
 from setup.network import network_setup, signal_handler, install_kea, configure_kea
@@ -17,11 +14,7 @@ def setup_db():
 
 
 def setup(config: Config, verbose_logging=False, script="implementation.py"):
-    install_kea(verbose)
-    configure_kea(config, verbose)
-    logging.info("DHCP running.\n")
-    network_setup(config, verbose_logging)
-    logging.info("Network is up.\n")
+
     setup_db()
     logging.info("DB is up.\n")
     args = " ".join(sys.argv[1:])
@@ -49,6 +42,14 @@ def setup(config: Config, verbose_logging=False, script="implementation.py"):
     os.system(f"{get_term()} -- {mitm} &")
 
 
+def setup_victim_ap(verbose_logging=False):
+    install_kea(verbose)
+    configure_kea(config, verbose)
+    logging.info("DHCP running.\n")
+    network_setup(config, verbose_logging)
+    logging.info("Network is up.\n")
+
+
 if __name__ == "__main__":
     logger = logging.getLogger()
     logger.setLevel(logging.DEBUG)
@@ -59,9 +60,10 @@ if __name__ == "__main__":
     logger.addHandler(ColorHandler(sh))
     signal.signal(signal.SIGINT, signal_handler)
     verbose = True
-    network_setup(config, verbose)
+    setup_victim_ap()
+    #network_setup(config, verbose)
     # # handler  receives signal number and stack frame
-    logging.debug("Running setup...")
+    #logging.debug("Running setup...")
     # # TODO: propagate logging from cli arg or configs
-    setup(config, True, "tcp-simple.py")
+    #setup(config, True, "tcp-simple.py")
     signal.pause()

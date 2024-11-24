@@ -55,9 +55,6 @@ def configure_kea(conf: Config, verbose=False):
         "ap_interface": conf.ap.iface,
         "ap4_subnet": conf.dhcp.subnet,
         "dhcp_pool_range": f"{conf.dhcp.pool_lower} - {conf.dhcp.pool_upper}",
-        # "dhcp_pool_range": conf["dhcp"].get(
-        #     "pool_range", f"{conf['dhcp']['pool_lower']} - {conf['dhcp']['pool_upper']}"
-        # ),  ## todo: COMPUTE THIS in config
         "dhcp_server_ip": conf.dhcp.server_ip,
     }
 
