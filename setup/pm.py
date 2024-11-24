@@ -165,7 +165,10 @@ def get_os_release() -> dict[str, str]:
 
     with open("/etc/os-release") as f:
         for line in f:
-            key, value = line.rstrip().split("=")
+            line = line.strip()
+            if not line or line.startswith('#') or '=' not in line:
+                continue
+            key, value = line.rstrip().split("=", 1)
             os_release_info[key] = value.strip('"')
     return os_release_info
 
