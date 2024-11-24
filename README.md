@@ -30,7 +30,7 @@ The access point is connected to the laptop via an **ethernet link** **(C)** and
 The setup script (@see [network setup](setup/network.py)) expects a [Debian or Red Hat](setup/pm.py) based Linux operating system (tested on Fedora 40/41 and Ubuntu 24) and sets up a [kea DHCP4 server](https://www.isc.org/kea/) to provide
 IP addresses to the AP and the **victim phone(s)** over the newly created interface. 
 
-(If you happen to be a stubborn Windows user that is running Linux in a VM, check out [these docs](setup/Hypervisor_bridgeing.md) for
+(If you happen to be a stubborn Windows user that is running Linux in a VM, check out [these docs](setup/Hypervisor_bridging.md) for
 instructions on how to bridge the adapter interface through to your guest for both VMware and Hyper-V.)
 
 Using dedicated hardware is the most stable way to create an additional networking interface on the **computer running the proxy**
@@ -52,7 +52,7 @@ ip addr show
 ```
 Then, power up your Access Point and connect it to the computer with the ethernet-USB adapter and repeat the command. Your machine should automatically detect the device, which will show up as an additional interface.
 
-*Note:* If you are running a Linux VM on a Windows host, please refer to the following [additional documentation](setup/Hypervisor_bridgeing.md) to bridge the AP into your guest.
+*Note:* If you are running a Linux VM on a Windows host, please refer to the following [additional documentation](setup/Hypervisor_bridging.md) to bridge the AP into your guest.
 
 Once you've found the name of the new interface set it in the config file for the parameter `ap.interface`.
 
