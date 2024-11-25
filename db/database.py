@@ -1,7 +1,6 @@
-import base64
+#! /usr/bin/env python
+
 import copy
-import json
-import time
 from datetime import datetime, timezone
 from typing import Dict, List, Optional, Union, get_args
 
@@ -23,14 +22,15 @@ from .dbhacks import (
     PydanticPreKeyPair,
     PydanticSignedPreKey,
     PydanticSignedPreKeyPair,
-    SQLModelValidation, PydanticSessionRecord,
+    SQLModelValidation,
+    PydanticSessionRecord,
 )
-from db.session import DatabaseSessionManager
+from .session import DatabaseSessionManager
 
-# Database setup (engine creation is similar to peewee):
+# Database setup
 sqlite_file_name = "mitm.db"
 
-# Models, adapted from previous implementation:
+# Models
 class User(SQLModel, table=True):
     aci: str = Field(default=None, primary_key=True)
     pni: Optional[str] = Field(default=None)
@@ -45,11 +45,12 @@ class User(SQLModel, table=True):
     unidentified_access_key: str
     devices: List["Device"] = Relationship(back_populates="user")
 
+
 class Device(SQLModel, table=True):
     aci: str = Field(foreign_key="user.aci")
     device_id: int = Field(default=1)
     pni: Optional[str] = Field(default=None)
-    user: User = Relationship(back_populates="devices") # TODO: check if this is necessary
+    user: User = Relationship(back_populates="devices")  # TODO: check if this is necessary
 
     ## TODO: one day we'll have to deal that this needs to be a constraint
     # aci_visitenkarte: "VisitenKarte" = Relationship(back_populates="device")
@@ -59,13 +60,14 @@ class Device(SQLModel, table=True):
     # SQLAlchemy support instead
     __table_args__ = (PrimaryKeyConstraint("aci", "device_id"),)
 
+
 class VisitenKarte(SQLModel, table=True):
     type: str = Field(default="aci")
     uuid: str = Field(foreign_key="device.aci")
     device_id: int = Field(foreign_key="device.device_id")
     registration_id: int = Field(default=1)
 
-    local_ik : PydanticIdentityKeyPair = Field(
+    local_ik: PydanticIdentityKeyPair = Field(
         sa_column=Column(get_args(PydanticIdentityKeyPair)[1]),
         alias="identityKey",
         schema_extra={
@@ -73,7 +75,7 @@ class VisitenKarte(SQLModel, table=True):
             "validation_alias": "identityKey",
         },
     )
-    #device : Device = Relationship(back_populates="visitenkarte")
+    # device : Device = Relationship(back_populates="visitenkarte")
     # session_records: List[PydanticSessionRecord] = Relationship(back_populates="visitenkarte")
     __table_args__ = (PrimaryKeyConstraint("uuid", "device_id"),)
 
@@ -113,13 +115,14 @@ class VisitenKarte(SQLModel, table=True):
     ) -> Union[Dict[str, str], None]:
         return cls._get_key_pair(_session, key_type, uuid, device_id, "local_ik", with_private)
 
+
 class ConversationSession(SQLModel, table=True):
     store_uuid: str = Field(default=None, foreign_key="visitenkarte.uuid")
     store_device_id: int = Field(default=None, foreign_key="visitenkarte.device_id")
     other_service_id: str = Field(default=None)
     other_device_id: int = Field(default=None)
 
-    other_ik : PydanticIdentityKey = Field(
+    other_ik: PydanticIdentityKey = Field(
         sa_column=Column(
             get_args(PydanticIdentityKey)[1],
             # foreign_key="device.aci_identity_key" # throws some warning... we'll deal with it when we get there
@@ -130,21 +133,23 @@ class ConversationSession(SQLModel, table=True):
             "validation_alias": "identityKey",
         },
     )
-    session_record: PydanticSessionRecord = Field(
-        sa_column=Column(get_args(PydanticSessionRecord)[1]))
+    session_record: PydanticSessionRecord = Field(sa_column=Column(get_args(PydanticSessionRecord)[1]))
 
     __table_args__ = (PrimaryKeyConstraint("store_uuid", "store_device_id", "other_service_id", "other_device_id"),)
 
+
 class StoreKeyRecord(SQLModel, table=True):
     uuid: str = Field(foreign_key="visitenkarte.uuid")
-    device_id: int =  Field(
+    device_id: int = Field(
         foreign_key="device.device_id",
         default=1,
         alias="deviceId",
         schema_extra={"serialization_alias": "deviceId"},
     )
 
-    local_ik: PydanticIdentityKeyPair =Field(
+    #socket_address: str = Field(default="")
+
+    local_ik: PydanticIdentityKeyPair = Field(
         sa_column=Column(get_args(PydanticIdentityKeyPair)[1]),
         alias="identityKey",
         schema_extra={
@@ -160,7 +165,7 @@ class StoreKeyRecord(SQLModel, table=True):
             "validation_alias": "registrationId",
         },
     )
-    #other_ik: List[PydanticIdentityKey] 
+    # other_ik: List[PydanticIdentityKey]
     local_spk_record: Optional[list[PydanticSignedPreKeyPair]] = Field(
         sa_column=Column(get_args(PydanticSignedPreKeyPair)[1]),
         alias="signedPreKey",
@@ -174,15 +179,25 @@ class StoreKeyRecord(SQLModel, table=True):
         alias="preKeys",
         schema_extra={"serialization_alias": "preKeys", "validation_alias": "preKeys"},
     )
-    local_kyber_pre_keys: Optional[PydanticPqKeyPair] = Field(
+
+    local_kyber_pre_keys: Optional[list[PydanticPqKeyPair]] = Field(
         sa_column=Column(get_args(PydanticPqKeyPair)[1]),
-        alias="lastResortKyber",
+        alias="kyberPreKeys",
         schema_extra={
             "serialization_alias": "pqLastResortPreKey",
             "validation_alias": "pqLastResortPreKey",
         },
-        
-        )
+    )
+
+    local_last_resort_kyber_key: Optional[PydanticPqKeyPair] = Field(
+        sa_column=Column(get_args(PydanticPqKeyPair)[1]),
+        alias="pqLastResortPreKey",
+        schema_extra={
+            "serialization_alias": "pqLastResortPreKey",
+            "validation_alias": "pqLastResortPreKey",
+        },
+    )
+
     __table_args__ = (PrimaryKeyConstraint("uuid", "device_id"),)
 
     @classmethod
@@ -218,7 +233,7 @@ class StoreKeyRecord(SQLModel, table=True):
         with_private: bool = True,
     ) -> Union[Dict[str, str], None]:
         return cls._get_key_pair(_session, uuid, device_id, "local_ik", with_private)
-    
+
     @classmethod
     # TODO: chenge return type to IdentityKeyPair
     def get_signed_pre_key_pair(
@@ -230,7 +245,7 @@ class StoreKeyRecord(SQLModel, table=True):
     ) -> Union[Dict[str, str], None]:
         return cls._get_key_pair(_session, uuid, device_id, "fake_signed_pre_key", with_private)
         return cls._get_key_from_list(_session, key_type, aci, device_id, "fake_signed_pre_key", key_id, with_private)
-    
+
     @classmethod
     # TODO: chenge return type to IdentityKeyPair
     def get_last_resort_kyber_key_pair(
@@ -289,6 +304,7 @@ class StoreKeyRecord(SQLModel, table=True):
     ) -> Optional[Dict[str, str]]:
         return cls._get_key_from_list(_session, uuid, device_id, "fake_kyber_keys", key_id, with_private)
 
+
 class Conversation(SQLModel, table=True):
     aci1: str = Field(default=None, foreign_key="device.aci")  # Adjust based on the actual Device model's ID fields
     dev_id1: int = Field(default=None, foreign_key="device.device_id")
@@ -311,11 +327,11 @@ class Messages(SQLModel, table=True):
 
     __table_args__ = (PrimaryKeyConstraint("aci1", "dev_id1", "aci2", "dev_id2", "counter"),)
 
+
 class LegitKeyRecord(SQLModel, table=True):
-    type: str = Field(
-        default="aci"
-    )  # type is not present on the wire (bundle itself), but exists as a query-param
+    type: str = Field(default="aci")  # type is not present on the wire (bundle itself), but exists as a query-param
     uuid: str = Field(foreign_key="visitenkarte.uuid")
+    #socket_address: str = Field(default="")
     device_id: int = Field(
         foreign_key="device.device_id",
         default=1,
@@ -380,7 +396,32 @@ class LegitKeyRecord(SQLModel, table=True):
 
     # composite primary keys are not directly supported by SQLModel so relying on the internal
     # SQLAlchemy support instead
-    __table_args__ = (PrimaryKeyConstraint("uuid", "device_id"),)
+    __table_args__ = (PrimaryKeyConstraint("type", "uuid", "device_id"),)
+
+    @classmethod
+    def get_keys(
+        cls,
+        _session: Session,
+        uuid: str,
+        device_id: int,
+    ) -> Optional[Dict[str, str]]:
+        
+        stmt = select(cls).where(cls.uuid == uuid, cls.device_id == device_id)
+        keys = _session.exec(
+            stmt  # noqa: unexpected type here is a false warning, but I cannot typecase to suppess it
+        ).one()
+
+        return keys
+    
+    # @classmethod
+    # def get_bundle(
+    #     cls,
+    #     _session: Session,
+    #     uuid: str,
+    #     device_id: int,
+    # ) -> Optional[Dict[str,str]]:
+        
+    #     pass
 
 
 def create_tables(db_name: str = sqlite_file_name):
@@ -400,7 +441,7 @@ def json_join_public(data1: list[dict], data2: dict):
 
 # Example usage (ensuring your environment supports async operations):
 if __name__ == "__main__":
-    create_tables()
+    create_tables("db/mitm.db")
     """
     Test 1. Test db creation and some simple functions
     """
@@ -476,62 +517,62 @@ if __name__ == "__main__":
     #         meep = ses.exec(select(LegitBundle)).first()
     #         print(meep)
     #         print(meep.model_dump_json(indent=4, by_alias=True))
-    """
-    Test 3: Fake Bundle(s)
-    """
-    from signal_protocol import helpers
-    from signal_protocol.curve import KeyPair
-    from signal_protocol.identity_key import IdentityKeyPair
-    from signal_protocol.state import SignedPreKeyId, SignedPreKeyRecord
+    # """
+    # Test 3: Fake Bundle(s)
+    # """
+    # from signal_protocol import helpers
+    # from signal_protocol.curve import KeyPair
+    # from signal_protocol.identity_key import IdentityKeyPair
+    # from signal_protocol.state import SignedPreKeyId, SignedPreKeyRecord
 
-    identity_keypair = IdentityKeyPair.generate()
-    spk = KeyPair.generate()
-    spk_record = SignedPreKeyRecord(
-        SignedPreKeyId(44),
-        int(time.time()),
-        spk,
-        identity_keypair.private_key().calculate_signature(spk.public_key().serialize()),
-    )
-    fake_pre_keys, fake_secret_pre_keys = helpers.create_keys_data(
-        1,
-        identity_keypair,
-        spk,
-        # last_kyber
-        prekey_start_at=76,
-        kyber_prekey_start_at=55055,
-        # pq_pre_keys[0]["keyId"]
-    )  # spk is a string, wtf is the keyId?
+    # identity_keypair = IdentityKeyPair.generate()
+    # spk = KeyPair.generate()
+    # spk_record = SignedPreKeyRecord(
+    #     SignedPreKeyId(44),
+    #     int(time.time()),
+    #     spk,
+    #     identity_keypair.private_key().calculate_signature(spk.public_key().serialize()),
+    # )
+    # fake_pre_keys, fake_secret_pre_keys = helpers.create_keys_data(
+    #     1,
+    #     identity_keypair,
+    #     spk,
+    #     # last_kyber
+    #     prekey_start_at=76,
+    #     kyber_prekey_start_at=55055,
+    #     # pq_pre_keys[0]["keyId"]
+    # )  # spk is a string, wtf is the keyId?
 
-    fake_pre_keys["preKeys"] = json_join_public(fake_pre_keys["preKeys"], fake_secret_pre_keys["preKeys"])
-    fake_pre_keys["pqPreKeys"] = json_join_public(fake_pre_keys["pqPreKeys"], fake_secret_pre_keys["pqPreKeys"])
-    fake_pre_keys["identityKey"] = {
-        "publicKey": identity_keypair.public_key().to_base64(),
-        "privateKey": identity_keypair.private_key().to_base64(),
-    }
-    fake_pre_keys["signedPreKey"] = {
-        "publicKey": spk.public_key().to_base64(),
-        "privateKey": spk.private_key().to_base64(),
-        "keyId": spk_record.id().get_id(),
-        "signature": base64.b64encode(spk_record.signature()).decode(),
-    }
-    # data = json_join_public(fake_pre_keys["pre]"], fake_secret_pre_keys)
+    # fake_pre_keys["preKeys"] = json_join_public(fake_pre_keys["preKeys"], fake_secret_pre_keys["preKeys"])
+    # fake_pre_keys["pqPreKeys"] = json_join_public(fake_pre_keys["pqPreKeys"], fake_secret_pre_keys["pqPreKeys"])
+    # fake_pre_keys["identityKey"] = {
+    #     "publicKey": identity_keypair.public_key().to_base64(),
+    #     "privateKey": identity_keypair.private_key().to_base64(),
+    # }
+    # fake_pre_keys["signedPreKey"] = {
+    #     "publicKey": spk.public_key().to_base64(),
+    #     "privateKey": spk.private_key().to_base64(),
+    #     "keyId": spk_record.id().get_id(),
+    #     "signature": base64.b64encode(spk_record.signature()).decode(),
+    # }
+    # # data = json_join_public(fake_pre_keys["pre]"], fake_secret_pre_keys)
 
-    print(fake_pre_keys)
-    fake_pre_keys["type"] = "aci"
-    fake_pre_keys["aci"] = "bobs"
-    mitmb = MitmBundle.model_validate(fake_pre_keys)
-    print(mitmb)
-    print(mitmb.model_dump_json(indent=2, by_alias=True))
-    print(mitmb.fake_kyber_keys)
+    # print(fake_pre_keys)
+    # fake_pre_keys["type"] = "aci"
+    # fake_pre_keys["aci"] = "bobs"
+    # mitmb = MitmBundle.model_validate(fake_pre_keys)
+    # print(mitmb)
+    # print(mitmb.model_dump_json(indent=2, by_alias=True))
+    # print(mitmb.fake_kyber_keys)
 
-    with DatabaseSessionManager().get_session() as session:
-        session.merge(mitmb)
-        session.commit()
+    # with DatabaseSessionManager().get_session() as session:
+    #     session.merge(mitmb)
+    #     session.commit()
 
-    with DatabaseSessionManager().get_session() as session:
-        print("FRESH FROM DB! (MitmBundle)")
-        meep: MitmBundle = ses.exec(select(MitmBundle)).first()
-        print(meep.model_dump_json(indent=4, by_alias=True))
-        print(meep.fake_identity_key_pair)
-        print(meep.fake_signed_pre_key.id())
-        print(meep.fake_kyber_keys[0])
+    # with DatabaseSessionManager().get_session() as session:
+    #     print("FRESH FROM DB! (MitmBundle)")
+    #     meep: MitmBundle = session.exec(select(MitmBundle)).first()
+    #     print(meep.model_dump_json(indent=4, by_alias=True))
+    #     print(meep.fake_identity_key_pair)
+    #     print(meep.fake_signed_pre_key.id())
+    #     print(meep.fake_kyber_keys[0])

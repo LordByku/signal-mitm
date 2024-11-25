@@ -1,0 +1,10 @@
+-r requirements.txt # install deps needed to run the project requirements.txt
+black
+flake8
+flake8-import-order
+flake8-bugbear
+isort
+pylint
+bandit
+mypy
+ruff

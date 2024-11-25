@@ -5,3 +5,7 @@ TRUST_ROOT_PROD = b"BXu6QIKVz5MA8gstzfOgRQGqyLqOwNKHL6INkv3IHWMF"
 
 TRUST_ROOT_STAGING_PK = PublicKey.from_base64(TRUST_ROOT_STAGING)
 TRUST_ROOT_PROD_PK = PublicKey.from_base64(TRUST_ROOT_PROD)
+
+## Constants for the Signal Protocol
+
+PRIMARY_DEVICE_ID = 1

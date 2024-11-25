@@ -28,6 +28,8 @@ from signal_protocol.state import (
     SessionRecord,
 )
 
+import base64
+
 from signal_protocol.curve import KeyPair, PublicKey
 from signal_protocol.identity_key import IdentityKeyPair
 from signal_protocol.error import SignalProtocolException
@@ -62,9 +64,13 @@ class MitmVisitenKarte:
         device_id: int | None = None,
         registration_id: int | None = None,
         identity_key: IdentityKeyPair | None = None,
+        signed_pre_key_id: int | None = None,
         signed_pre_key_record: SignedPreKeyRecord | None = None,
+        last_resort_kyber_pre_key_id: int | None = None,
         last_resort_kyber_pre_key: KyberPreKeyRecord | None = None,
+        first_pre_key_record_id: int | None = None,
         pre_key_records: list[PreKeyRecord] | None = None,
+        first_kyber_pre_key_record_id: int | None = None,
         kyber_pre_key_records: list[KyberPreKeyRecord] | None = None,
     ):
 
@@ -74,14 +80,17 @@ class MitmVisitenKarte:
         self._identity_key: PydanticIdentityKeyPair = identity_key if identity_key else IdentityKeyPair.generate()
         self._karte_type = karte_type
 
-        self._save_visitenkarte()
-
-        self._signed_pre_key_record = signed_pre_key_record or self._generate_signed_pre_key_record()
-        self._last_resort_kyber_pre_key = last_resort_kyber_pre_key or self._generate_last_resort_kyber_pre_key()
-        self._pre_key_records = pre_key_records or state.generate_n_prekeys(100, PreKeyId(randint(1, 2**14 - 100)))
-        self._kyber_pre_key_records = kyber_pre_key_records or state.generate_n_signed_kyberkeys(
+        self._signed_pre_key_record = signed_pre_key_record or (self._generate_signed_pre_key_record() if not signed_pre_key_id else self._generate_signed_pre_key_record(signed_pre_key_id))
+        self._last_resort_kyber_pre_key = last_resort_kyber_pre_key or (self._generate_last_resort_kyber_pre_key() if not last_resort_kyber_pre_key_id else self._generate_last_resort_kyber_pre_key(last_resort_kyber_pre_key_id))
+        self._pre_key_records = pre_key_records or (state.generate_n_prekeys(100, PreKeyId(randint(1, 2**14 - 100))if not first_pre_key_record_id else state.generate_n_prekeys(100, PreKeyId(first_pre_key_record_id))))
+        self._kyber_pre_key_records = kyber_pre_key_records or (state.generate_n_signed_kyberkeys(
             100, KyberPreKeyId(randint(1, 2**14 - 100)), self._identity_key.private_key()
-        )
+        ) if not first_kyber_pre_key_record_id else state.generate_n_signed_kyberkeys(100, KyberPreKeyId(first_kyber_pre_key_record_id), self._identity_key.private_key()))
+
+        assert self._signed_pre_key_record.id().get_id() == signed_pre_key_id if signed_pre_key_id else True
+        assert self._last_resort_kyber_pre_key.id().get_id() == last_resort_kyber_pre_key_id if last_resort_kyber_pre_key_id else True
+        assert self._pre_key_records[0].id().get_id() == first_pre_key_record_id if first_pre_key_record_id else True
+        assert self._kyber_pre_key_records[0].id().get_id() == first_kyber_pre_key_record_id if first_kyber_pre_key_record_id else True
 
         self._store = storage.InMemSignalProtocolStore(self._identity_key, self._registration_id)
 
@@ -93,21 +102,22 @@ class MitmVisitenKarte:
         for kyber_pre_key in self._kyber_pre_key_records:
             self._store.save_kyber_pre_key(kyber_pre_key.id(), kyber_pre_key)
 
-        self._save_keys()
+        # self._save_visitenkarte()
+        # self._save_keys()
 
         # Export keys and save them in the database
 
-    def _generate_signed_pre_key_record(self):
-        signed_pre_key_id = SignedPreKeyId(randint(1, 2**14))
+    def _generate_signed_pre_key_record(self, id = 0):
+        signed_pre_key_id = SignedPreKeyId(randint(1, 2**14)) if not id else SignedPreKeyId(id)
         signed_pre_key_pair = KeyPair.generate()
         signed_pre_key_signature = self._identity_key.private_key().calculate_signature(
             signed_pre_key_pair.public_key().serialize()
         )
         return SignedPreKeyRecord(signed_pre_key_id, int(time()), signed_pre_key_pair, signed_pre_key_signature)
 
-    def _generate_last_resort_kyber_pre_key(self):
+    def _generate_last_resort_kyber_pre_key(self, id = 0):
         kem_type = KeyType(0)
-        last_resort_kyber_pre_key_id = KyberPreKeyId(randint(1, 2**14))
+        last_resort_kyber_pre_key_id = KyberPreKeyId(randint(1, 2**14)) if not id else KyberPreKeyId(id)
         return KyberPreKeyRecord.generate(kem_type, last_resort_kyber_pre_key_id, self._identity_key.private_key())
 
     def _save_visitenkarte(self):
@@ -145,12 +155,21 @@ class MitmVisitenKarte:
                 identityKey=self._identity_key,
                 registrationId=self._registration_id,
                 signedPreKey=spk,
-                preKey=opk,
-                kyberPreKey=kyber_opk,
-                lastResortKyberPreKey=self._last_resort_kyber_pre_key,
+                preKeys=opk,
+                kyberPreKeys=kyber_opk,
+                pqLastResortPreKey=self._last_resort_kyber_pre_key,
             )
             session.merge(store_key_records)
+
+            #logging.info(f"Saved keys for {store_key_records}")
+
             session.commit()
+            
+    def get_uuid(self):
+        return self._uuid
+    
+    def get_device_id(self):
+        return self._device_id
 
     def get_store(self):
         return self._store
@@ -181,31 +200,52 @@ class MitmVisitenKarte:
 
     def get_kyber_pre_key_record(self, kyber_pre_key_id: KyberPreKeyId):
         return self._store.get_kyber_pre_key(kyber_pre_key_id)
+    
+    def serialize_pre_keys(self) -> list[dict]:
+        ### TODO: do this in Rust
 
-    def update_signed_pre_key(self):
-        self._signed_pre_key_record = self._generate_signed_pre_key_record()
+        pre_keys = []
+        for pre_key in self._pre_key_records:
+            pre_keys.append({
+                "keyId": pre_key.id().get_id(),
+                "publicKey": pre_key.public_key().to_base64()
+                })
+        return pre_keys
+    
+    def serialize_kyber_pre_keys(self) -> list[dict]:
+        ### TODO: do this in Rust
+        kyber_pre_keys = []
+        for kyber_pre_key in self._kyber_pre_key_records:
+            kyber_pre_keys.append({
+                "keyId": kyber_pre_key.id().get_id(),
+                "publicKey": kyber_pre_key.public_key().to_base64(),
+                "signature": base64.b64encode(kyber_pre_key.signature()).decode()
+                })
+        return kyber_pre_keys
+
+    def update_signed_pre_key(self, id: int = 0):
+        self._signed_pre_key_record = self._generate_signed_pre_key_record(id)
         self._store.save_signed_pre_key(self._signed_pre_key_record.id(), self._signed_pre_key_record)
-        self._save_keys()
+        #self._save_keys()
 
-    def update_last_resort_kyber_pre_key(self):
-        self._last_resort_kyber_pre_key = self._generate_last_resort_kyber_pre_key()
+    def update_last_resort_kyber_pre_key(self, id: int = 0):
+        self._last_resort_kyber_pre_key = self._generate_last_resort_kyber_pre_key(id)
         self._store.save_kyber_pre_key(self._last_resort_kyber_pre_key.id(), self._last_resort_kyber_pre_key)
-        self._save_keys()
+        #self._save_keys()
 
-    def update_pre_keys(self):
-        self._pre_key_records = state.generate_n_prekeys(100, PreKeyId(randint(1, 2**14 - 100)))
+    def update_pre_keys(self, id: int = 0):
+        self._pre_key_records = state.generate_n_prekeys(100, PreKeyId(randint(1, 2**14 - 100))) if not id else state.generate_n_prekeys(100, PreKeyId(id))
         for pre_key in self._pre_key_records:
             self._store.save_pre_key(pre_key.id(), pre_key)
-        self._save_keys()
+        #self._save_keys()
 
-    def update_kyber_pre_keys(self):
+    def update_kyber_pre_keys(self, id: int= 0):
         self._kyber_pre_key_records = state.generate_n_signed_kyberkeys(
             100, KyberPreKeyId(randint(1, 2**14 - 100)), self._identity_key.private_key()
-        )
+        ) if not id else state.generate_n_signed_kyberkeys(100, KyberPreKeyId(id), self._identity_key.private_key())
         for kyber_pre_key in self._kyber_pre_key_records:
             self._store.save_kyber_pre_key(kyber_pre_key.id(), kyber_pre_key)
-        self._save_keys()
-
+        #self._save_keys()
 
 class MitmUser:
     """
@@ -223,7 +263,12 @@ class MitmUser:
         pni_uuid: str,
         aci_visitenkarte: MitmVisitenKarte | None = None,
         pni_visitenkarte: MitmVisitenKarte | None = None,
+        phone_number: str | None = None,
+        unidentified_accesss_key: str | None = None,
     ):
+        
+        self._phone_number = phone_number
+        self._unidentified_access_key = unidentified_accesss_key
         self._protocol_address = protocol_address
         self._aci_visitenkarte = (
             MitmVisitenKarte(VisitenKarteType.ACI, aci_uuid) if not aci_visitenkarte else aci_visitenkarte
@@ -231,6 +276,35 @@ class MitmUser:
         self._pni_visitenkarte = (
             MitmVisitenKarte(VisitenKarteType.PNI, pni_uuid) if not pni_visitenkarte else pni_visitenkarte
         )
+
+    def save_user(self):
+        with DatabaseSessionManager().get_session() as session:
+            user = User(
+                aci=self._aci_visitenkarte.get_uuid(),
+                pni=self._pni_visitenkarte.get_uuid(),
+                phone_number= self._phone_number,
+                aci_identity_key=self._aci_visitenkarte.get_identity_key(),
+                pni_identity_key=self._pni_visitenkarte.get_identity_key(),
+                is_victim=True,
+                unidentified_access_key=self._unidentified_access_key,
+            )
+
+            device = Device(
+                user=user,
+                device_id=self._protocol_address.device_id(),
+                aci=self._aci_visitenkarte.get_uuid(),
+                pni=self._pni_visitenkarte.get_uuid(),
+            )
+
+            self._aci_visitenkarte._save_visitenkarte()
+            self._pni_visitenkarte._save_visitenkarte()     
+
+            self._aci_visitenkarte._save_keys()
+            self._pni_visitenkarte._save_keys()
+
+            session.merge(user)
+            session.merge(device)
+            session.commit()
 
     def get_visitenkarte(self, store_type: VisitenKarteType) -> MitmVisitenKarte:
         if store_type == VisitenKarteType.ACI:
@@ -278,6 +352,15 @@ class MitmUser:
     def get_pni_visitenkarte(self) -> MitmVisitenKarte:
         return self._pni_visitenkarte
 
+    def update_visitenkarte(self, store_type: VisitenKarteType, store: MitmVisitenKarte):
+        if store_type == VisitenKarteType.ACI:
+            self._aci_visitenkarte = store
+        elif store_type == VisitenKarteType.PNI:
+            self._pni_visitenkarte = store
+        else:
+            raise SignalProtocolException(f"Invalid store type: {store_type}")
+
+
     def generate_pre_key_bundle(self, store_type: VisitenKarteType) -> PreKeyBundle:
         pkb = PreKeyBundle(
             self.get_registration_id(store_type),
@@ -323,38 +406,37 @@ class MitmUser:
         print(f"Decrypted message: {ptxt}")
         return ptxt
 
+class MitmSession:
 
-# class MitmSession:
-#     def __init__(self, sender: MitmUser, receiver: MitmUser):
-#         self._sender = sender
-#         self._receiver = receiver
-#         self._session_builder = session.SessionBuilder(
-#             self._sender.get_visitenkarte().get_store(), self._receiver.get_protocol_address()
-#         )
+    def __init__(self, sender: MitmUser, receiver: MitmUser):
+        self._sender = sender
+        self._receiver = receiver
 
-#     def get_session_builder(self):
-#         return self._session_builder
+    def get_session_builder(self):
+        return self._session_builder
 
-#     def get_sender(self):
-#         return self._sender
+    def get_sender(self):
+        return self._sender
 
-#     def get_receiver(self):
-#         return self._receiver
+    def get_receiver(self):
+        return self._receiver
 
-#     def get_cipher(self):
-#         return self._sender.get_session_cipher()
+    def get_cipher(self):
+        return self._sender.get_session_cipher()
 
-#     def get_registration_id(self):
-#         return self._sender.get_registration_id()
+    def establish_session(self, sender_store_type: VisitenKarteType, receiver_store_type: VisitenKarteType, sender_message: bytes):
+        sender_store  = self._sender.get_visitenkarte(sender_store_type)
+        receiver_store = self._receiver.get_visitenkarte(receiver_store_type)
 
-#     def get_identity_key(self):
-#         return self._sender.get_identity_key()
+        # Create a half-MitM session with fake sender and legit receiver
+        with DatabaseSessionManager().get_session() as session:
+            legit_receiver_record = LegitKeyRecord.get_keys(session, receiver_store.get_uuid(), receiver_store.get_device_id())
 
-#     def get_signed_pre_key_record(self):
-#         return self._sender.get_signed_pre_key_record()
-
-#     def get_signed_pre_key_id(self):
-#         return self._sender.get_signed_pre_key_id()
+            legit_receiver_bundle = PreKeyBundle(
+                registration_id= receiver_store.get_registration_id(),
+                device_id= self._receiver.get_protocol_address().device_id(),
+                pre_key_public= legit_receiver_record
+            )
 
 
 # class MitmConversationSession:

@@ -1,0 +1,120 @@
+import logging
+import shutil
+import subprocess
+import os
+import sys
+import time
+import signal
+from itertools import product
+
+from src.utils import try_run_sudo, ColorHandler
+from db.database import create_tables
+from pathlib import Path
+
+import config
+
+
+# class NetworkHandler:
+#     def __init__(self):
+#         pass
+
+def network_setup():
+    allow_forward = [
+        "sysctl -w net.ipv4.ip_forward=1",
+        "sysctl -w net.ipv6.conf.all.forwarding=1",
+        "sysctl -w net.ipv4.conf.all.send_redirects=0",
+    ]
+
+    [try_run_sudo(cmd) for cmd in allow_forward]
+
+    try_run_sudo(
+        f"create_ap --freq-band 2.4 --daemon {config.INTERNET_IFACE} {config.AP_IFACE} {config.AP_SSID} {config.AP_PASSWORD}"
+    )
+
+    [
+        try_run_sudo(
+            f"{cmd} -t nat -A PREROUTING -i ap0 -p tcp --dport {port} -j REDIRECT --to-port {config.MITMPROXY_LISTEN_PORT}"
+        )
+        for (cmd, port) in product(["iptables", "ip6tables"], [80, 443])
+    ]
+
+def shutdown():
+    remove_forward = [
+        "sysctl -w net.ipv4.ip_forward=0",
+        "sysctl -w net.ipv6.conf.all.forwarding=0",
+        "sysctl -w net.ipv4.conf.all.send_redirects=1",
+    ]
+
+    [try_run_sudo(cmd) for cmd in remove_forward]
+
+    try_run_sudo(f"create_ap --stop {config.INTERNET_IFACE}")
+
+    try_run_sudo("iptables -t nat -F")
+    try_run_sudo("ip6tables -t nat -F")
+
+
+def setup_db():
+    # TODO: just create_tables()
+    # database = SqliteDatabase(config.DB_NAME)
+    # database.connect()
+    create_tables()
+
+
+def teardown():
+    shutdown()
+    try_run_sudo("pkill mitmproxy")
+
+
+def signal_handler(sig, frame):
+    print("You pressed Ctrl+C!")
+    teardown()  # kill this mess
+    sys.exit(0)
+
+
+def __get_term():
+    """get the preferred terminal to enhance portability
+
+    todo: actually find a way to do this. there is gsettings but that only works on gnome and $TERM is a bit
+    useless since everyone pretends to be `xterm-256color`
+    """
+
+    terminals = [
+        "gnome-terminal",
+        "konsole",
+        "xfce4-terminal",
+        "xterm",
+        "terminator",
+        "lxterminal",
+    ]
+    for terminal in terminals:
+        if shutil.which(terminal):
+            return terminal
+    return "gnome-terminal"
+
+
+def setup():
+    network_setup()
+    logging.info("Network is up.")
+    setup_db()
+    logging.info("DB is up.\n")
+    args = ' '.join(sys.argv[1:])
+    mitm = rf"mitmproxy --mode transparent --showhost --ssl-insecure --ignore-hosts {config.IGNORE_HOSTS} {args}  -s implementation.py"  # -s implementation.py"
+    if "-w" not in args:
+        flow_name = f"autosaved_{int(time.time())}.flow"
+        logging.warning(f"Logging flow automatically to: {flow_name}")
+        mitm += rf" -w {flow_name}"
+    logging.warning(f"Starting mitmproxy as: {mitm}")
+    logging.warning("mitmproxy started in another window. Press (CTRL+C) in this terminal to stop it.")
+    #os.system(f"{__get_term()} -- {mitm} &")
+
+
+if __name__ == "__main__":
+    logger = logging.getLogger()
+    logger.setLevel(logging.DEBUG)
+    logger.addHandler(ColorHandler())
+
+    signal.signal(signal.SIGINT, signal_handler)
+    # handler  receives signal number and stack frame
+    logging.debug("beginning setup")
+    setup()
+    signal.pause()

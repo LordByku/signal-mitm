@@ -38,7 +38,6 @@ Base64Bytes.__doc__ = (
     "a `\\n` at the end :c"
 )
 
-
 class SQLModelValidation(SQLModel):
     """
     Helper class to allow for validation in SQLModel classes with table=True
@@ -50,7 +49,6 @@ class SQLModelValidation(SQLModel):
     model_config = SQLModelConfig(  # noqa: the inheritance chain makes it work
         from_attributes=True, validate_assignment=True
     )
-
 
 class _KeyRecord:
     key_id: int
@@ -76,7 +74,12 @@ class _KeyRecord:
         if self.signature:
             data["signature"] = self.signature
         return data
-
+    
+    # def deserialize(self, data: dict):
+    #     self.key_id = data.get("keyId")
+    #     self.public_key = PublicKey.from_base64(data.get("publicKey").encode())
+    #     self.signature = data.get("signature")
+    #     return self
 
 class _IdentityKeyAnnotation(TypeDecorator):
     impl = String
@@ -517,4 +520,5 @@ __all__ = [
     "PydanticPqKey",
     "PydanticPqKeyPair",
     "PydanticSessionRecord",
+    "_KeyRecord",
 ]
