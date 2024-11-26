@@ -38,7 +38,7 @@ Using dedicated hardware is the most stable way to create an additional networki
 
 ### Configuration
 
-We both constants and user set configuration parameters are defined in two yaml files in the [conf](conf) folder. We further use [Pydantic](https://docs.pydantic.dev/latest/) to define a hierarchy and validate types of parameters. This als includes default values and hints that you can look up [here](conf/config_spec.py) and will be picked up by IDEs.
+Both constants and user set configuration parameters are defined in two yaml files in the [conf](conf) folder. We further use [Pydantic](https://docs.pydantic.dev/latest/) to define a hierarchy and validate types of parameters. This als includes default values and hints that you can look up [here](conf/config_spec.py) and will be picked up by IDEs.
 
 Start by copying the [configuration example](conf/configuration.example.yml) as `conf/configuration.yml`. This file is user defined and should be listed in the [.gitignore](.gitignore).
 
