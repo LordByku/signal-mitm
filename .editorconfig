@@ -26,13 +26,17 @@ indent_size = 2
 indent_size = 2
 indent_style = space
 
-[*.{md, diff}]
-max_line_length = off
-trim_trailing_whitespace = false
-
 [Makefile]
 indent_style = tab
 indent_size = 4
 
 [*.{bash,sh,zsh}]
 indent_size = 2
+
+# Exceptions
+[/protos/*]
+max_line_length = off
+
+[*.{md, diff}]
+max_line_length = off
+trim_trailing_whitespace = false
