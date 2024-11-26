@@ -27,29 +27,40 @@ from .dbhacks import (
 )
 from db.session import DatabaseSessionManager
 
-# Database setup (engine creation is similar to peewee):
+# Database setup (engine creation is similar to peewee: http://docs.peewee-orm.com/en/latest/):
 sqlite_file_name = "mitm.db"
 
-# Models, adapted from previous implementation:
+######
+### Models tailored to the Signal open source messenger:
+######
+
 class User(SQLModel, table=True):
-    aci: str = Field(default=None, primary_key=True)
+    # TODO: implement the generation of this
+    __database_id: str = Field(primary_key=True)
+
+    # the two cryptographic identities of a user, the names are of historical origin and no longer descriptive:
+    # Account identifyer
+    aci: str = Field(default=None)
+    # Phone number identifyer
     pni: Optional[str] = Field(default=None)
-    phone_number: Optional[str] = Field(default=None)
-    aci_identity_key: PydanticIdentityKeyPair = Field(
+        aci_identity_key: PydanticIdentityKeyPair = Field(
         sa_column=Column(get_args(PydanticIdentityKeyPair)[1]),
     )
     pni_identity_key: PydanticIdentityKeyPair = Field(
         sa_column=Column(get_args(PydanticIdentityKeyPair)[1]),
     )
+
+    phone_number: Optional[str] = Field(default=None)
     is_victim: bool
+    # For sealed sender
     unidentified_access_key: str
     devices: List["Device"] = Relationship(back_populates="user")
 
 class Device(SQLModel, table=True):
-    aci: str = Field(foreign_key="user.aci")
+    __user_database_id: str = Field(foreign_key="user.__database_id")
     device_id: int = Field(default=1)
     pni: Optional[str] = Field(default=None)
-    user: User = Relationship(back_populates="devices") # TODO: check if this is necessary
+    user: User = Relationship(back_populates="devices") # TODO: check if this is necessary (Chrissy) -> probably not if you have the foreign key 
 
     ## TODO: one day we'll have to deal that this needs to be a constraint
     # aci_visitenkarte: "VisitenKarte" = Relationship(back_populates="device")
@@ -57,11 +68,12 @@ class Device(SQLModel, table=True):
 
     # composite primary keys are not directly supported by SQLModel so relying on the internal
     # SQLAlchemy support instead
-    __table_args__ = (PrimaryKeyConstraint("aci", "device_id"),)
+    __table_args__ = (PrimaryKeyConstraint("__user_database_id", "device_id"),)
 
 class VisitenKarte(SQLModel, table=True):
+    # aci or pni, the two identities that are present for each device @see User
     type: str = Field(default="aci")
-    uuid: str = Field(foreign_key="device.aci")
+    uuid: str = Field() # -> I think we cannot predefine this as a foreign key since we don't know if it's the PNI or ACI
     device_id: int = Field(foreign_key="device.device_id")
     registration_id: int = Field(default=1)
 
@@ -102,7 +114,7 @@ class VisitenKarte(SQLModel, table=True):
             return None
 
     @classmethod
-    # TODO: chenge return type to IdentityKeyPair
+    # TODO: change return type to IdentityKeyPair
     def get_identity_keypair(
         cls,
         _session: Session,
