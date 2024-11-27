@@ -5,6 +5,20 @@ This is a research framework! We thus do not include any kind of obfuscation mea
 
 While this repository currently focuses on the open-source Signal Messenger, we hope to extend it to more encrypted messenger applications in the future.
 
+### Table of Contents
+
+
+- [Minion in the Middle](#minion-in-the-middle)
+    - [Contributing](#contributing)
+    - [License](#license)
+  - [Overview](#overview)
+    - [Configuration](#configuration)
+  - [Detailed Setup](#detailed-setup)
+      - [Connecting the Access Point](#connecting-the-access-point)
+      - [(optional) Configuring kea](#optional-configuring-kea)
+    - [Run network setup](#run-network-setup)
+    - [Operating the Minion](#operating-the-minion)
+
 ### Contributing
 
 TODO
@@ -13,11 +27,6 @@ TODO
 
 TODO
 
-### Table of Contents
-
-<!-- TOC -->
-* [Overview](#overview)
-<!-- TOC -->
 
 ## Overview
 
