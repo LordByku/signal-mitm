@@ -42,7 +42,7 @@ Both constants and user set configuration parameters are defined in two yaml fil
 
 Start by copying the [configuration example](conf/configuration.example.yml) as `conf/configuration.yml`. This file is user defined and should be listed in the [.gitignore](.gitignore).
 
-Any value defined in the [constants](conf/constants.yml) can be redefined in the [configuration](conf/configuration.yml), where values of the configuration take precedent over parameters with the same hierarchy and name defined in the constants.
+Any value defined in the [constants](conf/constants.yml) can be redefined in the [configuration](conf/configuration.yml), where values of the configuration take precedence over parameters with the same hierarchy and name defined in the constants.
 
 ## Detailed Setup
 #### Connecting the Access Point
@@ -54,7 +54,7 @@ Then, power up your Access Point and connect it to the computer with the etherne
 
 *Note:* If you are running a Linux VM on a Windows host, please refer to the following [additional documentation](setup/Hypervisor_bridging.md) to bridge the AP into your guest.
 
-Once you've found the name of the new interface set it in the config file for the parameter `ap.interface`.
+Once you've found the name of the new interface set it in the config file for the parameter `ap.iface`.
 
 #### (optional) Configuring kea
 
@@ -69,9 +69,16 @@ Once the hardware is correctly detected by your machine and you have set all the
 
 If the script executes without error check that the `dhcp.server_ip` was correctly assigned to the `ap.iface`.
 Check that the kea-server is running:
+##### Debian based:
 ```
 sudo systemctl status kea-dhcp4-server
 ```
+##### Redhat based:
+```
+sudo systemctl status kea-dhcp4
+```
+
+
 And finally, you can sniff the interface to find the address that was assigned to the AP by the kea dhcp service. It will be contained in the DHCP pool range set in the configuration.
 ```
 sudo tcpdump -i <ap.iface> ip
