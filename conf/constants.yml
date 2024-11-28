@@ -1,0 +1,18 @@
+%YAML 1.2
+---
+db:
+  name: !!str mitm_test.db
+mitmproxy:
+  listen_port: !!int 8080
+dhcp:
+  pool_lower: !!str 10.8.8.80
+  pool_upper: !!str 10.8.8.88
+  server_ip: !!str 10.8.8.1
+signal:
+  prod-server: "chat.signal.org"
+  stage-server: "chat.staging.signal.org"
+  version: !!int "42"
+kea:
+  pw_filepath: /etc/kea/kea-api-password
+  systemd_service:  kea-dhcp4 # kea-dhcp4-server for UwuBuntu
+  subnet: !!str 10.8.8.0/24

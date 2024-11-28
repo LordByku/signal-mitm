@@ -1,0 +1,26 @@
+ap:
+  iface: eth1
+  internet_iface: eth0
+  pw: <PASSWORD>
+  ssid: evil-ap_5G
+db:
+  name: mitm_test.db
+dhcp:
+  pool_lower: 10.8.8.80
+  pool_upper: 10.8.8.88
+  server_ip: 10.8.8.1
+  subnet: 10.8.8.0/24
+kea:
+  api_pw: Meep
+  pw_filepath: /etc/kea/kea-api-password
+  systemd_service: kea-dhcp4
+mitmproxy:
+  ignore_hosts_list:
+  - TODO
+  - TODO
+  - '...'
+  listen_port: 8080
+signal:
+  prod_server: chat.signal.org
+  stage_server: chat.staging.signal.org
+  version: 42

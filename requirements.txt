@@ -1,0 +1,5 @@
+PyYAML~=6.0.2
+mitmproxy~=11.0.0
+plumbum~=1.9.0
+requests~=2.32.3
+pydantic~=2.9.2
