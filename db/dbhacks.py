@@ -91,7 +91,7 @@ class _IdentityKeyAnnotation(TypeDecorator):
 
     def process_result_value(self, value: str, dialect: Dialect) -> Optional[IdentityKey]:
         if value is not None:
-            print(value)
+            # print(value)
             value = IdentityKey.from_base64(value.encode())  # Assuming Base64Str.b64decode() returns bytes
         return value
 

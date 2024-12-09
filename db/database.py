@@ -45,6 +45,21 @@ class User(SQLModel, table=True):
     unidentified_access_key: str
     devices: List["Device"] = Relationship(back_populates="user")
 
+    @classmethod
+    def retrieve_user_by_aci(cls, _session: Session, aci: str) -> Optional["User"]:
+        try:
+            stmt = select(cls).where(cls.aci == aci)
+            return _session.exec(stmt).one()
+        except NoResultFound:
+            return None
+        
+    @classmethod
+    def retrieve_user_by_pni(cls, _session: Session, pni: str) -> Optional["User"]:
+        try:
+            stmt = select(cls).where(cls.pni == pni)
+            return _session.exec(stmt).one()
+        except NoResultFound:
+            return None
 
 class Device(SQLModel, table=True):
     aci: str = Field(foreign_key="user.aci")
@@ -60,6 +75,13 @@ class Device(SQLModel, table=True):
     # SQLAlchemy support instead
     __table_args__ = (PrimaryKeyConstraint("aci", "device_id"),)
 
+    @classmethod
+    def retrieve_device(cls, _session: Session, aci: str, device_id: int) -> Optional["Device"]:
+        try:
+            stmt = select(cls).where(cls.aci == aci, cls.device_id == device_id)
+            return _session.exec(stmt).one()
+        except NoResultFound:
+            return None
 
 class VisitenKarte(SQLModel, table=True):
     type: str = Field(default="aci")
@@ -75,6 +97,8 @@ class VisitenKarte(SQLModel, table=True):
             "validation_alias": "identityKey",
         },
     )
+
+    #device = Relationship(back_populates="uuid")
     # device : Device = Relationship(back_populates="visitenkarte")
     # session_records: List[PydanticSessionRecord] = Relationship(back_populates="visitenkarte")
     __table_args__ = (PrimaryKeyConstraint("uuid", "device_id"),)
@@ -114,8 +138,15 @@ class VisitenKarte(SQLModel, table=True):
         with_private: bool = True,
     ) -> Union[Dict[str, str], None]:
         return cls._get_key_pair(_session, key_type, uuid, device_id, "local_ik", with_private)
-
-
+    
+    @classmethod
+    def retrieve_visitenkarte(cls, _session: Session, uuid: str, device_id: int) -> Optional["VisitenKarte"]:
+        try:
+            stmt = select(cls).where(cls.uuid == uuid, cls.device_id == device_id)
+            return _session.exec(stmt).one()
+        except NoResultFound:
+            return None
+        
 class ConversationSession(SQLModel, table=True):
     store_uuid: str = Field(default=None, foreign_key="visitenkarte.uuid")
     store_device_id: int = Field(default=None, foreign_key="visitenkarte.device_id")
@@ -166,7 +197,7 @@ class StoreKeyRecord(SQLModel, table=True):
         },
     )
     # other_ik: List[PydanticIdentityKey]
-    local_spk_record: Optional[list[PydanticSignedPreKeyPair]] = Field(
+    local_spk_record: Optional[PydanticSignedPreKeyPair] = Field(
         sa_column=Column(get_args(PydanticSignedPreKeyPair)[1]),
         alias="signedPreKey",
         schema_extra={
@@ -231,7 +262,7 @@ class StoreKeyRecord(SQLModel, table=True):
         uuid: str,
         device_id: int = 1,
         with_private: bool = True,
-    ) -> Union[Dict[str, str], None]:
+    ) -> PydanticIdentityKeyPair:
         return cls._get_key_pair(_session, uuid, device_id, "local_ik", with_private)
 
     @classmethod
@@ -242,9 +273,9 @@ class StoreKeyRecord(SQLModel, table=True):
         uuid: str,
         device_id: int = 1,
         with_private: bool = True,
-    ) -> Union[Dict[str, str], None]:
-        return cls._get_key_pair(_session, uuid, device_id, "fake_signed_pre_key", with_private)
-        return cls._get_key_from_list(_session, key_type, aci, device_id, "fake_signed_pre_key", key_id, with_private)
+    ) -> PydanticSignedPreKeyPair:
+        return cls._get_key_pair(_session, uuid, device_id, "local_spk_record", with_private)
+        #return cls._get_key_from_list(_session, key_type, aci, device_id, "fake_signed_pre_key", key_id, with_private)
 
     @classmethod
     # TODO: chenge return type to IdentityKeyPair
@@ -303,6 +334,14 @@ class StoreKeyRecord(SQLModel, table=True):
         with_private: bool = True,
     ) -> Optional[Dict[str, str]]:
         return cls._get_key_from_list(_session, uuid, device_id, "fake_kyber_keys", key_id, with_private)
+    
+    @classmethod
+    def retrieve_store_key_record(cls, _session: Session, uuid: str, device_id: int) -> Optional["StoreKeyRecord"]:
+        try:
+            stmt = select(cls).where(cls.uuid == uuid, cls.device_id == device_id)
+            return _session.exec(stmt).one()
+        except NoResultFound:
+            return None
 
 
 class Conversation(SQLModel, table=True):
@@ -413,6 +452,14 @@ class LegitKeyRecord(SQLModel, table=True):
 
         return keys
     
+    @classmethod
+    def retrieve_legit_key_record(cls, _session: Session, uuid: str, device_id: int) -> Optional["LegitKeyRecord"]:
+        try:
+            stmt = select(cls).where(cls.uuid == uuid, cls.device_id == device_id)
+            return _session.exec(stmt).one()
+        except NoResultFound:
+            return None
+
     # @classmethod
     # def get_bundle(
     #     cls,
